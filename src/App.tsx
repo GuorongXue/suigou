@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { loadKnowledgeBase } from './knowledge/loader';
 import { generateFrame } from './engine/generate';
 import type { FrameSpec } from './engine/types';
-import { Viewer, type RenderMember, type RenderJoint, type Selection } from './viewer/Viewer';
+import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type Selection } from './viewer/Viewer';
 
 export default function App() {
   const kb = useMemo(() => loadKnowledgeBase(), []);
@@ -54,6 +54,25 @@ export default function App() {
     });
   }, [result, kb]);
 
+  const machining: RenderMachining[] = useMemo(() => {
+    if (!result.model) return [];
+    return result.model.machining.map((m) => ({
+      position: m.position, axis: m.axis, diameter: m.diameter, length: m.length,
+    }));
+  }, [result]);
+
+  const machiningSummary = useMemo(() => {
+    if (!result.model) return [];
+    const byKey = new Map<string, { type: string; spec: string; qty: number }>();
+    for (const m of result.model.machining) {
+      const key = `${m.type}:${m.spec}`;
+      const row = byKey.get(key);
+      if (row) row.qty++;
+      else byKey.set(key, { type: m.type, spec: m.spec, qty: 1 });
+    }
+    return [...byKey.values()];
+  }, [result]);
+
   const set = (patch: Partial<FrameSpec>) => setSpec((s) => ({ ...s, ...patch }));
   const model = result.model;
   const roleName: Record<string, string> = { post: '立柱', 'beam-x': '横梁(X向)', 'beam-z': '纵梁(Z向)' };
@@ -80,6 +99,9 @@ export default function App() {
   };
   const lengthTarget: Record<string, string> = {
     post: '总高 H 同步调整', 'beam-x': '总宽 W 同步调整', 'beam-z': '总深 D 同步调整',
+  };
+  const machiningName: Record<string, string> = {
+    'through-hole': '通孔', 'end-tap': '端面攻丝', counterbore: '沉头孔', 'wrench-hole': '扬手孔',
   };
 
   return (
@@ -157,6 +179,31 @@ export default function App() {
               {model.totals.weightKg != null && <> · 约 {model.totals.weightKg.toFixed(1)} kg</>}
               {model.totals.priceCny != null && <> · 型材约 ¥{model.totals.priceCny.toFixed(0)}（未税）</>}
             </div>
+
+            {machiningSummary.length > 0 && (
+              <>
+                <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>加工清单</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #d8dce2', color: '#666', textAlign: 'left' }}>
+                      <th style={{ padding: '4px 0' }}>类型</th>
+                      <th>规格</th>
+                      <th style={{ textAlign: 'right' }}>数量</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {machiningSummary.map((m) => (
+                      <tr key={m.type + m.spec} style={{ borderBottom: '1px solid #f0f2f5' }}>
+                        <td style={{ padding: '4px 0' }}>{machiningName[m.type] ?? m.type}</td>
+                        <td>{m.spec}</td>
+                        <td style={{ textAlign: 'right' }}>×{m.qty}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ color: '#999', fontSize: 12 }}>橙色标记 = 孔位（透视显示）</div>
+              </>
+            )}
           </>
         )}
 
@@ -169,6 +216,7 @@ export default function App() {
         <Viewer
           items={items}
           joints={joints}
+          machining={machining}
           focusY={spec.height / 2}
           onSelect={setSelection}
           selection={selection}

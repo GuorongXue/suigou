@@ -42,10 +42,24 @@ export interface Joint {
   ySide: 1 | -1;
 }
 
+/** 加工特征：由连接件声明式派生（孔位可视化 + 加工清单） */
+export interface MachiningOp {
+  id: string;
+  jointId: string;
+  type: 'through-hole' | 'end-tap' | 'counterbore' | 'wrench-hole' | string;
+  /** 人读规格，如 Φ11.5 / M8×20 / Φ9沉Φ14 */
+  spec: string;
+  position: [number, number, number];
+  axis: Axis;
+  diameter: number;
+  length: number;
+}
+
 export interface FrameModel {
   spec: FrameSpec;
   members: Member[];
   joints: Joint[];
+  machining: MachiningOp[];
   cutList: CutListItem[];
   totals: { memberCount: number; totalLengthMm: number; weightKg: number | null; priceCny: number | null };
   warnings: string[];

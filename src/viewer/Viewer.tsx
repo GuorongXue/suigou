@@ -31,9 +31,17 @@ export interface RenderJoint {
 
 export type Selection = { type: 'member'; id: string } | { type: 'joint'; id: string };
 
+export interface RenderMachining {
+  position: [number, number, number];
+  axis: Axis;
+  diameter: number;
+  length: number;
+}
+
 interface ViewerProps {
   items: RenderMember[];
   joints: RenderJoint[];
+  machining: RenderMachining[];
   /** 相机注视高度（一般取框架半高） */
   focusY: number;
   onSelect?: (sel: Selection | null) => void;
@@ -42,7 +50,7 @@ interface ViewerProps {
 
 const SELECT_COLOR = 0x1e6fff;
 
-export function Viewer({ items, joints, focusY, onSelect, selection }: ViewerProps) {
+export function Viewer({ items, joints, machining, focusY, onSelect, selection }: ViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const ctxRef = useRef<{
     scene: THREE.Scene;
@@ -284,9 +292,24 @@ export function Viewer({ items, joints, focusY, onSelect, selection }: ViewerPro
       ctx.jointMeshes.set(j.id, meshes);
     }
 
+    // 孔位标记：橙色半透明圆柱，X-ray 透视（加工特征可视化）
+    const holeMat = new THREE.MeshStandardMaterial({
+      color: 0xff7a1a, metalness: 0.2, roughness: 0.4,
+      transparent: true, opacity: 0.8, depthTest: false,
+    });
+    for (const mc of machining) {
+      const cyl = new THREE.Mesh(
+        new THREE.CylinderGeometry(mc.diameter / 2, mc.diameter / 2, mc.length, 16), holeMat);
+      if (mc.axis === 'x') cyl.rotation.z = Math.PI / 2;
+      else if (mc.axis === 'z') cyl.rotation.x = Math.PI / 2;
+      cyl.position.set(...mc.position);
+      cyl.renderOrder = 998;
+      ctx.group.add(cyl);
+    }
+
     ctx.controls.target.set(0, focusY, 0);
     ctx.controls.update();
-  }, [items, joints, focusY]);
+  }, [items, joints, machining, focusY]);
 
   // 选中高亮 + 尺寸标注
   useEffect(() => {

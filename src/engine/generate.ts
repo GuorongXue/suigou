@@ -1,5 +1,5 @@
 import type { KnowledgeBase } from '../knowledge/types';
-import type { FrameSpec, FrameModel, Member, Joint } from './types';
+import type { FrameSpec, FrameModel, Member, Joint, MachiningOp } from './types';
 
 /**
  * 确定性生成器（M2）：参数 → 正交工作台框架构件图。
@@ -69,6 +69,43 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     }
   }
 
+  // 加工特征派生：连接件 machining 声明 → 每个接点的孔位（位置/方向/规格）
+  const machining: MachiningOp[] = [];
+  let mn = 0;
+  const T = sec.wallThickness ?? 2;
+  for (const j of joints) {
+    const [jx, jy, jz] = j.position;
+    const inward = -j.outward;   // 从梁端指向梁内部
+    const at = (d: number): [number, number, number] =>
+      j.beamAxis === 'x' ? [jx + inward * d, jy, jz] : [jx, jy, jz + inward * d];
+    for (const op of conn.machining as Record<string, number | string>[]) {
+      const id = `mc-${++mn}`;
+      switch (op.type) {
+        case 'through-hole': {   // 锤式：梁上距端 G=19-T+2 处打通孔（源:工艺页公式）
+          const G = 19 - T + 2;
+          machining.push({ id, jointId: j.id, type: 'through-hole', spec: `Φ${op.diameter}`,
+            position: at(G), axis: 'y', diameter: Number(op.diameter), length: s + 6 });
+          break;
+        }
+        case 'end-tap':          // 端面攻丝：梁端中心孔攻牙
+          machining.push({ id, jointId: j.id, type: 'end-tap', spec: `${op.thread}×${op.depth}`,
+            position: at(Number(op.depth) / 2), axis: j.beamAxis, diameter: 8, length: Number(op.depth) });
+          break;
+        case 'counterbore': {    // 沉头孔：穿过立柱，沿梁轴
+          const pos: [number, number, number] = j.beamAxis === 'x'
+            ? [jx + j.outward * (s / 2), jy, jz] : [jx, jy, jz + j.outward * (s / 2)];
+          machining.push({ id, jointId: j.id, type: 'counterbore', spec: `Φ${op.d}沉Φ${op.D}×${op.depth}`,
+            position: pos, axis: j.beamAxis, diameter: Number(op.d), length: s + 6 });
+          break;
+        }
+        case 'wrench-hole':      // 内置：梁上扬手操作孔
+          machining.push({ id, jointId: j.id, type: 'wrench-hole', spec: `Φ${op.diameter}`,
+            position: at(s * 0.75), axis: 'y', diameter: Number(op.diameter), length: s + 6 });
+          break;
+      }
+    }
+  }
+
   // 切割清单：按长度聚合
   const byLength = new Map<number, number>();
   for (const m of members) byLength.set(m.length, (byLength.get(m.length) ?? 0) + 1);
@@ -84,6 +121,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     spec,
     members,
     joints,
+    machining,
     cutList,
     totals: { memberCount: members.length, totalLengthMm, weightKg, priceCny },
     warnings,
