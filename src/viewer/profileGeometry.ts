@@ -21,7 +21,10 @@ export function buildSectionShape(sec: Section): THREE.Shape {
     const sin = Math.sin(a);
     for (const [x, y] of side) pts.push(new THREE.Vector2(x * cos - y * sin, x * sin + y * cos));
   }
-  const shape = new THREE.Shape(pts);
+  // 去除相邻重复顶点（四角拼接处），避免三角化退化面片造成端面伪影
+  const clean = pts.filter((p, i) => i === 0 || p.distanceToSquared(pts[i - 1]) > 1e-6);
+  if (clean.length > 1 && clean[0].distanceToSquared(clean[clean.length - 1]) < 1e-6) clean.pop();
+  const shape = new THREE.Shape(clean);
   const hole = new THREE.Path();
   hole.absarc(0, 0, sec.coreHole.diameter / 2, 0, Math.PI * 2, true);
   shape.holes.push(hole);

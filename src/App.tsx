@@ -56,9 +56,8 @@ export default function App() {
 
   const machining: RenderMachining[] = useMemo(() => {
     if (!result.model) return [];
-    return result.model.machining.map((m) => ({
-      position: m.position, axis: m.axis, diameter: m.diameter, length: m.length,
-    }));
+    return result.model.machining.flatMap((m) =>
+      m.discs.map((disc) => ({ position: disc.position, axis: disc.axis, dir: disc.dir, d: disc.d, D: disc.D })));
   }, [result]);
 
   const machiningSummary = useMemo(() => {
@@ -201,7 +200,7 @@ export default function App() {
                     ))}
                   </tbody>
                 </table>
-                <div style={{ color: '#999', fontSize: 12 }}>橙色标记 = 孔位（透视显示）</div>
+                <div style={{ color: '#999', fontSize: 12 }}>深色圆片 = 孔口位置（表面可见面）</div>
               </>
             )}
           </>

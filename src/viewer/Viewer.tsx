@@ -34,8 +34,9 @@ export type Selection = { type: 'member'; id: string } | { type: 'joint'; id: st
 export interface RenderMachining {
   position: [number, number, number];
   axis: Axis;
-  diameter: number;
-  length: number;
+  dir: 1 | -1;
+  d: number;
+  D?: number;
 }
 
 interface ViewerProps {
@@ -74,7 +75,7 @@ export function Viewer({ items, joints, machining, focusY, onSelect, selection }
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xe8edf4);   // 嘉立创浅蓝灰画布
 
-    const camera = new THREE.PerspectiveCamera(50, mount.clientWidth / mount.clientHeight, 1, 10000);
+    const camera = new THREE.PerspectiveCamera(50, mount.clientWidth / mount.clientHeight, 5, 10000);
     camera.position.set(1000, 780, 1250);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -97,6 +98,8 @@ export function Viewer({ items, joints, machining, focusY, onSelect, selection }
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
     const controls = new OrbitControls(camera, renderer.domElement);
+    controls.minDistance = 120;      // 缩放限制：避免过近穿模/过远失真
+    controls.maxDistance = 4500;
     controls.mouseButtons = {                     // 对齐嘉立创：左键旋转 右键平移
       LEFT: THREE.MOUSE.ROTATE,
       MIDDLE: THREE.MOUSE.DOLLY,
@@ -231,6 +234,8 @@ export function Viewer({ items, joints, machining, focusY, onSelect, selection }
       if (item.axis === 'x') mesh.rotation.y = Math.PI / 2;
       else if (item.axis === 'y') mesh.rotation.x = -Math.PI / 2;
       mesh.position.set(...item.position);
+      // 梁端与柱面共面会 z-fighting，渲染层缩 0.3mm（不影响下料数据）
+      if (item.role !== 'post') mesh.scale.z = (item.length - 0.3) / item.length;
       mesh.userData.sel = { type: 'member', id: item.id } satisfies Selection;
       mesh.userData.member = item;
       ctx.group.add(mesh);
@@ -240,6 +245,7 @@ export function Viewer({ items, joints, machining, focusY, onSelect, selection }
       const edges = new THREE.LineSegments(cached.edges, edgeMat);
       edges.rotation.copy(mesh.rotation);
       edges.position.copy(mesh.position);
+      edges.scale.copy(mesh.scale);
       ctx.group.add(edges);
     }
 
@@ -292,19 +298,25 @@ export function Viewer({ items, joints, machining, focusY, onSelect, selection }
       ctx.jointMeshes.set(j.id, meshes);
     }
 
-    // 孔位标记：橙色半透明圆柱，X-ray 透视（加工特征可视化）
-    const holeMat = new THREE.MeshStandardMaterial({
-      color: 0xff7a1a, metalness: 0.2, roughness: 0.4,
-      transparent: true, opacity: 0.8, depthTest: false,
-    });
-    for (const mc of machining) {
-      const cyl = new THREE.Mesh(
-        new THREE.CylinderGeometry(mc.diameter / 2, mc.diameter / 2, mc.length, 16), holeMat);
-      if (mc.axis === 'x') cyl.rotation.z = Math.PI / 2;
-      else if (mc.axis === 'z') cyl.rotation.x = Math.PI / 2;
-      cyl.position.set(...mc.position);
-      cyl.renderOrder = 998;
-      ctx.group.add(cyl);
+    // 孔口圆片：深色孔面贴在构件表面（真实孔开口观感，嘉立创式）
+    const holeMat = new THREE.MeshStandardMaterial({ color: 0x23272d, metalness: 0.2, roughness: 0.85 });
+    const boreRim = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, metalness: 0.7, roughness: 0.45 });
+    const orient = (mesh: THREE.Mesh, axis: Axis, dir: 1 | -1) => {
+      if (axis === 'y') mesh.rotation.x = dir === 1 ? -Math.PI / 2 : Math.PI / 2;
+      else if (axis === 'x') mesh.rotation.y = dir === 1 ? Math.PI / 2 : -Math.PI / 2;
+      else if (dir === -1) mesh.rotation.y = Math.PI;
+    };
+    for (const h of machining) {
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(h.d / 2, 24), holeMat);
+      orient(disc, h.axis, h.dir);
+      disc.position.set(...h.position);
+      ctx.group.add(disc);
+      if (h.D) {   // 沉头台阶环
+        const ring = new THREE.Mesh(new THREE.RingGeometry(h.d / 2, h.D / 2, 24), boreRim);
+        orient(ring, h.axis, h.dir);
+        ring.position.set(...h.position);
+        ctx.group.add(ring);
+      }
     }
 
     ctx.controls.target.set(0, focusY, 0);

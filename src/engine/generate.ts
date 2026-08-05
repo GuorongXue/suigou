@@ -81,27 +81,42 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     for (const op of conn.machining as Record<string, number | string>[]) {
       const id = `mc-${++mn}`;
       switch (op.type) {
-        case 'through-hole': {   // 锤式：梁上距端 G=19-T+2 处打通孔（源:工艺页公式）
+        case 'through-hole': {   // 锚式：梁上距端 G=19-T+2 处打通孔（源:工艺页公式）
           const G = 19 - T + 2;
-          machining.push({ id, jointId: j.id, type: 'through-hole', spec: `Φ${op.diameter}`,
-            position: at(G), axis: 'y', diameter: Number(op.diameter), length: s + 6 });
+          const c = at(G);
+          const d = Number(op.diameter);
+          machining.push({ id, jointId: j.id, type: 'through-hole', spec: `Φ${d}`,
+            position: c, axis: 'y', diameter: d, length: s,
+            discs: [
+              { position: [c[0], jy + s / 2 + 0.15, c[2]], axis: 'y', dir: 1, d },
+              { position: [c[0], jy - s / 2 - 0.15, c[2]], axis: 'y', dir: -1, d },
+            ] });
           break;
         }
-        case 'end-tap':          // 端面攻丝：梁端中心孔攻牙
+        case 'end-tap':          // 端面攻丝：梁端中心孔攻牙（贴柱面被遮挡，不出孔口片）
           machining.push({ id, jointId: j.id, type: 'end-tap', spec: `${op.thread}×${op.depth}`,
-            position: at(Number(op.depth) / 2), axis: j.beamAxis, diameter: 8, length: Number(op.depth) });
+            position: at(Number(op.depth) / 2), axis: j.beamAxis, diameter: 8, length: Number(op.depth),
+            discs: [] });
           break;
-        case 'counterbore': {    // 沉头孔：穿过立柱，沿梁轴
+        case 'counterbore': {    // 沉头孔：穿过立柱，沿梁轴，孔口在立柱外侧面
           const pos: [number, number, number] = j.beamAxis === 'x'
             ? [jx + j.outward * (s / 2), jy, jz] : [jx, jy, jz + j.outward * (s / 2)];
+          const outer: [number, number, number] = j.beamAxis === 'x'
+            ? [jx + j.outward * (s + 0.15), jy, jz] : [jx, jy, jz + j.outward * (s + 0.15)];
           machining.push({ id, jointId: j.id, type: 'counterbore', spec: `Φ${op.d}沉Φ${op.D}×${op.depth}`,
-            position: pos, axis: j.beamAxis, diameter: Number(op.d), length: s + 6 });
+            position: pos, axis: j.beamAxis, diameter: Number(op.d), length: s,
+            discs: [{ position: outer, axis: j.beamAxis, dir: j.outward, d: Number(op.d), D: Number(op.D) }] });
           break;
         }
-        case 'wrench-hole':      // 内置：梁上扬手操作孔
-          machining.push({ id, jointId: j.id, type: 'wrench-hole', spec: `Φ${op.diameter}`,
-            position: at(s * 0.75), axis: 'y', diameter: Number(op.diameter), length: s + 6 });
+        case 'wrench-hole': {    // 内置：梁上扳手操作孔（可见面单侧开口）
+          const c = at(s * 0.75);
+          const dir = (-j.ySide) as 1 | -1;
+          const d = Number(op.diameter);
+          machining.push({ id, jointId: j.id, type: 'wrench-hole', spec: `Φ${d}`,
+            position: c, axis: 'y', diameter: d, length: s,
+            discs: [{ position: [c[0], jy + dir * (s / 2 + 0.15), c[2]], axis: 'y', dir, d }] });
           break;
+        }
       }
     }
   }

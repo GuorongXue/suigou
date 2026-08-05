@@ -42,6 +42,17 @@ export interface Joint {
   ySide: 1 | -1;
 }
 
+/** 孔口圆片：在构件表面的孔开口可视化（真实孔面表现，非穿透标记） */
+export interface HoleDisc {
+  position: [number, number, number];
+  axis: Axis;
+  dir: 1 | -1;
+  /** 孔径 */
+  d: number;
+  /** 沉头外径（沉头孔才有） */
+  D?: number;
+}
+
 /** 加工特征：由连接件声明式派生（孔位可视化 + 加工清单） */
 export interface MachiningOp {
   id: string;
@@ -53,6 +64,8 @@ export interface MachiningOp {
   axis: Axis;
   diameter: number;
   length: number;
+  /** 表面孔口圆片（可见面） */
+  discs: HoleDisc[];
 }
 
 export interface FrameModel {
