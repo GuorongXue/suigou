@@ -14,6 +14,7 @@ export default function App() {
     connectorId: 'corner-bracket-30',
     shelfCount: 1,
   });
+  const [selected, setSelected] = useState<RenderMember | null>(null);
 
   const result = useMemo(() => {
     try {
@@ -26,6 +27,8 @@ export default function App() {
   const items: RenderMember[] = useMemo(() => {
     if (!result.model) return [];
     return result.model.members.map((m) => ({
+      id: m.id,
+      role: m.role,
       section: kb.sections.find((s) => s.section.id === m.sectionId)!.section,
       length: m.length,
       position: m.position,
@@ -49,8 +52,9 @@ export default function App() {
     });
   }, [result, kb]);
 
-  const set = (patch: Partial<FrameSpec>) => setSpec((s) => ({ ...s, ...patch }));
+  const set = (patch: Partial<FrameSpec>) => { setSpec((s) => ({ ...s, ...patch })); setSelected(null); };
   const model = result.model;
+  const roleName: Record<string, string> = { post: '立柱', 'beam-x': '横梁(X向)', 'beam-z': '纵梁(Z向)' };
 
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh' }}>
@@ -135,8 +139,30 @@ export default function App() {
         </div>
       </aside>
 
-      <main style={{ flex: 1 }}>
-        <Viewer items={items} joints={joints} focusY={spec.height / 2} />
+      <main style={{ flex: 1, position: 'relative' }}>
+        <Viewer
+          items={items}
+          joints={joints}
+          focusY={spec.height / 2}
+          onSelect={setSelected}
+          selectedId={selected?.id ?? null}
+        />
+        {selected && (
+          <div style={{
+            position: 'absolute', top: 14, right: 14, width: 230,
+            background: 'rgba(255,255,255,.96)', borderRadius: 8, padding: '12px 14px',
+            boxShadow: '0 4px 16px rgba(0,0,0,.12)', fontSize: 13, lineHeight: 1.8,
+          }}>
+            <div style={{ fontWeight: 600, marginBottom: 4, color: '#1e6fff' }}>
+              {roleName[selected.role] ?? selected.role} · {selected.id}
+            </div>
+            <div>截面：{selected.section.name}</div>
+            <div>下料长度：<b>{selected.length} mm</b></div>
+            <div>米重：{selected.section.weightPerMeter != null ? `${selected.section.weightPerMeter} kg/m` : '待补'}</div>
+            <div>单根约：{selected.section.price.perMeter != null ? `¥${((selected.section.price.perMeter * selected.length) / 1000).toFixed(2)}` : '待补'}</div>
+            <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>点击空白处取消选择</div>
+          </div>
+        )}
       </main>
     </div>
   );

@@ -7,6 +7,8 @@ import type { Axis } from '../engine/types';
 import { buildSectionShape, profileGeometry } from './profileGeometry';
 
 export interface RenderMember {
+  id: string;
+  role: string;
   section: Section;
   length: number;
   position: [number, number, number];
@@ -29,9 +31,14 @@ interface ViewerProps {
   joints: RenderJoint[];
   /** 相机注视高度（一般取框架半高） */
   focusY: number;
+  /** 点击构件回调（null=点空白取消选择） */
+  onSelect?: (member: RenderMember | null) => void;
+  selectedId?: string | null;
 }
 
-export function Viewer({ items, joints, focusY }: ViewerProps) {
+const SELECT_COLOR = 0x1e6fff;
+
+export function Viewer({ items, joints, focusY, onSelect, selectedId }: ViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const ctxRef = useRef<{
     scene: THREE.Scene;
@@ -39,15 +46,19 @@ export function Viewer({ items, joints, focusY }: ViewerProps) {
     renderer: THREE.WebGLRenderer;
     controls: OrbitControls;
     group: THREE.Group;
+    raycaster: THREE.Raycaster;
+    memberMeshes: Map<string, THREE.Mesh>;
   } | null>(null);
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
 
   useEffect(() => {
     const mount = mountRef.current!;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf2f4f7);
+    scene.background = new THREE.Color(0xe8edf4);   // 嘉立创浅蓝灰画布
 
-    const camera = new THREE.PerspectiveCamera(50, mount.clientWidth / mount.clientHeight, 1, 8000);
-    camera.position.set(900, 700, 1100);
+    const camera = new THREE.PerspectiveCamera(50, mount.clientWidth / mount.clientHeight, 1, 10000);
+    camera.position.set(1000, 780, 1250);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(mount.clientWidth, mount.clientHeight);
@@ -63,8 +74,13 @@ export function Viewer({ items, joints, focusY }: ViewerProps) {
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
     const controls = new OrbitControls(camera, renderer.domElement);
+    controls.mouseButtons = {                     // 对齐嘉立创：左键旋转 右键平移
+      LEFT: THREE.MOUSE.ROTATE,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.PAN,
+    };
 
-    const dir = new THREE.DirectionalLight(0xffffff, 2.2);
+    const dir = new THREE.DirectionalLight(0xffffff, 2.0);
     dir.position.set(600, 1000, 400);
     dir.castShadow = true;
     dir.shadow.mapSize.set(2048, 2048);
@@ -75,21 +91,59 @@ export function Viewer({ items, joints, focusY }: ViewerProps) {
     dir.shadow.camera.far = 4000;
     dir.shadow.bias = -0.0005;
     scene.add(dir);
-    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(4000, 4000),
-      new THREE.ShadowMaterial({ opacity: 0.18 }),
+      new THREE.PlaneGeometry(8000, 8000),
+      new THREE.ShadowMaterial({ opacity: 0.15 }),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
-    scene.add(new THREE.GridHelper(2000, 40, 0xbbbbbb, 0xdddddd));
+
+    // 双层网格 + 红绿轴线（嘉立创画布同款）
+    const gridMinor = new THREE.GridHelper(6000, 120, 0xd0d7e2, 0xd0d7e2);
+    (gridMinor.material as THREE.Material).transparent = true;
+    (gridMinor.material as THREE.Material).opacity = 0.5;
+    scene.add(gridMinor);
+    const gridMajor = new THREE.GridHelper(6000, 24, 0xb8c2d2, 0xb8c2d2);
+    scene.add(gridMajor);
+
+    const axisMat = (color: number) => new THREE.LineBasicMaterial({ color });
+    const xAxis = new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+      [new THREE.Vector3(-3000, 0.5, 0), new THREE.Vector3(3000, 0.5, 0)]), axisMat(0xe04a3a));
+    const zAxis = new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+      [new THREE.Vector3(0, 0.5, -3000), new THREE.Vector3(0, 0.5, 3000)]), axisMat(0x3aa05a));
+    scene.add(xAxis, zAxis);
+
+    renderer.setAnimationLoop(() => renderer.render(scene, camera));
 
     const group = new THREE.Group();
     scene.add(group);
 
-    renderer.setAnimationLoop(() => renderer.render(scene, camera));
+    // 点选构件
+    const raycaster = new THREE.Raycaster();
+    let downXY: [number, number] | null = null;
+    renderer.domElement.addEventListener('pointerdown', (e) => { downXY = [e.clientX, e.clientY]; });
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      if (!downXY) return;
+      const moved = Math.hypot(e.clientX - downXY[0], e.clientY - downXY[1]);
+      downXY = null;
+      if (moved > 5) return;   // 拖动旋转不算点击
+      const rect = renderer.domElement.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      raycaster.setFromCamera(ndc, camera);
+      const ctx2 = ctxRef.current;
+      if (!ctx2) return;
+      const meshes = [...ctx2.memberMeshes.values()];
+      const hits = raycaster.intersectObjects(meshes, false);
+      const hit = hits[0]?.object as THREE.Mesh | undefined;
+      const member = hit ? (hit.userData.member as RenderMember) : null;
+      onSelectRef.current?.(member);
+    });
 
     const ro = new ResizeObserver(() => {
       camera.aspect = mount.clientWidth / mount.clientHeight;
@@ -98,46 +152,60 @@ export function Viewer({ items, joints, focusY }: ViewerProps) {
     });
     ro.observe(mount);
 
-    ctxRef.current = { scene, camera, renderer, controls, group };
+    ctxRef.current = { scene, camera, renderer, controls, group, raycaster, memberMeshes: new Map() };
 
     return () => {
       ro.disconnect();
       renderer.setAnimationLoop(null);
       renderer.dispose();
+      pmrem.dispose();
       mount.removeChild(renderer.domElement);
       ctxRef.current = null;
     };
   }, []);
 
+  // 重建构件与连接件
   useEffect(() => {
     const ctx = ctxRef.current;
     if (!ctx) return;
 
     for (const child of [...ctx.group.children]) {
       ctx.group.remove(child);
-      (child as THREE.Mesh).geometry?.dispose();
+      const m = child as THREE.Mesh | THREE.LineSegments;
+      m.geometry?.dispose();
     }
+    ctx.memberMeshes.clear();
 
-    const alu = new THREE.MeshStandardMaterial({
-      color: 0xc4c9cf, metalness: 0.9, roughness: 0.38, envMapIntensity: 0.9,
-    });
     // 同截面同长度共享一份挤出几何（渲染实验验证的性能路线）
-    const geomCache = new Map<string, THREE.ExtrudeGeometry>();
+    const geomCache = new Map<string, { geom: THREE.ExtrudeGeometry; edges: THREE.EdgesGeometry }>();
+    const edgeMat = new THREE.LineBasicMaterial({ color: 0x6b7280, transparent: true, opacity: 0.35 });
 
     for (const item of items) {
       const key = `${item.section.id}:${item.length}`;
-      let geom = geomCache.get(key);
-      if (!geom) {
-        geom = profileGeometry(buildSectionShape(item.section), item.length);
-        geomCache.set(key, geom);
+      let cached = geomCache.get(key);
+      if (!cached) {
+        const geom = profileGeometry(buildSectionShape(item.section), item.length);
+        cached = { geom, edges: new THREE.EdgesGeometry(geom, 25) };
+        geomCache.set(key, cached);
       }
-      const mesh = new THREE.Mesh(geom, alu);
+      const alu = new THREE.MeshStandardMaterial({
+        color: 0xc4c9cf, metalness: 0.9, roughness: 0.38, envMapIntensity: 0.9,
+      });
+      const mesh = new THREE.Mesh(cached.geom, alu);
       if (item.axis === 'x') mesh.rotation.y = Math.PI / 2;
       else if (item.axis === 'y') mesh.rotation.x = -Math.PI / 2;
       mesh.position.set(...item.position);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+      mesh.userData.member = item;
       ctx.group.add(mesh);
+      ctx.memberMeshes.set(item.id, mesh);
+
+      // 棱线：型材轮廓感的关键（嘉立创的槽口暗线效果）
+      const edges = new THREE.LineSegments(cached.edges, edgeMat);
+      edges.rotation.copy(mesh.rotation);
+      edges.position.copy(mesh.position);
+      ctx.group.add(edges);
     }
 
     // 连接件渲染
@@ -149,11 +217,10 @@ export function Viewer({ items, joints, focusY }: ViewerProps) {
 
     for (const j of joints) {
       const s = j.size;
-      const t = Math.max(3, s * 0.12);   // 板厚
+      const t = Math.max(3, s * 0.12);
       const [jx, jy, jz] = j.position;
 
       if (j.hidden) {
-        // 隐藏式（锤式/内置/端攻）：沿梁轴的螺栓状园柱，跨过接合面
         const len = s * 1.4;
         const cyl = new THREE.Mesh(new THREE.CylinderGeometry(s * 0.14, s * 0.14, len, 16), xray);
         if (j.beamAxis === 'x') cyl.rotation.z = Math.PI / 2;
@@ -164,13 +231,9 @@ export function Viewer({ items, joints, focusY }: ViewerProps) {
         continue;
       }
 
-      // 角码：L型两块板（立板贴立柱面 + 平板贴梁面）
-      const beamFaceY = jy + j.ySide * (s / 2);          // 梁的上/下表面
+      const beamFaceY = jy + j.ySide * (s / 2);
       const vPlate = new THREE.Mesh(new THREE.BoxGeometry(
-        j.beamAxis === 'x' ? t : s * 0.8,
-        s * 0.8,
-        j.beamAxis === 'x' ? s * 0.8 : t,
-      ), steel);
+        j.beamAxis === 'x' ? t : s * 0.8, s * 0.8, j.beamAxis === 'x' ? s * 0.8 : t), steel);
       const vOff = j.outward * (t / 2);
       vPlate.position.set(
         j.beamAxis === 'x' ? jx - vOff : jx,
@@ -180,11 +243,7 @@ export function Viewer({ items, joints, focusY }: ViewerProps) {
       vPlate.castShadow = true;
       ctx.group.add(vPlate);
 
-      const hPlate = new THREE.Mesh(new THREE.BoxGeometry(
-        j.beamAxis === 'x' ? s * 0.8 : s * 0.8,
-        t,
-        s * 0.8,
-      ), steel);
+      const hPlate = new THREE.Mesh(new THREE.BoxGeometry(s * 0.8, t, s * 0.8), steel);
       hPlate.position.set(
         j.beamAxis === 'x' ? jx - j.outward * (s * 0.4) : jx,
         beamFaceY + j.ySide * (t / 2),
@@ -198,5 +257,36 @@ export function Viewer({ items, joints, focusY }: ViewerProps) {
     ctx.controls.update();
   }, [items, joints, focusY]);
 
-  return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
+  // 选中高亮（嘉立创蓝）
+  useEffect(() => {
+    const ctx = ctxRef.current;
+    if (!ctx) return;
+    for (const [id, mesh] of ctx.memberMeshes) {
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      if (id === selectedId) {
+        mat.color.setHex(SELECT_COLOR);
+        mat.metalness = 0.4;
+        mat.roughness = 0.35;
+        mat.emissive.setHex(0x0a2a66);
+      } else {
+        mat.color.setHex(0xc4c9cf);
+        mat.metalness = 0.9;
+        mat.roughness = 0.38;
+        mat.emissive.setHex(0x000000);
+      }
+    }
+  }, [selectedId]);
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
+      <div style={{
+        position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)',
+        background: 'rgba(255,255,255,.92)', padding: '7px 18px', borderRadius: 20,
+        fontSize: 12, color: '#555', boxShadow: '0 2px 8px rgba(0,0,0,.08)', whiteSpace: 'nowrap',
+      }}>
+        左键旋转 · 右键平移 · 滚轮缩放 · 点击构件查看详情
+      </div>
+    </div>
+  );
 }
