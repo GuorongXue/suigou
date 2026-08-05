@@ -2,21 +2,30 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { Section } from '../knowledge/types';
+import type { Axis } from '../engine/types';
 import { buildSectionShape, profileGeometry } from './profileGeometry';
 
-interface ViewerProps {
+export interface RenderMember {
   section: Section;
   length: number;
+  position: [number, number, number];
+  axis: Axis;
 }
 
-export function Viewer({ section, length }: ViewerProps) {
+interface ViewerProps {
+  items: RenderMember[];
+  /** 相机注视高度（一般取框架半高） */
+  focusY: number;
+}
+
+export function Viewer({ items, focusY }: ViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<{
+  const ctxRef = useRef<{
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
     controls: OrbitControls;
-    mesh: THREE.Mesh | null;
+    group: THREE.Group;
   } | null>(null);
 
   useEffect(() => {
@@ -24,8 +33,8 @@ export function Viewer({ section, length }: ViewerProps) {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf2f4f7);
 
-    const camera = new THREE.PerspectiveCamera(50, mount.clientWidth / mount.clientHeight, 1, 5000);
-    camera.position.set(320, 280, 420);
+    const camera = new THREE.PerspectiveCamera(50, mount.clientWidth / mount.clientHeight, 1, 8000);
+    camera.position.set(900, 700, 1100);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(mount.clientWidth, mount.clientHeight);
@@ -33,56 +42,66 @@ export function Viewer({ section, length }: ViewerProps) {
     mount.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 150, 0);
-    controls.update();
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0x99aabb, 1.2));
     const dir = new THREE.DirectionalLight(0xffffff, 1.6);
     dir.position.set(300, 500, 200);
     scene.add(dir);
-    scene.add(new THREE.GridHelper(800, 16, 0xbbbbbb, 0xdddddd));
+    scene.add(new THREE.GridHelper(2000, 40, 0xbbbbbb, 0xdddddd));
+
+    const group = new THREE.Group();
+    scene.add(group);
 
     renderer.setAnimationLoop(() => renderer.render(scene, camera));
 
-    const onResize = () => {
+    const ro = new ResizeObserver(() => {
       camera.aspect = mount.clientWidth / mount.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(mount.clientWidth, mount.clientHeight);
-    };
-    const ro = new ResizeObserver(onResize);
+    });
     ro.observe(mount);
 
-    sceneRef.current = { scene, camera, renderer, controls, mesh: null };
+    ctxRef.current = { scene, camera, renderer, controls, group };
 
     return () => {
       ro.disconnect();
       renderer.setAnimationLoop(null);
       renderer.dispose();
       mount.removeChild(renderer.domElement);
-      sceneRef.current = null;
+      ctxRef.current = null;
     };
   }, []);
 
   useEffect(() => {
-    const ctx = sceneRef.current;
+    const ctx = ctxRef.current;
     if (!ctx) return;
 
-    if (ctx.mesh) {
-      ctx.scene.remove(ctx.mesh);
-      ctx.mesh.geometry.dispose();
+    for (const child of [...ctx.group.children]) {
+      ctx.group.remove(child);
+      (child as THREE.Mesh).geometry?.dispose();
     }
 
     const alu = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, metalness: 0.35, roughness: 0.45 });
-    const shape = buildSectionShape(section);
-    const mesh = new THREE.Mesh(profileGeometry(shape, length), alu);
-    mesh.rotation.x = -Math.PI / 2;   // 挤出方向转为竖直
-    mesh.position.set(0, length / 2, 0);
-    ctx.scene.add(mesh);
-    ctx.mesh = mesh;
+    // 同截面同长度共享一份挤出几何（渲染实验验证的性能路线）
+    const geomCache = new Map<string, THREE.ExtrudeGeometry>();
 
-    ctx.controls.target.set(0, length / 2, 0);
+    for (const item of items) {
+      const key = `${item.section.id}:${item.length}`;
+      let geom = geomCache.get(key);
+      if (!geom) {
+        geom = profileGeometry(buildSectionShape(item.section), item.length);
+        geomCache.set(key, geom);
+      }
+      const mesh = new THREE.Mesh(geom, alu);
+      if (item.axis === 'x') mesh.rotation.y = Math.PI / 2;
+      else if (item.axis === 'y') mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(...item.position);
+      ctx.group.add(mesh);
+    }
+
+    ctx.controls.target.set(0, focusY, 0);
     ctx.controls.update();
-  }, [section, length]);
+  }, [items, focusY]);
 
   return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
 }
