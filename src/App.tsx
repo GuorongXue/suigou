@@ -3,6 +3,8 @@ import { loadKnowledgeBase } from './knowledge/loader';
 import { generateFrame } from './engine/generate';
 import { selectSection } from './engine/select';
 import { runGolden } from './engine/golden';
+import { extractIntent, getApiKey, setApiKey } from './engine/extract';
+import { intentToSpec, type IntentResult } from './engine/intent';
 import type { FrameSpec } from './engine/types';
 import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type RenderDim, type Selection } from './viewer/Viewer';
 
@@ -25,6 +27,34 @@ export default function App() {
   });
   const [selection, setSelection] = useState<Selection | null>(null);
   const [mode, setMode] = useState<ViewMode>('appearance');
+  // 意图层状态（M4）
+  const [aiText, setAiText] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiResult, setAiResult] = useState<IntentResult | null>(null);
+  const [aiHistory, setAiHistory] = useState<string[]>([]);
+  const [hasKey, setHasKey] = useState(() => !!getApiKey());
+
+  const runIntent = async () => {
+    if (!aiText.trim() || aiBusy) return;
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      // 多轮策略：历史需求+补充回答合并为一段文本重新抽取（实验验证的单轮抽取路径）
+      const merged = [...aiHistory, aiText.trim()].join('\n补充：');
+      const extraction = await extractIntent(merged);
+      const result = intentToSpec(extraction, kb);
+      setSpec(result.spec);
+      setAiResult(result);
+      setAiHistory([...aiHistory, aiText.trim()]);
+      setAiText('');
+      setSelection(null);
+    } catch (e) {
+      setAiError((e as Error).message);
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   const result = useMemo(() => {
     try {
@@ -226,8 +256,59 @@ export default function App() {
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh' }}>
       <aside style={{ width: 320, padding: 16, background: '#fff', borderRight: '1px solid #e2e5ea', overflowY: 'auto', fontSize: 13, lineHeight: 1.7 }}>
-        <h2 style={{ margin: '0 0 4px', fontSize: 18 }}>随构 · M3 规则引擎</h2>
-        <div style={{ color: '#888', marginBottom: 12 }}>参数 → 构件图 → 校验 → 清单</div>
+        <h2 style={{ margin: '0 0 4px', fontSize: 18 }}>随构 · 一句话出方案</h2>
+        <div style={{ color: '#888', marginBottom: 10 }}>说需求 → AI抽参 → 生成 → 校验 → 清单</div>
+
+        {/* 意图输入（M4） */}
+        {!hasKey ? (
+          <div style={{ background: '#fffbeb', padding: '8px 10px', borderRadius: 6, marginBottom: 10, fontSize: 12 }}>
+            首次使用请配置 LongCat API Key（仅存本地浏览器）：
+            <input type="password" placeholder="ak_..." style={{ width: '100%', marginTop: 4, padding: '4px 6px', border: '1px solid #d8c68a', borderRadius: 4 }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const v = (e.target as HTMLInputElement).value.trim();
+                  if (v) { setApiKey(v); setHasKey(true); }
+                }
+              }} />
+            <div style={{ color: '#999', marginTop: 2 }}>回车保存。没有 Key 也可直接用下方手动参数。</div>
+          </div>
+        ) : (
+          <div style={{ marginBottom: 10 }}>
+            <textarea
+              value={aiText}
+              onChange={(e) => setAiText(e.target.value)}
+              placeholder={aiHistory.length ? '回答追问或补充需求…' : '例：想要一个放3D打印机的架子，宽大概一米，带轮子方便移动'}
+              rows={2}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #c9d2e0', borderRadius: 6, resize: 'vertical', fontFamily: 'inherit', fontSize: 13 }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runIntent(); } }}
+            />
+            <button onClick={runIntent} disabled={aiBusy} style={{
+              width: '100%', marginTop: 4, padding: '7px 0', border: 'none', borderRadius: 6,
+              background: aiBusy ? '#9db8e8' : '#1e6fff', color: '#fff', cursor: aiBusy ? 'wait' : 'pointer', fontSize: 13,
+            }}>{aiBusy ? 'AI 理解中…' : aiHistory.length ? '补充并重新生成' : '✨ 生成方案'}</button>
+            {aiError && <div style={{ color: '#c0392b', fontSize: 12, marginTop: 4 }}>✖ {aiError}</div>}
+          </div>
+        )}
+
+        {aiResult && (
+          <div style={{ marginBottom: 10 }}>
+            {aiResult.riskFlags.length > 0 && (
+              <div style={{ background: '#fdf0ee', color: '#c0392b', padding: '6px 8px', borderRadius: 6, fontSize: 12, marginBottom: 4 }}>
+                ⚠ 风险提示：{aiResult.riskFlags.join('；')}
+              </div>
+            )}
+            {aiResult.questions.length > 0 && (
+              <div style={{ background: '#ebf4ff', color: '#2b6cb0', padding: '6px 8px', borderRadius: 6, fontSize: 12, marginBottom: 4 }}>
+                {aiResult.questions.map((q) => <div key={q}>❓ {q}</div>)}
+                <div style={{ color: '#8aa8cc' }}>在上方输入框回答即可，或直接用下方滑杆微调</div>
+              </div>
+            )}
+            <details style={{ fontSize: 12, color: '#666' }}>
+              <summary style={{ cursor: 'pointer' }}>AI 假设与选型依据（{aiResult.assumptions.length}）</summary>
+              {aiResult.assumptions.map((a) => <div key={a} style={{ padding: '1px 0' }}>· {a}</div>)}
+            </details>
+          </div>
+        )}
 
         {([
           ['总宽 W', 'width', 200, 2000],
