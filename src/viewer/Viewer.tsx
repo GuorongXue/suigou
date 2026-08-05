@@ -45,6 +45,15 @@ export interface RenderPanel {
   position: [number, number, number];
 }
 
+export interface RenderAccessory {
+  kind: string;
+  position: [number, number, number];
+}
+
+export interface RenderMountPoint {
+  position: [number, number, number];
+}
+
 /** 尺寸标注：主线 a→b 平移 offset，两端引线，中点挂标签 */
 export interface RenderDim {
   a: [number, number, number];
@@ -58,6 +67,8 @@ interface ViewerProps {
   joints: RenderJoint[];
   machining: RenderMachining[];
   panels: RenderPanel[];
+  accessories: RenderAccessory[];
+  mountPoints: RenderMountPoint[];
   dims: RenderDim[];
   /** 相机注视高度（一般取框架半高） */
   focusY: number;
@@ -77,7 +88,7 @@ const PANEL_MATERIALS: Record<string, () => THREE.MeshStandardMaterial> = {
   acrylic: () => new THREE.MeshStandardMaterial({ color: 0xf2f6f8, roughness: 0.15, metalness: 0.05, transparent: true, opacity: 0.45 }),
 };
 
-export function Viewer({ items, joints, machining, panels, dims, focusY, onSelect, selection, warnMemberIds }: ViewerProps) {
+export function Viewer({ items, joints, machining, panels, accessories, mountPoints, dims, focusY, onSelect, selection, warnMemberIds }: ViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const ctxRef = useRef<{
     scene: THREE.Scene;
@@ -337,9 +348,33 @@ export function Viewer({ items, joints, machining, panels, dims, focusY, onSelec
       ctx.group.add(mesh);
     }
 
+    // 脚轮：简化轮体+叉架
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x2a2d31, roughness: 0.7 });
+    const forkMat = new THREE.MeshStandardMaterial({ color: 0x8a8f96, metalness: 0.8, roughness: 0.4 });
+    for (const a of accessories) {
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(25, 25, 20, 20), wheelMat);
+      wheel.rotation.x = Math.PI / 2;
+      wheel.position.set(a.position[0], a.position[1], a.position[2]);
+      ctx.group.add(wheel);
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 35, 12), forkMat);
+      stem.position.set(a.position[0], a.position[1] + 28, a.position[2]);
+      ctx.group.add(stem);
+    }
+
+    // 固定点：结构视图小蓝球（装配关系可见化）
+    if (mountPoints.length) {
+      const dotMat = new THREE.MeshStandardMaterial({ color: 0x1e6fff, transparent: true, opacity: 0.85, depthTest: false });
+      for (const mp of mountPoints) {
+        const dot = new THREE.Mesh(new THREE.SphereGeometry(5, 12, 12), dotMat);
+        dot.position.set(...mp.position);
+        dot.renderOrder = 997;
+        ctx.group.add(dot);
+      }
+    }
+
     ctx.controls.target.set(0, focusY, 0);
     ctx.controls.update();
-  }, [items, joints, machining, panels, focusY]);
+  }, [items, joints, machining, panels, accessories, mountPoints, focusY]);
 
   // 选中高亮 + 尺寸标注
   useEffect(() => {

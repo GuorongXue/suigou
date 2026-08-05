@@ -128,6 +128,17 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
     });
   }
 
+  // ---- val-lateral 侧向稳定性状态（16号评测：只验竖向挠度会制造"全绿=安全"假象） ----
+  // Phase 0 无斜撑/背板体系：侧向刚度未验证是事实状态，必须告知
+  const slenderH = spec.height > 800 || spec.height / Math.min(spec.width, spec.depth) > 2;
+  checks.push({
+    level: slenderH ? 'warn' : 'info',
+    ruleId: 'val-lateral',
+    message: slenderH
+      ? '侧向稳定性未验证：本版本无斜撑/背板体系，竖向校验通过不代表不会晃。建议自行加斜撑/背板或靠墙固定'
+      : '侧向稳定性未验证（矮框架风险较低）：本版本仅校验竖向挠度/屈曲',
+  });
+
   // ---- mat-* 材料接口规则（行家 verified，knowledge/rules/material-interface.yaml） ----
   for (const p of model.panels) {
     if (p.material === 'glass') {

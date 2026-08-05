@@ -6,7 +6,7 @@ import { runGolden } from './engine/golden';
 import { extractIntent, getApiKey, setApiKey } from './engine/extract';
 import { intentToSpec, type IntentResult } from './engine/intent';
 import type { FrameSpec } from './engine/types';
-import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type RenderPanel, type RenderDim, type Selection } from './viewer/Viewer';
+import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type RenderPanel, type RenderAccessory, type RenderMountPoint, type RenderDim, type Selection } from './viewer/Viewer';
 
 type ViewMode = 'appearance' | 'structure' | 'drawing';
 
@@ -140,6 +140,16 @@ export default function App() {
   const panels: RenderPanel[] = useMemo(() => {
     if (!result.model) return [];
     return result.model.panels.map((p) => ({ material: p.material, size: p.size, position: p.position }));
+  }, [result]);
+
+  const accessories: RenderAccessory[] = useMemo(() => {
+    if (!result.model) return [];
+    return result.model.accessories.map((a) => ({ kind: a.kind, position: a.position }));
+  }, [result]);
+
+  const mountPoints: RenderMountPoint[] = useMemo(() => {
+    if (!result.model) return [];
+    return result.model.mounts.flatMap((m) => m.points.map((p) => ({ position: p })));
   }, [result]);
 
   const machiningSummary = useMemo(() => {
@@ -304,7 +314,16 @@ export default function App() {
     rows.push(['连接件', conn.name, model.joints.length, '']);
     const bomAgg = new Map<string, number>();
     for (const b of conn.bom) bomAgg.set(b.sku, (bomAgg.get(b.sku) ?? 0) + b.qty * model.joints.length);
+    // 装配层紧固件（板材固定/脚轮）聚合（9.2.4：可见零件必须可采购）
+    for (const mt of model.mounts) {
+      for (const f of mt.fasteners) bomAgg.set(f.sku, (bomAgg.get(f.sku) ?? 0) + f.qty);
+    }
     for (const [sku, qty] of bomAgg) rows.push(['配件', sku, qty, '']);
+    for (const p of model.panels) {
+      const matName: Record<string, string> = { wood: '木板', glass: '钢化玻璃', acrylic: '亚克力', pegboard: '洞洞板' };
+      rows.push(['板材', `${matName[p.material] ?? p.material} ${p.size[0]}×${p.size[1]}×${p.size[2]}`, 1, '待询价']);
+    }
+    for (const a of model.accessories) rows.push(['附件', a.sku, 1, '待询价']);
     downloadCsv('BOM清单.csv', ['类别', '名称/规格', '数量', '估价CNY'], rows);
   };
 
@@ -605,6 +624,8 @@ export default function App() {
           joints={mode === 'structure' ? joints : []}
           machining={mode !== 'appearance' ? machining : []}
           panels={panels}
+          accessories={accessories}
+          mountPoints={mode === 'structure' ? mountPoints : []}
           dims={dims}
           focusY={spec.height / 2}
           onSelect={setSelection}

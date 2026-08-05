@@ -104,14 +104,37 @@ export interface MachiningOp {
   discs: HoleDisc[];
 }
 
-/** 板材构件（嵌槽/搭放在框架上，材质接口规则 mat-* 管控） */
+/** 板材构件（搭接/嵌槽在框架上，材质接口规则 mat-* 管控） */
 export interface PanelItem {
   id: string;
   material: PanelMaterial;
   /** [宽X, 深Z, 厚] mm */
   size: [number, number, number];
   position: [number, number, number];
+  /** 覆盖模式：顶面覆盖 / 搭棁式隔板（四边搭在梁上表面） */
+  mode: 'top-overlay' | 'shelf-overlap';
   mountNote: string;
+}
+
+/** 固定关系：板材/附件与主体的真实连接（消除"字符串式已安装"） */
+export interface MountItem {
+  id: string;
+  targetType: 'panel' | 'accessory';
+  targetId: string;
+  method: 't-nut-screw' | 'gasket-clamp' | 'caster-stem';
+  note: string;
+  fasteners: { sku: string; qty: number }[];
+  /** 固定点（装配图/结构视图数据源） */
+  points: [number, number, number][];
+}
+
+/** 附件：脚轮等（进模型/重量/价格/BOM） */
+export interface AccessoryItem {
+  id: string;
+  kind: 'caster';
+  sku: string;
+  position: [number, number, number];
+  weightKg: number;
 }
 
 export interface FrameModel {
@@ -120,6 +143,8 @@ export interface FrameModel {
   joints: Joint[];
   machining: MachiningOp[];
   panels: PanelItem[];
+  mounts: MountItem[];
+  accessories: AccessoryItem[];
   cutList: CutListItem[];
   checks: CheckResult[];
   /** 导出闸门状态：由 checks 派生（error→invalid，warn→needs-confirmation） */

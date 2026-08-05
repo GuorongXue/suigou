@@ -1,5 +1,5 @@
 import type { KnowledgeBase } from '../knowledge/types';
-import type { FrameSpec, FrameModel, Member, Joint, MachiningOp, PanelItem, PanelMaterial } from './types';
+import type { FrameSpec, FrameModel, Member, Joint, MachiningOp, PanelItem, PanelMaterial, MountItem, AccessoryItem } from './types';
 import { validateFrame } from './validate';
 
 /**
@@ -78,31 +78,69 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     }
   }
 
-  // 板材构件：顶面 + 隔板层（材料接口规则 mat-* 的安装方式/间隙）
+  // 板材构件（9.2.3 修复：真实搭接几何 + Mount 固定关系，不再悬空）
   const panels: PanelItem[] = [];
-  const PANEL_SPEC: Record<Exclude<PanelMaterial, 'none'>, { thickness: number; clearance: number; mountNote: string }> = {
-    wood:     { thickness: 18, clearance: 2,   mountNote: 'T型螺母直固+长孔浮动安装，留胀缩间隙(mat-wood)' },
-    glass:    { thickness: 8,  clearance: 2,   mountNote: '必须钢化玻璃+EPDM胶条嵌槽，禁直压铝槽(mat-glass)' },
-    acrylic:  { thickness: 5,  clearance: 1.5, mountNote: '嵌槽+热胀间隙，>500mm必须留隙(mat-acrylic)' },
-    pegboard: { thickness: 5,  clearance: 2,   mountNote: '洞洞板螺栓固定四角(mat-wood同源)' },
+  const mounts: MountItem[] = [];
+  const PANEL_SPEC: Record<Exclude<PanelMaterial, 'none'>, { thickness: number; kgPerM2: number; mountNote: string }> = {
+    wood:     { thickness: 18, kgPerM2: 11, mountNote: 'T型螺母+螺钉四角固定，长孔浮动留胀缩(mat-wood)' },
+    glass:    { thickness: 8,  kgPerM2: 20, mountNote: '钢化玻璃+EPDM胶垫四角承托+压条(mat-glass)' },
+    acrylic:  { thickness: 5,  kgPerM2: 6,  mountNote: '胶垫承托+压条，留热胀间隙(mat-acrylic)' },
+    pegboard: { thickness: 5,  kgPerM2: 5,  mountNote: '洞洞板螺栓固定四角(mat-wood同源)' },
   };
   let pn = 0;
-  const addPanel = (material: PanelMaterial, y: number, isTop: boolean) => {
+  let mtn = 0;
+  const addPanel = (material: PanelMaterial, beamTopY: number, isTop: boolean) => {
     if (material === 'none') return;
     const ps = PANEL_SPEC[material];
-    const pw = W - 2 * s - 2 * ps.clearance;
-    const pd = D - 2 * s - 2 * ps.clearance;
+    // 顶面板：覆盖整框（W×D 齐平）；隔板：四边各搭 15mm 在梁上表面（真实支撑接触）
+    const overlap = 15;
+    const pw = isTop ? W : W - 2 * s + 2 * overlap;
+    const pd = isTop ? D : D - 2 * s + 2 * overlap;
     if (pw <= 0 || pd <= 0) return;
+    const panelId = `pn-${++pn}`;
     panels.push({
-      id: `pn-${++pn}`, material,
+      id: panelId, material,
       size: [pw, pd, ps.thickness],
-      position: [0, y + s / 2 + ps.thickness / 2, 0],   // 搭在梁上表面
-      mountNote: (isTop ? '顶面板：' : '隔板：') + ps.mountNote,
+      position: [0, beamTopY + ps.thickness / 2, 0],   // 底面落在梁上表面
+      mode: isTop ? 'top-overlay' : 'shelf-overlap',
+      mountNote: (isTop ? '顶面板(覆盖式)：' : '隔板(搭梁式)：') + ps.mountNote,
+    });
+    // 固定点：四角内缩，落在梁中心线上方
+    const px = W / 2 - s / 2, pz = D / 2 - s / 2;
+    const points: [number, number, number][] = [
+      [-px, beamTopY, -pz], [px, beamTopY, -pz], [-px, beamTopY, pz], [px, beamTopY, pz],
+    ];
+    const soft = material === 'glass' || material === 'acrylic';
+    mounts.push({
+      id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId,
+      method: soft ? 'gasket-clamp' : 't-nut-screw',
+      note: ps.mountNote,
+      fasteners: soft
+        ? [{ sku: 'epdm-gasket-pad', qty: 4 }, { sku: 'clamp-strip-200', qty: 4 }]
+        : [{ sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l16', qty: 4 }],
+      points,
     });
   };
-  addPanel(spec.topPanel, H - s / 2, true);
+  addPanel(spec.topPanel, H, true);   // 顶梁上表面 = H
   for (let i = 1; i <= spec.shelfCount; i++) {
-    addPanel(spec.shelfPanel, (H * i) / (spec.shelfCount + 1), false);
+    addPanel(spec.shelfPanel, (H * i) / (spec.shelfCount + 1) + s / 2, false);
+  }
+
+  // 脚轮附件（9.2.4 修复：进模型/BOM/重量；丝杆脚轮 → 柱底端面攻牙加工）
+  const accessories: AccessoryItem[] = [];
+  if (spec.mobility === 'caster') {
+    let an = 0;
+    for (const [key, postId] of postAt) {
+      const [x, z] = key.split(',').map(Number);
+      const accId = `ac-${++an}`;
+      accessories.push({ id: accId, kind: 'caster', sku: 'caster-stem-m8-50', position: [x, -35, z], weightKg: 0.35 });
+      mounts.push({
+        id: `mt-${++mtn}`, targetType: 'accessory', targetId: accId,
+        method: 'caster-stem', note: `丝杆脚轮拧入立柱(${postId})底端面 M8 攻牙`,
+        fasteners: [{ sku: 'caster-stem-m8-50', qty: 1 }],
+        points: [[x, 0, z]],
+      });
+    }
   }
 
   // 加工特征派生：连接件 machining 声明 → 每个接点的孔位（位置/方向/规格）
@@ -158,6 +196,16 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   }
 
   // 件号系统：长度+完整加工特征签名（含局部位置/加工面/方向，防镜像件误合并，9.2.5）
+  // 脚轮丝杆 → 立柱底端面 M8 攻牙加工（装配关系派生加工特征）
+  if (spec.mobility === 'caster') {
+    for (const [key, postId] of postAt) {
+      const [x, z] = key.split(',').map(Number);
+      machining.push({
+        id: `mc-${++mn}`, jointId: '-', memberId: postId, type: 'end-tap', spec: 'M8×20(脚轮)',
+        position: [x, 10, z], axis: 'y', diameter: 8, length: 20, discs: [] });
+    }
+  }
+
   const machBy = new Map<string, string[]>();
   const memberById = new Map(members.map((m) => [m.id, m]));
   for (const mc of machining) {
@@ -192,7 +240,14 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     .sort((a, b) => b.length - a.length);
 
   const totalLengthMm = members.reduce((sum, m) => sum + m.length, 0);
-  const weightKg = sec.weightPerMeter != null ? (totalLengthMm / 1000) * sec.weightPerMeter : null;
+  // 重量 = 型材 + 板材（面密度）+ 脚轮（9.2.4：可见零件必须计重）
+  const panelKg = panels.reduce((sum, p) => {
+    const kgPerM2 = PANEL_SPEC[p.material as Exclude<PanelMaterial, 'none'>]?.kgPerM2 ?? 10;
+    return sum + (p.size[0] / 1000) * (p.size[1] / 1000) * kgPerM2;
+  }, 0);
+  const accKg = accessories.reduce((sum, a) => sum + a.weightKg, 0);
+  const weightKg = sec.weightPerMeter != null
+    ? (totalLengthMm / 1000) * sec.weightPerMeter + panelKg + accKg : null;
   const priceCny = sec.price.perMeter != null ? (totalLengthMm / 1000) * sec.price.perMeter : null;
 
   const model: FrameModel = {
@@ -201,6 +256,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     joints,
     machining,
     panels,
+    mounts,
+    accessories,
     cutList,
     checks: [],
     status: 'valid',
