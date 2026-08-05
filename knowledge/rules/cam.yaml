@@ -1,27 +1,101 @@
-# CAM 加工工艺规则包（源：2026-08-05 制造包设计讨论，行家视角）
+# CAM 加工工艺规则包 v0.2（2026-08-05 嘉立创工艺页 xc.jlcfa.com/process 全量采集，source: jlcfa-process-page, confidence: public）
 # 定位：连接件 machining 声明 → 工序链与工艺参数的映射；Process Sheet 数据源
 
-# 默认工艺（所有件号必带，不声明则厂家默认锯切直发——翻车点）
-defaults:
-  deburr: 全部去毛刺            # cam-003
-  edgeBreak: 锐边倒钝            # cam-004（如需 R0.5 倒角单独声明）
-  cutTolerance: ±0.3            # 与 tolerance.yaml 场景档位联动，precision 场景用 +0/-0.2 单向公差
+material:
+  alloy: 6063-T5
+  wallThicknessTolerance: GB/T 5237.1-2017 高精级
+  weightNote: 标注米重为覆膜重量，发货撕膜重包装后 ±5% 差异
+
+# 下料公差（工艺页实标，替代 v0.1 的单一±0.3）
+cutTolerance:
+  "L<=1000": ±0.3
+  "L>1000": ±0.5
+
+# 加工公差（工艺页实标）
+machiningTolerance:
+  holeDiameter: H7级
+  holePosition: ±0.2      # 孔位位置度 mm
+  holeCenterDistance: ±0.2
+  depth: ±0.2
+  tapPosition: ±0.2
+  tapPrecision: 6H级公制内螺纹，通止规全检
+  tapPerpendicularity: ≤0.1°
+  deburr: 孔口双面去毛刺，沉头面无划伤（嘉立创默认工艺）
+  tapFinish: 铝用切削液，孔口倒角C0.5，螺纹底部无积屑
+
+# 端面攻牙全表（型号 → 中心孔/螺纹/标准深度）
+tapTable:
+  gb-15:        { coreHole: 2.5,  thread: M3,  depth: 8 }
+  gb-15-b:      { coreHole: 3.3,  thread: M4,  depth: 10 }
+  eu-2020D:     { coreHole: 4.2,  thread: M5,  depth: 12 }
+  eu-20-gb-30:  { coreHole: 5.0,  thread: M6,  depth: 15 }
+  eu-30-40s8-gb40: { coreHole: 6.8~7, thread: M8, depth: 20 }
+  gb-4040-txcq: { coreHole: 8.8,  thread: M10, depth: 24 }
+  eu-40s10-45:  { coreHole: 10~10.3, thread: M12, depth: 28 }
+  eu-50:        { coreHole: 12,   thread: M14, depth: 36 }
+
+# 沉头孔全表（系列 → Z规格/d/D/H）
+counterboreTable:
+  eu-1515:      { z: 4,  d: 4.5, D: 8,    H: 5 }
+  eu-2020D:     { z: 5,  d: 5.5, D: 9.5,  H: 5.5 }
+  eu-20-gb30:   { z: 6,  d: 6.5, D: 11,   H: 6.5 }
+  eu-30-40s8:   { z: 8,  d: 9,   D: 14,   H: 8.5 }
+  eu-40s10-45-50: { z: 8, d: 9,  D: 14,   H: 8.5, note: 需配合螺纹套 }
+  heavy:        { z: 12, d: 13,  D: 20,   H: 12.5 }
+
+# 扳手孔表（系列 → 孔径）
+wrenchHoleTable:
+  eu-20: 6.5
+  eu-30: 8.5
+  gb-30: 6.5
+  eu-40: 8.5
+  gb-40: 8.5
+  eu-45: 12.5
+
+# 锚式通孔表（补 40槽10/45 系列）
+anchorHoleTable:
+  eu-30-40s8:  { G: 19-T+2, H: 11.5, parts: [TPEF-308-0, TPEG-308-90] }
+  eu-40s10-45: { G: 27-T+2, H: 17,   parts: [TPHC-4510-0, TPHD-4510-90] }
+  # T = 型材槽口壁厚
+
+# 口哨连接件盲孔表（新连接件类型数据，09文档缺口补齐）
+whistleBlindHoleTable:
+  eu-20: { G: 13, H: 12.5, D: 9,    connector: TPDF-206-D4.5-ZP, bom: [EDLA-S2-M4-L4, TPAA-N-6-M4] }
+  eu-30: { G: 16, H: 15,   D: 12.5, connector: TPEH-308-D6.5-ZP, bom: [EDLA-S1-M6-L20, TPAH-N-B-M6] }
+  eu-40: { G: 19, H: 19,   D: 18,   connector: TPFN-408-D6.5-ZP-OB, bom: [EDLA-S1-M6-L25, TPAS-N-B-M6] }
+  eu-45: { G: 19, H: 19,   D: 18,   connector: TPGR-4010-D9-ZP, bom: [EDLA-S1-M8-L25, TPBB-N-10-M8] }
+
+# 斜切（Phase 0 范围外，数据先入库）
+miterCut:
+  standard: 45°
+  custom: 30°~150°（更高精度走CNC）
+  tolerance: { angle: ±0.2°, jointGap: ±0.3, length: ±0.3 }
+
+# 推荐螺钉表（连接件 BOM 校验源）
+screwTable:
+  eu-3030-z8: { cylinder: EDLA-S1-M8-L40, panHead: EDLG-S1-M8-L20, standard: [DIN 912-1983, ISO7380-1-2011] }
+  eu-4040-z8: { cylinder: EDLA-S1-M8-L45, panHead: EDLG-S1-M8-L20 }
+  eu-2020-z6: { cylinder: EDLA-S1-M6-L25, panHead: EDLG-S1-M6-L16 }
+
+# 加工朝向（出图必标字段：打孔朝前/朝后；斜切朝上/下/前/后——Process Sheet 预留）
+machiningOrientation: [朝上, 朝下, 朝前, 朝后]
 
 # 工艺规则：加工特征 → 工序 + 完整参数
 rules:
   - id: cam-001
     feature: end-tap
     process: 切割 → 去毛刺 → 端面攻丝
-    params: { thread: M8×1.25, depth: 20, note: 螺距1.25为粗牙标准；攻深20源自工艺页(欧标30系列) }
-    ends: per-joint             # 单端/双端由接点分布决定（同件两端各有接点=双端）
+    params: { thread: M8×1.25, depth: 20, chamfer: C0.5, note: 参数按截面系列查 tapTable }
+    ends: per-joint
   - id: cam-002
     feature: through-hole
     process: 切割 → 钻孔 → 去毛刺
-    params: { diameter: 11.5, offsetFromEnd: "G=19-T+2", face: 槽面, note: 锚式连接钻孔，位置公式源自工艺页 }
+    params: { diameter: 11.5, offsetFromEnd: "G=19-T+2", face: 槽面 }
   - id: cam-003
     feature: deburr
     process: 去毛刺
     appliesTo: all
+    note: 嘉立创孔口双面去毛刺为默认；整料锐边倒钝仍需在图纸声明
   - id: cam-004
     feature: chamfer
     process: 倒角
@@ -29,11 +103,15 @@ rules:
   - id: cam-005
     feature: counterbore
     process: 切割 → 钻孔 → 沉头 → 去毛刺
-    params: { d: 9, D: 14, depth: 8.5, note: M8圆柱头沉头孔，源:工艺页欧标30 Z8 }
+    params: { d: 9, D: 14, depth: 8.5, note: 按截面系列查 counterboreTable }
   - id: cam-006
     feature: wrench-hole
     process: 切割 → 钻孔 → 去毛刺
-    params: { diameter: 8.5, note: 内置连接件扳手操作孔 }
+    params: { diameter: 8.5, note: 按系列查 wrenchHoleTable }
+  - id: cam-007
+    feature: blind-hole
+    process: 切割 → 钻盲孔 → 去毛刺
+    params: { note: 口哨连接件用，按系列查 whistleBlindHoleTable，深度公差±0.2 }
 
 # 工序卡输出格式（Process Sheet，四类制造文件之③）
-processSheetColumns: [件号, 截面, 长度, 公差, 数量, 工序链, 加工参数, 去毛刺, 倒角]
+processSheetColumns: [件号, 截面, 长度, 公差, 数量, 工序链, 加工参数, 加工朝向, 去毛刺, 倒角]
