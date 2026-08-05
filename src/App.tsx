@@ -383,16 +383,41 @@ export default function App() {
     pass: { color: '#2f855a', bg: '#f0fff4', icon: '✓' },
   };
 
+  const errCount = model?.checks.filter((c) => c.level === 'error').length ?? 0;
+  const warnCount = model?.checks.filter((c) => c.level === 'warn').length ?? 0;
+
   return (
-    <div style={{ display: 'flex', width: '100vw', height: '100vh' }}>
-      <aside style={{ width: 320, padding: 16, background: '#fff', borderRight: '1px solid #e2e5ea', overflowY: 'auto', fontSize: 13, lineHeight: 1.7 }}>
-        <h2 style={{ margin: '0 0 4px', fontSize: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          随构 · 一句话出方案
-          {(chat.length > 0 || manualChanges.size > 0) && (
-            <button onClick={resetDraft} style={{ fontSize: 11, padding: '3px 10px', border: '1px solid #c9d2e0', borderRadius: 6, background: '#fff', color: '#666', cursor: 'pointer', fontWeight: 400 }}>新方案</button>
-          )}
-        </h2>
-        <div style={{ color: '#888', marginBottom: 10 }}>说需求 → AI抽参 → 生成 → 校验 → 清单</div>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh' }}>
+      {/* 顶栏：品牌 + 方案状态摘要 + 全局动作（16号评测 2.3） */}
+      <header style={{ height: 46, display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', background: '#fff', borderBottom: '1px solid #e2e5ea', fontSize: 13, flexShrink: 0 }}>
+        <b style={{ fontSize: 16 }}>随构</b>
+        <span style={{ color: '#aaa', fontSize: 12 }}>一句话出方案</span>
+        {model && (
+          <>
+            <span style={{
+              fontSize: 11, padding: '3px 10px', borderRadius: 10,
+              background: model.status === 'valid' ? '#f0fff4' : model.status === 'needs-confirmation' ? '#fffbeb' : '#fdf0ee',
+              color: model.status === 'valid' ? '#2f855a' : model.status === 'needs-confirmation' ? '#b7791f' : '#c0392b',
+            }}>
+              {model.status === 'valid' ? '✓ 可制造' : model.status === 'needs-confirmation' ? `⚠ ${warnCount} 项警告` : `✖ ${errCount} 项错误`}
+            </span>
+            <span style={{ color: '#666' }}>
+              构件 {model.totals.memberCount} 根
+              {model.totals.weightKg != null && ` · 约 ${model.totals.weightKg.toFixed(1)} kg`}
+              {model.totals.priceCny != null && ` · 型材约 ¥${model.totals.priceCny.toFixed(0)}`}
+            </span>
+          </>
+        )}
+        <div style={{ flex: 1 }} />
+        {(chat.length > 0 || manualChanges.size > 0) && (
+          <button onClick={resetDraft} style={{ fontSize: 12, padding: '5px 14px', border: '1px solid #c9d2e0', borderRadius: 6, background: '#fff', color: '#666', cursor: 'pointer' }}>新方案</button>
+        )}
+        <button onClick={exportCutList} disabled={!model || model.status === 'invalid'} style={{ fontSize: 12, padding: '5px 14px', border: '1px solid #1e6fff', borderRadius: 6, background: '#fff', color: !model || model.status === 'invalid' ? '#aaa' : '#1e6fff', borderColor: !model || model.status === 'invalid' ? '#ccc' : '#1e6fff', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>导出切割清单</button>
+        <button onClick={exportBom} disabled={!model || model.status === 'invalid'} style={{ fontSize: 12, padding: '5px 14px', border: 'none', borderRadius: 6, background: !model || model.status === 'invalid' ? '#ccc' : '#1e6fff', color: '#fff', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>导出 BOM</button>
+      </header>
+
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+      <aside style={{ width: 340, padding: 14, background: '#fff', borderRight: '1px solid #e2e5ea', overflowY: 'auto', fontSize: 13, lineHeight: 1.7, flexShrink: 0 }}>
 
         {/* 意图输入（M4） */}
         {!hasKey ? (
@@ -563,110 +588,6 @@ export default function App() {
             <button onClick={() => set({ sectionId: recommendation.use })} style={{ marginLeft: 6, border: '1px solid #2b6cb0', background: '#fff', color: '#2b6cb0', borderRadius: 4, padding: '1px 8px', cursor: 'pointer', fontSize: 12 }}>一键应用</button>
           </div>
         )}
-
-        {model && (
-          <>
-            {model.warnings.map((w) => (
-              <div key={w} style={{ color: '#b7791f', background: '#fffbeb', padding: '6px 8px', borderRadius: 4, marginBottom: 8, fontSize: 12 }}>⚠ {w}</div>
-            ))}
-
-            <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>
-              结构校验
-              <span style={{
-                marginLeft: 8, fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 400,
-                background: model.status === 'valid' ? '#f0fff4' : model.status === 'needs-confirmation' ? '#fffbeb' : '#fdf0ee',
-                color: model.status === 'valid' ? '#2f855a' : model.status === 'needs-confirmation' ? '#b7791f' : '#c0392b',
-              }}>
-                {model.status === 'valid' ? '可导出' : model.status === 'needs-confirmation' ? '有警告，确认后可导出' : '存在错误，禁止导出'}
-              </span>
-            </h3>
-            {model.checks.map((c, i) => {
-              const st = levelStyle[c.level];
-              return (
-                <div key={i} style={{ color: st.color, background: st.bg, padding: '5px 8px', borderRadius: 4, marginBottom: 4, fontSize: 12 }}>
-                  {st.icon} <b>{c.ruleId}</b> {c.message}
-                </div>
-              );
-            })}
-
-            <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>切割清单（按件号）</h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #d8dce2', color: '#666', textAlign: 'left' }}>
-                  <th style={{ padding: '4px 0' }}>件号</th>
-                  <th style={{ textAlign: 'right' }}>长度</th>
-                  <th style={{ textAlign: 'right' }}>数量</th>
-                  <th style={{ textAlign: 'right' }}>加工</th>
-                </tr>
-              </thead>
-              <tbody>
-                {model.cutList.map((c) => (
-                  <tr key={c.partNo} style={{ borderBottom: '1px solid #f0f2f5' }}>
-                    <td style={{ padding: '4px 0' }}>{c.partNo}</td>
-                    <td style={{ textAlign: 'right' }}>{c.length}</td>
-                    <td style={{ textAlign: 'right' }}>×{c.qty}</td>
-                    <td style={{ textAlign: 'right', fontSize: 11, color: '#777' }}>{c.machiningNote || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div style={{ marginTop: 10, color: '#555' }}>
-              构件 {model.totals.memberCount} 根 · 总长 {(model.totals.totalLengthMm / 1000).toFixed(2)} m
-              {model.totals.weightKg != null && <> · 约 {model.totals.weightKg.toFixed(1)} kg</>}
-              {model.totals.priceCny != null && <> · 型材约 ¥{model.totals.priceCny.toFixed(0)}（未税）</>}
-            </div>
-
-            {machiningSummary.length > 0 && (
-              <>
-                <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>加工清单</h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid #d8dce2', color: '#666', textAlign: 'left' }}>
-                      <th style={{ padding: '4px 0' }}>类型</th>
-                      <th>规格</th>
-                      <th style={{ textAlign: 'right' }}>数量</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {machiningSummary.map((m) => (
-                      <tr key={m.type + m.spec} style={{ borderBottom: '1px solid #f0f2f5' }}>
-                        <td style={{ padding: '4px 0' }}>{machiningName[m.type] ?? m.type}</td>
-                        <td>{m.spec}</td>
-                        <td style={{ textAlign: 'right' }}>×{m.qty}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div style={{ color: '#999', fontSize: 12 }}>深色圆片 = 孔口位置（表面可见面）</div>
-              </>
-            )}
-
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button onClick={exportCutList} disabled={model.status === 'invalid'} style={{ flex: 1, padding: '7px 0', border: '1px solid #1e6fff', borderRadius: 6, background: '#fff', color: model.status === 'invalid' ? '#aaa' : '#1e6fff', cursor: model.status === 'invalid' ? 'not-allowed' : 'pointer', borderColor: model.status === 'invalid' ? '#ccc' : '#1e6fff' }}>导出切割清单</button>
-              <button onClick={exportBom} disabled={model.status === 'invalid'} style={{ flex: 1, padding: '7px 0', border: 'none', borderRadius: 6, background: model.status === 'invalid' ? '#ccc' : '#1e6fff', color: '#fff', cursor: model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>导出 BOM</button>
-            </div>
-
-            {/* 免责三要素（07文档责任设计） */}
-            <div style={{ marginTop: 12, padding: '8px 10px', background: '#f7f8fa', borderRadius: 6, color: '#888', fontSize: 11, lineHeight: 1.6 }}>
-              ① 本方案的承重/挠度为工程估算参考，基于典型截面参数（厂家间差异可达20%~50%）；
-              ② 未经专业结构认证，不替代持证工程师核算；
-              ③ 水族/儿童/头顶等高风险场景请务必勾选高风险选项并保留安全冗余，最终装配质量需自行确认。
-            </div>
-          </>
-        )}
-
-        {/* 研发诊断信息收纳，不暴露给普通用户（16号评测 2.2.5） */}
-        <details style={{ marginTop: 12, fontSize: 12, color: '#aaa' }}>
-          <summary style={{ cursor: 'pointer' }}>开发者诊断</summary>
-          <div>知识库：{kb.sections.length} 截面 · {kb.connectors.length} 连接件 · {Object.keys(kb.rules).length} 规则包</div>
-          <div style={{ color: goldenPass === golden.length ? '#2f855a' : '#c0392b' }}>
-            Golden 用例 {goldenPass}/{golden.length} {goldenPass === golden.length ? '✓' : '✖'}
-          </div>
-          {golden.filter((g) => !g.pass).map((g) => (
-            <div key={g.id} style={{ color: '#c0392b' }}>✖ {g.id} actual: {g.actual}</div>
-          ))}
-        </details>
       </aside>
 
       <main style={{ flex: 1, position: 'relative' }}>
@@ -751,6 +672,102 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* 右栏：方案结果——为什么可靠、要买什么（16号评测 2.3） */}
+      <aside style={{ width: 340, padding: 14, background: '#fff', borderLeft: '1px solid #e2e5ea', overflowY: 'auto', fontSize: 13, lineHeight: 1.7, flexShrink: 0 }}>
+        {model ? (
+          <>
+            {model.warnings.map((w) => (
+              <div key={w} style={{ color: '#b7791f', background: '#fffbeb', padding: '6px 8px', borderRadius: 4, marginBottom: 8, fontSize: 12 }}>⚠ {w}</div>
+            ))}
+
+            <h3 style={{ margin: '0 0 6px', fontSize: 14 }}>结构校验</h3>
+            {model.checks.map((c, i) => {
+              const st = levelStyle[c.level];
+              return (
+                <div key={i} style={{ color: st.color, background: st.bg, padding: '5px 8px', borderRadius: 4, marginBottom: 4, fontSize: 12 }}>
+                  {st.icon} <b>{c.ruleId}</b> {c.message}
+                </div>
+              );
+            })}
+
+            <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>切割清单（按件号）</h3>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #d8dce2', color: '#666', textAlign: 'left' }}>
+                  <th style={{ padding: '4px 0' }}>件号</th>
+                  <th style={{ textAlign: 'right' }}>长度</th>
+                  <th style={{ textAlign: 'right' }}>数量</th>
+                  <th style={{ textAlign: 'right' }}>加工</th>
+                </tr>
+              </thead>
+              <tbody>
+                {model.cutList.map((c) => (
+                  <tr key={c.partNo} style={{ borderBottom: '1px solid #f0f2f5' }}>
+                    <td style={{ padding: '4px 0' }}>{c.partNo}</td>
+                    <td style={{ textAlign: 'right' }}>{c.length}</td>
+                    <td style={{ textAlign: 'right' }}>×{c.qty}</td>
+                    <td style={{ textAlign: 'right', fontSize: 11, color: '#777' }}>{c.machiningNote || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div style={{ marginTop: 10, color: '#555' }}>
+              构件 {model.totals.memberCount} 根 · 总长 {(model.totals.totalLengthMm / 1000).toFixed(2)} m
+              {model.totals.weightKg != null && <> · 约 {model.totals.weightKg.toFixed(1)} kg</>}
+              {model.totals.priceCny != null && <> · 型材约 ¥{model.totals.priceCny.toFixed(0)}（未税）</>}
+            </div>
+
+            {machiningSummary.length > 0 && (
+              <>
+                <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>加工清单</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #d8dce2', color: '#666', textAlign: 'left' }}>
+                      <th style={{ padding: '4px 0' }}>类型</th>
+                      <th>规格</th>
+                      <th style={{ textAlign: 'right' }}>数量</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {machiningSummary.map((m) => (
+                      <tr key={m.type + m.spec} style={{ borderBottom: '1px solid #f0f2f5' }}>
+                        <td style={{ padding: '4px 0' }}>{machiningName[m.type] ?? m.type}</td>
+                        <td>{m.spec}</td>
+                        <td style={{ textAlign: 'right' }}>×{m.qty}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ color: '#999', fontSize: 12 }}>深色圆片 = 孔口位置（表面可见面）</div>
+              </>
+            )}
+
+            {/* 免责三要素（07文档责任设计） */}
+            <div style={{ marginTop: 12, padding: '8px 10px', background: '#f7f8fa', borderRadius: 6, color: '#888', fontSize: 11, lineHeight: 1.6 }}>
+              ① 本方案的承重/挠度为工程估算参考，基于典型截面参数（厂家间差异可达20%~50%）；
+              ② 未经专业结构认证，不替代持证工程师核算；
+              ③ 水族/儿童/头顶等高风险场景请务必勾选高风险选项并保留安全冗余，最终装配质量需自行确认。
+            </div>
+          </>
+        ) : (
+          <div style={{ color: '#999' }}>生成方案后这里显示校验结果与清单</div>
+        )}
+
+        {/* 研发诊断信息收纳，不暴露给普通用户（16号评测 2.2.5） */}
+        <details style={{ marginTop: 12, fontSize: 12, color: '#aaa' }}>
+          <summary style={{ cursor: 'pointer' }}>开发者诊断</summary>
+          <div>知识库：{kb.sections.length} 截面 · {kb.connectors.length} 连接件 · {Object.keys(kb.rules).length} 规则包</div>
+          <div style={{ color: goldenPass === golden.length ? '#2f855a' : '#c0392b' }}>
+            Golden 用例 {goldenPass}/{golden.length} {goldenPass === golden.length ? '✓' : '✖'}
+          </div>
+          {golden.filter((g) => !g.pass).map((g) => (
+            <div key={g.id} style={{ color: '#c0392b' }}>✖ {g.id} actual: {g.actual}</div>
+          ))}
+        </details>
+      </aside>
+      </div>
     </div>
   );
 }
