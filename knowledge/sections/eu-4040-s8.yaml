@@ -12,7 +12,7 @@ section:
   series: 40
   size: [40, 40]
   slot: { type: T, width: 8 }
-  wallThickness: null          # ⚠ 未采集，待补（数据缺口清单）
+  wallThickness: 2.4           # 参考值：工艺页 4040B A翅壁 2.4±0.15（型号是否对应本槽8截面待核，confidence: inferred）
   weightPerMeter: null         # ⚠ 未采集，待补
   coreHole: { diameter: 6.8, tapping: M8, tapDepth: 20 }   # 源:工艺页(欧标40槽8同30系列)
   faces:

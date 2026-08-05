@@ -12,7 +12,7 @@ section:
   series: 20
   size: [20, 20]
   slot: { type: T, width: 6 }
-  wallThickness: 1.4
+  wallThickness: 1.4       # ✓ 工艺页实标 2020 A翅壁 1.4±0.15 吻合（H外形 20.0±0.30）
   weightPerMeter: 0.48
   coreHole: { diameter: 5.0, tapping: M6, tapDepth: 15 }   # 源:工艺页(欧标20系列)
   faces:
