@@ -14,6 +14,8 @@ export interface RenderMember {
   length: number;
   position: [number, number, number];
   axis: Axis;
+  /** 斜撑倾角（绕Z） */
+  tilt?: number;
 }
 
 export interface RenderJoint {
@@ -41,7 +43,7 @@ export interface RenderMachining {
 
 export interface RenderPanel {
   material: string;
-  size: [number, number, number];
+  boxSize: [number, number, number];
   position: [number, number, number];
 }
 
@@ -254,6 +256,9 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       const mesh = new THREE.Mesh(cached.geom, alu);
       if (item.axis === 'x') mesh.rotation.y = Math.PI / 2;
       else if (item.axis === 'y') mesh.rotation.x = -Math.PI / 2;
+      if (item.tilt) {   // 斜撑：背面平面内绕Z倾旜
+        mesh.rotation.set(0, Math.PI / 2, item.tilt, 'ZYX');
+      }
       mesh.position.set(...item.position);
       // 梁端与柱面共面会 z-fighting，渲染层缩 0.3mm（不影响下料数据）
       if (item.role !== 'post') mesh.scale.z = (item.length - 0.3) / item.length;
@@ -340,10 +345,10 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       }
     }
 
-    // 板材：木/洞洞板实体色，玻璃/亚克力半透明
+    // 板材：木/洞洞板实体色，玻璃/亚克力半透明（boxSize 支持水平/竖直板）
     for (const p of panels) {
       const mat = (PANEL_MATERIALS[p.material] ?? PANEL_MATERIALS.wood)();
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(p.size[0], p.size[2], p.size[1]), mat);
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(...p.boxSize), mat);
       mesh.position.set(...p.position);
       ctx.group.add(mesh);
     }

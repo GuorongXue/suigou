@@ -101,6 +101,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     panels.push({
       id: panelId, material,
       size: [pw, pd, ps.thickness],
+      boxSize: [pw, ps.thickness, pd],
       position: [0, beamTopY + ps.thickness / 2, 0],   // 底面落在梁上表面
       mode: isTop ? 'top-overlay' : 'shelf-overlap',
       mountNote: (isTop ? '顶面板(覆盖式)：' : '隔板(搭梁式)：') + ps.mountNote,
@@ -124,6 +125,59 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   addPanel(spec.topPanel, H, true);   // 顶梁上表面 = H
   for (let i = 1; i <= spec.shelfCount; i++) {
     addPanel(spec.shelfPanel, (H * i) / (spec.shelfCount + 1) + s / 2, false);
+  }
+
+  // 侧围板（背/左/右）：贴在框架外侧面，兼作抗侧向体系（val-lateral 解药）
+  const addSidePanel = (material: PanelMaterial, side: 'back' | 'left' | 'right') => {
+    if (material === 'none') return;
+    const ps = PANEL_SPEC[material];
+    const panelId = `pn-${++pn}`;
+    const isBack = side === 'back';
+    const pw = isBack ? W : D;   // 板面宽度（沿框架面）
+    const ph = H;
+    const boxSize: [number, number, number] = isBack
+      ? [W, H, ps.thickness] : [ps.thickness, H, D];
+    const position: [number, number, number] = isBack
+      ? [0, H / 2, -D / 2 - ps.thickness / 2]
+      : [side === 'left' ? -W / 2 - ps.thickness / 2 : W / 2 + ps.thickness / 2, H / 2, 0];
+    panels.push({
+      id: panelId, material,
+      size: [pw, ph, ps.thickness], boxSize, position,
+      mode: isBack ? 'back-overlay' : 'side-overlay',
+      mountNote: `${isBack ? '背板' : side === 'left' ? '左侧板' : '右侧板'}(外贴式)：${ps.mountNote}；兼作抗剪体系`,
+    });
+    // 固定点：四角柱上
+    const points: [number, number, number][] = isBack
+      ? [[-W / 2 + s / 2, s, -D / 2], [W / 2 - s / 2, s, -D / 2], [-W / 2 + s / 2, H - s, -D / 2], [W / 2 - s / 2, H - s, -D / 2]]
+      : (() => {
+        const x = side === 'left' ? -W / 2 : W / 2;
+        return [[x, s, -D / 2 + s / 2], [x, s, D / 2 - s / 2], [x, H - s, -D / 2 + s / 2], [x, H - s, D / 2 - s / 2]] as [number, number, number][];
+      })();
+    const soft = material === 'glass' || material === 'acrylic';
+    mounts.push({
+      id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId,
+      method: soft ? 'gasket-clamp' : 't-nut-screw',
+      note: '侧围板四角固定于立柱外侧槽',
+      fasteners: soft
+        ? [{ sku: 'epdm-gasket-pad', qty: 4 }, { sku: 'clamp-strip-200', qty: 4 }]
+        : [{ sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l16', qty: 4 }],
+      points,
+    });
+  };
+  addSidePanel(spec.backPanel, 'back');
+  addSidePanel(spec.leftPanel, 'left');
+  addSidePanel(spec.rightPanel, 'right');
+
+  // 背面对角斜撑（val-005 解药）：同截面型材，两端斜切
+  if (spec.brace) {
+    const bx = W - 2 * s, by = H - 2 * s;
+    const braceLen = Math.round(Math.hypot(bx, by));
+    const tilt = Math.atan2(by, bx);
+    add({
+      role: 'brace', sectionId: sec.id, length: braceLen,
+      position: [0, H / 2, -D / 2 + s / 2], axis: 'x', tilt,
+    });
+    warnings.push(`背面斜撑两端需斜切 ${(tilt * 180 / Math.PI).toFixed(1)}°（嘉立创非标斜切 30~150° 可加工）`);
   }
 
   // 脚轮附件（9.2.4 修复：进模型/BOM/重量；丝杆脚轮 → 柱底端面攻牙加工）

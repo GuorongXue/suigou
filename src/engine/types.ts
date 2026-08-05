@@ -20,9 +20,15 @@ export interface FrameSpec {
   /** 板材：顶面与隔板层各一种材质 */
   topPanel: PanelMaterial;
   shelfPanel: PanelMaterial;
+  /** 侧围板（背/左/右）：兼作抗侧向体系（val-lateral） */
+  backPanel: PanelMaterial;
+  leftPanel: PanelMaterial;
+  rightPanel: PanelMaterial;
+  /** 背面对角斜撑（val-005 解药） */
+  brace: boolean;
 }
 
-export type MemberRole = 'post' | 'beam-x' | 'beam-z';
+export type MemberRole = 'post' | 'beam-x' | 'beam-z' | 'brace';
 
 export type Axis = 'x' | 'y' | 'z';
 
@@ -33,7 +39,9 @@ export interface Member {
   sectionId: string;
   length: number;
   position: [number, number, number];   // 构件中心点
-  axis: Axis;                           // 挤出方向
+  axis: Axis;                           // 挤出方向（基向）
+  /** 斜撑：在基向基础上绕 Z 轴的倾角 rad（背面平面内对角） */
+  tilt?: number;
   /** 件号：同长度+同加工特征归为同一件号（出图/下单喯合基准） */
   partNo?: string;
 }
@@ -108,11 +116,13 @@ export interface MachiningOp {
 export interface PanelItem {
   id: string;
   material: PanelMaterial;
-  /** [宽X, 深Z, 厚] mm */
+  /** 清单语义：[长, 宽, 厚] mm */
   size: [number, number, number];
+  /** 渲染尺寸：[X, Y, Z] 三轴尺寸（支持水平/竖直板） */
+  boxSize: [number, number, number];
   position: [number, number, number];
-  /** 覆盖模式：顶面覆盖 / 搭棁式隔板（四边搭在梁上表面） */
-  mode: 'top-overlay' | 'shelf-overlap';
+  /** 覆盖模式 */
+  mode: 'top-overlay' | 'shelf-overlap' | 'back-overlay' | 'side-overlay';
   mountNote: string;
 }
 

@@ -98,6 +98,7 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   const POS_NAME: Record<string, string> = { side: '侧板', door: '门板', drawer: '抽屉' };
   let topPanel: FrameSpec['topPanel'] = 'none';
   let shelfPanel: FrameSpec['topPanel'] = 'none';
+  let backPanel: FrameSpec['topPanel'] = 'none';
   for (const p of ex.panels ?? []) {
     if (p.material === 'none') continue;
     const mat = MAT_MAP[p.material];
@@ -107,6 +108,9 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     } else if (p.position === 'shelf' && mat) {
       shelfPanel = mat;
       assumptions.push(`隔板：${MAT_NAME[p.material]}`);
+    } else if (p.position === 'side' && mat) {
+      backPanel = mat;
+      assumptions.push(`侧/背板：${MAT_NAME[p.material]}（按背板处理，兼作抗侧向体系）`);
     } else {
       unsupported.push(`${POS_NAME[p.position] ?? p.position}（${MAT_NAME[p.material] ?? p.material}）`);
     }
@@ -115,6 +119,10 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   if (ex.productType === 'other') {
     unsupported.push('非框架类主体结构');
   }
+  // 去重并合并计数（"抽屉×2"而非重复两行）
+  const unsupCount = new Map<string, number>();
+  for (const u of unsupported) unsupCount.set(u, (unsupCount.get(u) ?? 0) + 1);
+  const unsupportedDedup = [...unsupCount.entries()].map(([u, c]) => (c > 1 ? `${u}×${c}` : u));
 
   // 追问补充：来自抽取的 _missing（截取前2条，避免问题轰炸）
   for (const m of (ex._missing ?? []).slice(0, 2)) {
@@ -127,11 +135,13 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
       sectionId, connectorId, shelfCount,
       loadKg, loadType, scene, highRisk, mobility,
       topPanel, shelfPanel,
+      backPanel, leftPanel: 'none', rightPanel: 'none',
+      brace: false,
     },
     assumptions,
     questions: questions.slice(0, 3),
     riskFlags,
-    unsupported,
+    unsupported: unsupportedDedup,
   };
 }
 

@@ -76,17 +76,24 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
     }
   }
 
-  // ---- val-005 斜撑触发器（五触发，行家 verified；Phase0 不生成斜撑构件，给建议） ----
+  // ---- val-005 斜撑触发器（五触发，行家 verified）；已加斜撑/背板则通过 ----
+  const hasBrace = spec.brace;
+  const hasShear = spec.backPanel !== 'none' || spec.leftPanel !== 'none' || spec.rightPanel !== 'none';
   const aspectW = spec.height / spec.width;
   const aspectD = spec.height / spec.depth;
   const braceTriggers: string[] = [];
   if (spec.height > 1000) braceTriggers.push('高度>1000mm');
   if (aspectW > 3 || aspectD > 3) braceTriggers.push(`高宽比${Math.max(aspectW, aspectD).toFixed(1)}>3`);
   if (spec.mobility === 'caster') braceTriggers.push('脚轮工况');
-  if (braceTriggers.length > 0) {
+  if (braceTriggers.length > 0 && !hasBrace && !hasShear) {
     checks.push({
       level: 'warn', ruleId: 'val-005',
       message: `建议加斜撑/背板：${braceTriggers.join('、')}。晃不是型材不够强，是整体抗剪不足`,
+    });
+  } else if (braceTriggers.length > 0) {
+    checks.push({
+      level: 'pass', ruleId: 'val-005',
+      message: `斜撑触发条件存在（${braceTriggers.join('、')}），已配置${hasBrace ? '背面斜撑' : ''}${hasBrace && hasShear ? '+' : ''}${hasShear ? '侧围板抗剪' : ''}`,
     });
   }
 
@@ -129,15 +136,21 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
   }
 
   // ---- val-lateral 侧向稳定性状态（16号评测：只验竖向挠度会制造"全绿=安全"假象） ----
-  // Phase 0 无斜撑/背板体系：侧向刚度未验证是事实状态，必须告知
   const slenderH = spec.height > 800 || spec.height / Math.min(spec.width, spec.depth) > 2;
-  checks.push({
-    level: slenderH ? 'warn' : 'info',
-    ruleId: 'val-lateral',
-    message: slenderH
-      ? '侧向稳定性未验证：本版本无斜撑/背板体系，竖向校验通过不代表不会晃。建议自行加斜撑/背板或靠墙固定'
-      : '侧向稳定性未验证（矮框架风险较低）：本版本仅校验竖向挠度/屈曲',
-  });
+  if (hasBrace || hasShear) {
+    checks.push({
+      level: 'pass', ruleId: 'val-lateral',
+      message: `已有抗侧向体系（${[hasBrace ? '背面斜撑' : '', hasShear ? '侧围板' : ''].filter(Boolean).join('+')}），侧向刚度显著改善`,
+    });
+  } else {
+    checks.push({
+      level: slenderH ? 'warn' : 'info',
+      ruleId: 'val-lateral',
+      message: slenderH
+        ? '侧向稳定性未验证：无斜撑/背板体系，竖向校验通过不代表不会晃。可勾选背面斜撑或添加侧围板'
+        : '侧向稳定性未验证（矮框架风险较低）：本版本仅校验竖向挠度/屈曲',
+    });
+  }
 
   // ---- mat-* 材料接口规则（行家 verified，knowledge/rules/material-interface.yaml） ----
   for (const p of model.panels) {

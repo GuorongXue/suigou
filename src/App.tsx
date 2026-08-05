@@ -43,7 +43,13 @@ const loadDraft = (): Draft | null => {
 export default function App() {
   const kb = useMemo(() => loadKnowledgeBase(), []);
   const draft = useMemo(loadDraft, []);
-  const [spec, setSpec] = useState<FrameSpec>(draft?.spec ?? {
+  const [spec, setSpec] = useState<FrameSpec>(draft?.spec ? {
+    ...draft.spec,
+    backPanel: draft.spec.backPanel ?? 'none',
+    leftPanel: draft.spec.leftPanel ?? 'none',
+    rightPanel: draft.spec.rightPanel ?? 'none',
+    brace: draft.spec.brace ?? false,
+  } : {
     width: 700,
     depth: 400,
     height: 720,
@@ -57,6 +63,10 @@ export default function App() {
     mobility: 'fixed',
     topPanel: 'none',
     shelfPanel: 'none',
+    backPanel: 'none',
+    leftPanel: 'none',
+    rightPanel: 'none',
+    brace: false,
   });
   const [selection, setSelection] = useState<Selection | null>(null);
   const [mode, setMode] = useState<ViewMode>('appearance');
@@ -154,6 +164,7 @@ export default function App() {
       length: m.length,
       position: m.position,
       axis: m.axis,
+      tilt: m.tilt,
     }));
   }, [result, kb]);
 
@@ -183,7 +194,7 @@ export default function App() {
 
   const panels: RenderPanel[] = useMemo(() => {
     if (!result.model) return [];
-    return result.model.panels.map((p) => ({ material: p.material, size: p.size, position: p.position }));
+    return result.model.panels.map((p) => ({ material: p.material, boxSize: p.boxSize, position: p.position }));
   }, [result]);
 
   const accessories: RenderAccessory[] = useMemo(() => {
@@ -240,7 +251,7 @@ export default function App() {
     }
   };
   const model = result.model;
-  const roleName: Record<string, string> = { post: '立柱', 'beam-x': '横梁(X向)', 'beam-z': '纵梁(Z向)' };
+  const roleName: Record<string, string> = { post: '立柱', 'beam-x': '横梁(X向)', 'beam-z': '纵梁(Z向)', brace: '斜撑' };
 
   const selectedMember = selection?.type === 'member' ? items.find((i) => i.id === selection.id) ?? null : null;
   const selectedJoint = selection?.type === 'joint' && model
@@ -522,6 +533,20 @@ export default function App() {
           ))}
         </div>
 
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          {([['背板', 'backPanel'], ['左侧板', 'leftPanel'], ['右侧板', 'rightPanel']] as const).map(([label, key]) => (
+            <label key={key} style={{ flex: 1, fontSize: 12 }}>
+              {label}
+              <select value={spec[key]} onChange={(e) => set({ [key]: e.target.value } as Partial<FrameSpec>)} style={{ width: '100%', marginTop: 4 }}>
+                <option value="none">无</option>
+                <option value="wood">木板</option>
+                <option value="acrylic">亚克力</option>
+                <option value="pegboard">洞洞板</option>
+              </select>
+            </label>
+          ))}
+        </div>
+
         <label style={{ display: 'block', marginBottom: 8 }}>
           顶面载荷 {spec.loadKg} kg
           <input type="range" min={0} max={200} step={5} value={spec.loadKg}
@@ -552,6 +577,8 @@ export default function App() {
             onChange={(e) => set({ highRisk: e.target.checked })} /> 高风险(水族/儿童/头顶)</label>
           <label><input type="checkbox" checked={spec.mobility === 'caster'}
             onChange={(e) => set({ mobility: e.target.checked ? 'caster' : 'fixed' })} /> 带脚轮</label>
+          <label><input type="checkbox" checked={spec.brace}
+            onChange={(e) => set({ brace: e.target.checked })} /> 背面斜撑</label>
         </div>
 
         <label style={{ display: 'block', marginBottom: 8 }}>
