@@ -1,0 +1,39 @@
+# CAM 加工工艺规则包（源：2026-08-05 制造包设计讨论，行家视角）
+# 定位：连接件 machining 声明 → 工序链与工艺参数的映射；Process Sheet 数据源
+
+# 默认工艺（所有件号必带，不声明则厂家默认锯切直发——翻车点）
+defaults:
+  deburr: 全部去毛刺            # cam-003
+  edgeBreak: 锐边倒钝            # cam-004（如需 R0.5 倒角单独声明）
+  cutTolerance: ±0.3            # 与 tolerance.yaml 场景档位联动，precision 场景用 +0/-0.2 单向公差
+
+# 工艺规则：加工特征 → 工序 + 完整参数
+rules:
+  - id: cam-001
+    feature: end-tap
+    process: 切割 → 去毛刺 → 端面攻丝
+    params: { thread: M8×1.25, depth: 20, note: 螺距1.25为粗牙标准；攻深20源自工艺页(欧标30系列) }
+    ends: per-joint             # 单端/双端由接点分布决定（同件两端各有接点=双端）
+  - id: cam-002
+    feature: through-hole
+    process: 切割 → 钻孔 → 去毛刺
+    params: { diameter: 11.5, offsetFromEnd: "G=19-T+2", face: 槽面, note: 锚式连接钻孔，位置公式源自工艺页 }
+  - id: cam-003
+    feature: deburr
+    process: 去毛刺
+    appliesTo: all
+  - id: cam-004
+    feature: chamfer
+    process: 倒角
+    params: { default: 锐边倒钝, optional: R0.5 }
+  - id: cam-005
+    feature: counterbore
+    process: 切割 → 钻孔 → 沉头 → 去毛刺
+    params: { d: 9, D: 14, depth: 8.5, note: M8圆柱头沉头孔，源:工艺页欧标30 Z8 }
+  - id: cam-006
+    feature: wrench-hole
+    process: 切割 → 钻孔 → 去毛刺
+    params: { diameter: 8.5, note: 内置连接件扳手操作孔 }
+
+# 工序卡输出格式（Process Sheet，四类制造文件之③）
+processSheetColumns: [件号, 截面, 长度, 公差, 数量, 工序链, 加工参数, 去毛刺, 倒角]

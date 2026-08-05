@@ -183,8 +183,17 @@ export default function App() {
 
   const exportCutList = () => {
     if (!model) return;
-    downloadCsv('切割清单.csv', ['件号', '截面', '下料长度mm', '数量', '加工'],
-      model.cutList.map((c) => [c.partNo, c.sectionId, c.length, c.qty, c.machiningNote || '无']));
+    // 工序链映射源：knowledge/rules/cam.yaml（cam-001~006）
+    const processOf = (note: string) => {
+      if (!note) return '切割→去毛刺';
+      if (note.includes('沉')) return '切割→钻孔→沉头→去毛刺';
+      if (note.includes('M8')) return '切割→去毛刺→端面攻丝M8×1.25';
+      if (note.includes('Φ')) return '切割→钻孔→去毛刺';
+      return '切割→去毛刺';
+    };
+    const tol = spec.scene === 'precision' ? '+0/-0.2' : '±0.3';
+    downloadCsv('切割清单.csv', ['件号', '截面', '下料长度mm', '公差', '数量', '加工', '工序链', '去毛刺'],
+      model.cutList.map((c) => [c.partNo, c.sectionId, c.length, tol, c.qty, c.machiningNote || '无', processOf(c.machiningNote), '全部去毛刺锐边倒铝']));
   };
 
   const exportBom = () => {

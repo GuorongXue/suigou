@@ -16,7 +16,7 @@ connector:
   lengthOffset: 0
   attach: { facesRequired: 1, orientation: perpendicular, usesCoreHole: true }
   machining:
-    - { type: end-tap, thread: M8, depth: 20, onMember: target }          # 被连接件端面攻丝
+    - { type: end-tap, thread: M8, pitch: 1.25, depth: 20, onMember: target }   # 被连接件端面攻丝，M8×1.25粗牙
     - { type: counterbore, d: 9, D: 14, depth: 8.5, onMember: through }   # 穿过件沉头孔(源:工艺页欧标30 Z8)
   bom:
     - { sku: edla-s1-m8-l40, qty: 1, priceUntaxed: 0.5646 }   # 源:配件清单页
