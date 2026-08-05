@@ -39,6 +39,12 @@ export interface RenderMachining {
   D?: number;
 }
 
+export interface RenderPanel {
+  material: string;
+  size: [number, number, number];
+  position: [number, number, number];
+}
+
 /** 尺寸标注：主线 a→b 平移 offset，两端引线，中点挂标签 */
 export interface RenderDim {
   a: [number, number, number];
@@ -51,6 +57,7 @@ interface ViewerProps {
   items: RenderMember[];
   joints: RenderJoint[];
   machining: RenderMachining[];
+  panels: RenderPanel[];
   dims: RenderDim[];
   /** 相机注视高度（一般取框架半高） */
   focusY: number;
@@ -63,7 +70,14 @@ interface ViewerProps {
 const SELECT_COLOR = 0x1e6fff;
 const WARN_COLOR = 0xe8833a;
 
-export function Viewer({ items, joints, machining, dims, focusY, onSelect, selection, warnMemberIds }: ViewerProps) {
+const PANEL_MATERIALS: Record<string, () => THREE.MeshStandardMaterial> = {
+  wood: () => new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.8, metalness: 0.05 }),
+  pegboard: () => new THREE.MeshStandardMaterial({ color: 0xc9a06a, roughness: 0.75, metalness: 0.05 }),
+  glass: () => new THREE.MeshStandardMaterial({ color: 0xa8cfe0, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.35 }),
+  acrylic: () => new THREE.MeshStandardMaterial({ color: 0xf2f6f8, roughness: 0.15, metalness: 0.05, transparent: true, opacity: 0.45 }),
+};
+
+export function Viewer({ items, joints, machining, panels, dims, focusY, onSelect, selection, warnMemberIds }: ViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const ctxRef = useRef<{
     scene: THREE.Scene;
@@ -315,9 +329,17 @@ export function Viewer({ items, joints, machining, dims, focusY, onSelect, selec
       }
     }
 
+    // 板材：木/洞洞板实体色，玻璃/亚克力半透明
+    for (const p of panels) {
+      const mat = (PANEL_MATERIALS[p.material] ?? PANEL_MATERIALS.wood)();
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(p.size[0], p.size[2], p.size[1]), mat);
+      mesh.position.set(...p.position);
+      ctx.group.add(mesh);
+    }
+
     ctx.controls.target.set(0, focusY, 0);
     ctx.controls.update();
-  }, [items, joints, machining, focusY]);
+  }, [items, joints, machining, panels, focusY]);
 
   // 选中高亮 + 尺寸标注
   useEffect(() => {

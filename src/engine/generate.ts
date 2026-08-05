@@ -1,5 +1,5 @@
 import type { KnowledgeBase } from '../knowledge/types';
-import type { FrameSpec, FrameModel, Member, Joint, MachiningOp } from './types';
+import type { FrameSpec, FrameModel, Member, Joint, MachiningOp, PanelItem, PanelMaterial } from './types';
 import { validateFrame } from './validate';
 
 /**
@@ -76,6 +76,33 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
           beamMemberId: beamId, postMemberId: postId });
       }
     }
+  }
+
+  // 板材构件：顶面 + 隔板层（材料接口规则 mat-* 的安装方式/间隙）
+  const panels: PanelItem[] = [];
+  const PANEL_SPEC: Record<Exclude<PanelMaterial, 'none'>, { thickness: number; clearance: number; mountNote: string }> = {
+    wood:     { thickness: 18, clearance: 2,   mountNote: 'T型螺母直固+长孔浮动安装，留胀缩间隙(mat-wood)' },
+    glass:    { thickness: 8,  clearance: 2,   mountNote: '必须钢化玻璃+EPDM胶条嵌槽，禁直压铝槽(mat-glass)' },
+    acrylic:  { thickness: 5,  clearance: 1.5, mountNote: '嵌槽+热胀间隙，>500mm必须留隙(mat-acrylic)' },
+    pegboard: { thickness: 5,  clearance: 2,   mountNote: '洞洞板螺栓固定四角(mat-wood同源)' },
+  };
+  let pn = 0;
+  const addPanel = (material: PanelMaterial, y: number, isTop: boolean) => {
+    if (material === 'none') return;
+    const ps = PANEL_SPEC[material];
+    const pw = W - 2 * s - 2 * ps.clearance;
+    const pd = D - 2 * s - 2 * ps.clearance;
+    if (pw <= 0 || pd <= 0) return;
+    panels.push({
+      id: `pn-${++pn}`, material,
+      size: [pw, pd, ps.thickness],
+      position: [0, y + s / 2 + ps.thickness / 2, 0],   // 搭在梁上表面
+      mountNote: (isTop ? '顶面板：' : '隔板：') + ps.mountNote,
+    });
+  };
+  addPanel(spec.topPanel, H - s / 2, true);
+  for (let i = 1; i <= spec.shelfCount; i++) {
+    addPanel(spec.shelfPanel, (H * i) / (spec.shelfCount + 1), false);
   }
 
   // 加工特征派生：连接件 machining 声明 → 每个接点的孔位（位置/方向/规格）
@@ -167,6 +194,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     members,
     joints,
     machining,
+    panels,
     cutList,
     checks: [],
     totals: { memberCount: members.length, totalLengthMm, weightKg, priceCny },

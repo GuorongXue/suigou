@@ -1,4 +1,6 @@
-/** 框架生成参数（M2：正交工作台框架；M3 加载荷/场景维度） */
+export type PanelMaterial = 'none' | 'wood' | 'glass' | 'acrylic' | 'pegboard';
+
+/** 框架生成参数（M2：正交工作台框架；M3 加载荷/场景维度；M4.5 加板材） */
 export interface FrameSpec {
   width: number;    // 总宽 X (mm)
   depth: number;    // 总深 Z (mm)
@@ -15,6 +17,9 @@ export interface FrameSpec {
   /** 高风险场景（水族/儿童/头顶）→ val-003 安全系数 2.0 */
   highRisk: boolean;
   mobility: 'fixed' | 'caster';
+  /** 板材：顶面与隔板层各一种材质 */
+  topPanel: PanelMaterial;
+  shelfPanel: PanelMaterial;
 }
 
 export type MemberRole = 'post' | 'beam-x' | 'beam-z';
@@ -96,11 +101,22 @@ export interface MachiningOp {
   discs: HoleDisc[];
 }
 
+/** 板材构件（嵌槽/搭放在框架上，材质接口规则 mat-* 管控） */
+export interface PanelItem {
+  id: string;
+  material: PanelMaterial;
+  /** [宽X, 深Z, 厚] mm */
+  size: [number, number, number];
+  position: [number, number, number];
+  mountNote: string;
+}
+
 export interface FrameModel {
   spec: FrameSpec;
   members: Member[];
   joints: Joint[];
   machining: MachiningOp[];
+  panels: PanelItem[];
   cutList: CutListItem[];
   checks: CheckResult[];
   totals: { memberCount: number; totalLengthMm: number; weightKg: number | null; priceCny: number | null };

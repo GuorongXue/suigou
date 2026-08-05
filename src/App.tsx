@@ -6,9 +6,20 @@ import { runGolden } from './engine/golden';
 import { extractIntent, getApiKey, setApiKey } from './engine/extract';
 import { intentToSpec, type IntentResult } from './engine/intent';
 import type { FrameSpec } from './engine/types';
-import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type RenderDim, type Selection } from './viewer/Viewer';
+import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type RenderPanel, type RenderDim, type Selection } from './viewer/Viewer';
 
 type ViewMode = 'appearance' | 'structure' | 'drawing';
+
+interface ChatMsg {
+  role: 'user' | 'ai' | 'system';
+  text: string;
+}
+
+const FIELD_NAMES: Record<string, string> = {
+  width: '总宽', depth: '总深', height: '总高', shelfCount: '隔板层数', loadKg: '载荷',
+  loadType: '载荷分布', scene: '场景', highRisk: '高风险', mobility: '移动性',
+  sectionId: '截面', connectorId: '连接件',
+};
 
 export default function App() {
   const kb = useMemo(() => loadKnowledgeBase(), []);
@@ -24,33 +35,59 @@ export default function App() {
     scene: 'workbench',
     highRisk: false,
     mobility: 'fixed',
+    topPanel: 'none',
+    shelfPanel: 'none',
   });
   const [selection, setSelection] = useState<Selection | null>(null);
   const [mode, setMode] = useState<ViewMode>('appearance');
-  // 意图层状态（M4）
+  // 意图层状态（M4）：对话与滑杆共享同一方案状态（单一事实源）
   const [aiText, setAiText] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<IntentResult | null>(null);
-  const [aiHistory, setAiHistory] = useState<string[]>([]);
+  const [chat, setChat] = useState<ChatMsg[]>([]);
+  const [manualChanges, setManualChanges] = useState<Map<string, string>>(new Map());
   const [hasKey, setHasKey] = useState(() => !!getApiKey());
 
   const runIntent = async () => {
     if (!aiText.trim() || aiBusy) return;
+    const userMsg = aiText.trim();
     setAiBusy(true);
     setAiError(null);
+    setChat((c) => [...c, { role: 'user', text: userMsg }]);
+    setAiText('');
     try {
-      // 多轮策略：历史需求+补充回答合并为一段文本重新抽取（实验验证的单轮抽取路径）
-      const merged = [...aiHistory, aiText.trim()].join('\n补充：');
+      // 滑杆手动调整作为状态事实注入上下文：模型基于当前方案增量理解，不覆盖用户手调
+      const manualNote = manualChanges.size > 0
+        ? `\n[用户已在界面手动调整且必须保持：${[...manualChanges.values()].join('，')}]`
+        : '';
+      const stateNote = aiResult
+        ? `\n[当前方案状态：宽${spec.width} 深${spec.depth} 高${spec.height}mm，载荷${spec.loadKg}kg，${spec.mobility === 'caster' ? '带脚轮' : '固定'}，隔板${spec.shelfCount}层]`
+        : '';
+      const history = chat.filter((m) => m.role === 'user').map((m) => m.text);
+      const merged = [...history, userMsg].join('\n补充：') + stateNote + manualNote;
       const extraction = await extractIntent(merged);
       const result = intentToSpec(extraction, kb);
-      setSpec(result.spec);
+      // 手动调整过的尺寸字段不被 AI 覆盖（除非本轮用户明说）
+      const guarded = { ...result.spec };
+      for (const key of manualChanges.keys()) {
+        if (!userMsg.match(/\d/) || !['width', 'depth', 'height'].includes(key)) {
+          (guarded as unknown as Record<string, unknown>)[key] = spec[key as keyof FrameSpec];
+        }
+      }
+      setSpec(guarded);
       setAiResult(result);
-      setAiHistory([...aiHistory, aiText.trim()]);
-      setAiText('');
+      const aiReply = [
+        `已更新方案：宽${guarded.width}×深${guarded.depth}×高${guarded.height}mm，${guarded.sectionId}，载荷${guarded.loadKg}kg`,
+        result.unsupported.length ? `🚧 已记录但当前版本暂不支持：${result.unsupported.join('、')}（不会丢失，后续版本支持）` : '',
+        result.riskFlags.length ? `⚠ ${result.riskFlags[0]}` : '',
+        result.questions.length ? `❓ ${result.questions[0]}` : '参数已齐，可微调或导出清单',
+      ].filter(Boolean).join('\n');
+      setChat((c) => [...c, { role: 'ai', text: aiReply }]);
       setSelection(null);
     } catch (e) {
       setAiError((e as Error).message);
+      setChat((c) => [...c, { role: 'ai', text: `✖ 出错了：${(e as Error).message}` }]);
     } finally {
       setAiBusy(false);
     }
@@ -100,6 +137,11 @@ export default function App() {
       m.discs.map((disc) => ({ position: disc.position, axis: disc.axis, dir: disc.dir, d: disc.d, D: disc.D })));
   }, [result]);
 
+  const panels: RenderPanel[] = useMemo(() => {
+    if (!result.model) return [];
+    return result.model.panels.map((p) => ({ material: p.material, size: p.size, position: p.position }));
+  }, [result]);
+
   const machiningSummary = useMemo(() => {
     if (!result.model) return [];
     const byKey = new Map<string, { type: string; spec: string; qty: number }>();
@@ -130,7 +172,19 @@ export default function App() {
   const golden = useMemo(() => runGolden(kb), [kb]);
   const goldenPass = golden.filter((g) => g.pass).length;
 
-  const set = (patch: Partial<FrameSpec>) => setSpec((s) => ({ ...s, ...patch }));
+  const set = (patch: Partial<FrameSpec>) => {
+    setSpec((s) => ({ ...s, ...patch }));
+    // 对话开始后的手动调整要记账，下一轮注入模型上下文（单一事实源）
+    if (chat.length > 0) {
+      setManualChanges((mc) => {
+        const next = new Map(mc);
+        for (const [k, v] of Object.entries(patch)) {
+          next.set(k, `${FIELD_NAMES[k] ?? k}=${v}`);
+        }
+        return next;
+      });
+    }
+  };
   const model = result.model;
   const roleName: Record<string, string> = { post: '立柱', 'beam-x': '横梁(X向)', 'beam-z': '纵梁(Z向)' };
 
@@ -274,10 +328,25 @@ export default function App() {
           </div>
         ) : (
           <div style={{ marginBottom: 10 }}>
+            {/* 对话历史：用户说了什么、AI 理解成什么，全程可追溯 */}
+            {chat.length > 0 && (
+              <div style={{ maxHeight: 220, overflowY: 'auto', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {chat.map((m, i) => (
+                  <div key={i} style={{
+                    alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+                    maxWidth: '88%', padding: '6px 10px', borderRadius: 10, fontSize: 12,
+                    whiteSpace: 'pre-wrap', lineHeight: 1.6,
+                    background: m.role === 'user' ? '#1e6fff' : '#f0f2f5',
+                    color: m.role === 'user' ? '#fff' : '#333',
+                  }}>{m.text}</div>
+                ))}
+                {aiBusy && <div style={{ alignSelf: 'flex-start', color: '#999', fontSize: 12, padding: '2px 10px' }}>AI 理解中…</div>}
+              </div>
+            )}
             <textarea
               value={aiText}
               onChange={(e) => setAiText(e.target.value)}
-              placeholder={aiHistory.length ? '回答追问或补充需求…' : '例：想要一个放3D打印机的架子，宽大概一米，带轮子方便移动'}
+              placeholder={chat.length ? '回答追问或补充需求…' : '例：想要一个放3D打印机的架子，宽大概一米，带轮子方便移动'}
               rows={2}
               style={{ width: '100%', padding: '6px 8px', border: '1px solid #c9d2e0', borderRadius: 6, resize: 'vertical', fontFamily: 'inherit', fontSize: 13 }}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runIntent(); } }}
@@ -285,22 +354,21 @@ export default function App() {
             <button onClick={runIntent} disabled={aiBusy} style={{
               width: '100%', marginTop: 4, padding: '7px 0', border: 'none', borderRadius: 6,
               background: aiBusy ? '#9db8e8' : '#1e6fff', color: '#fff', cursor: aiBusy ? 'wait' : 'pointer', fontSize: 13,
-            }}>{aiBusy ? 'AI 理解中…' : aiHistory.length ? '补充并重新生成' : '✨ 生成方案'}</button>
+            }}>{aiBusy ? 'AI 理解中…' : chat.length ? '发送' : '✨ 生成方案'}</button>
             {aiError && <div style={{ color: '#c0392b', fontSize: 12, marginTop: 4 }}>✖ {aiError}</div>}
+            {manualChanges.size > 0 && (
+              <div style={{ color: '#8a7a3a', background: '#fdf9e8', padding: '4px 8px', borderRadius: 4, fontSize: 11, marginTop: 4 }}>
+                🔒 已手动调整并锁定：{[...manualChanges.values()].join('，')}（AI 不会覆盖，改口请在对话中明说）
+              </div>
+            )}
           </div>
         )}
 
         {aiResult && (
           <div style={{ marginBottom: 10 }}>
-            {aiResult.riskFlags.length > 0 && (
-              <div style={{ background: '#fdf0ee', color: '#c0392b', padding: '6px 8px', borderRadius: 6, fontSize: 12, marginBottom: 4 }}>
-                ⚠ 风险提示：{aiResult.riskFlags.join('；')}
-              </div>
-            )}
-            {aiResult.questions.length > 0 && (
-              <div style={{ background: '#ebf4ff', color: '#2b6cb0', padding: '6px 8px', borderRadius: 6, fontSize: 12, marginBottom: 4 }}>
-                {aiResult.questions.map((q) => <div key={q}>❓ {q}</div>)}
-                <div style={{ color: '#8aa8cc' }}>在上方输入框回答即可，或直接用下方滑杆微调</div>
+            {aiResult.unsupported.length > 0 && (
+              <div style={{ background: '#fdf9e8', color: '#8a7a3a', padding: '6px 8px', borderRadius: 6, fontSize: 12, marginBottom: 4 }}>
+                🚧 已记录但暂不支持：{aiResult.unsupported.join('、')}（当前版本只做正交框架+顶板/隔板，这些需求已存档）
               </div>
             )}
             <details style={{ fontSize: 12, color: '#666' }}>
@@ -327,6 +395,21 @@ export default function App() {
           <input type="range" min={0} max={4} step={1} value={spec.shelfCount}
             onChange={(e) => set({ shelfCount: Number(e.target.value) })} style={{ width: '100%' }} />
         </label>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          {([['顶面板', 'topPanel'], ['隔板材质', 'shelfPanel']] as const).map(([label, key]) => (
+            <label key={key} style={{ flex: 1 }}>
+              {label}
+              <select value={spec[key]} onChange={(e) => set({ [key]: e.target.value } as Partial<FrameSpec>)} style={{ width: '100%', marginTop: 4 }}>
+                <option value="none">无</option>
+                <option value="wood">木板</option>
+                <option value="glass">玻璃(钢化)</option>
+                <option value="acrylic">亚克力</option>
+                <option value="pegboard">洞洞板</option>
+              </select>
+            </label>
+          ))}
+        </div>
 
         <label style={{ display: 'block', marginBottom: 8 }}>
           顶面载荷 {spec.loadKg} kg
@@ -492,6 +575,7 @@ export default function App() {
           items={items}
           joints={mode === 'structure' ? joints : []}
           machining={mode !== 'appearance' ? machining : []}
+          panels={panels}
           dims={dims}
           focusY={spec.height / 2}
           onSelect={setSelection}

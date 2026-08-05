@@ -128,5 +128,21 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
     });
   }
 
+  // ---- mat-* 材料接口规则（行家 verified，knowledge/rules/material-interface.yaml） ----
+  for (const p of model.panels) {
+    if (p.material === 'glass') {
+      checks.push({ level: 'warn', ruleId: 'mat-glass',
+        message: `玻璃板（${p.size[0]}×${p.size[1]}）必须钢化+边缘倒角，嵌槽加 EPDM 胶条，禁止直接压铝槽——风险最大的板材` });
+    }
+    if (p.material === 'acrylic' && Math.max(p.size[0], p.size[1]) > 500) {
+      checks.push({ level: 'info', ruleId: 'mat-acrylic',
+        message: `亚克力板跨度 ${Math.max(p.size[0], p.size[1]).toFixed(0)}mm > 500：已留 1.5mm 热胀间隙（锁死会开裂/鼓包）` });
+    }
+    if (p.material === 'wood') {
+      checks.push({ level: 'info', ruleId: 'mat-wood',
+        message: '木板吸湿胀缩：已按浮动安装预留间隙，禁止四边完全锁死' });
+    }
+  }
+
   return checks;
 }
