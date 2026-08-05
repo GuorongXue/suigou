@@ -1,4 +1,4 @@
-/** 框架生成参数（M2：正交工作台框架） */
+/** 框架生成参数（M2：正交工作台框架；M3 加载荷/场景维度） */
 export interface FrameSpec {
   width: number;    // 总宽 X (mm)
   depth: number;    // 总深 Z (mm)
@@ -7,6 +7,14 @@ export interface FrameSpec {
   connectorId: string;
   /** 隔板层数（不含顶底框），均匀分布在高度方向 */
   shelfCount: number;
+  /** 顶面设计载荷 kg */
+  loadKg: number;
+  loadType: 'distributed' | 'concentrated';
+  /** 用途场景，决定挠度限值档位（validation.yaml deflectionLimits） */
+  scene: 'diy-furniture' | 'industrial-rack' | 'workbench' | 'precision';
+  /** 高风险场景（水族/儿童/头顶）→ val-003 安全系数 2.0 */
+  highRisk: boolean;
+  mobility: 'fixed' | 'caster';
 }
 
 export type MemberRole = 'post' | 'beam-x' | 'beam-z';
@@ -21,12 +29,26 @@ export interface Member {
   length: number;
   position: [number, number, number];   // 构件中心点
   axis: Axis;                           // 挤出方向
+  /** 件号：同长度+同加工特征归为同一件号（出图/下单喯合基准） */
+  partNo?: string;
 }
 
 export interface CutListItem {
+  partNo: string;
   sectionId: string;
   length: number;
   qty: number;
+  /** 加工特征摘要（如 "通孔Φ11.5×2"），无加工为空 */
+  machiningNote: string;
+}
+
+/** 校验结果（规则管道输出） */
+export interface CheckResult {
+  level: 'error' | 'warn' | 'info' | 'pass';
+  ruleId: string;
+  message: string;
+  /** 问题构件（画布染色） */
+  memberIds?: string[];
 }
 
 /** 接点：梁端与立柱面的交汇处，携带连接件放置信息 */
@@ -40,6 +62,10 @@ export interface Joint {
   outward: 1 | -1;
   /** 角码放置侧：+1 梁上方（底框），-1 梁下方（顶框/隔板） */
   ySide: 1 | -1;
+  /** 所属梁构件 id（加工归属） */
+  beamMemberId: string;
+  /** 相邻立柱构件 id */
+  postMemberId: string;
 }
 
 /** 孔口圆片：在构件表面的孔开口可视化（真实孔面表现，非穿透标记） */
@@ -57,6 +83,8 @@ export interface HoleDisc {
 export interface MachiningOp {
   id: string;
   jointId: string;
+  /** 被加工构件 id（件号聚合依据） */
+  memberId: string;
   type: 'through-hole' | 'end-tap' | 'counterbore' | 'wrench-hole' | string;
   /** 人读规格，如 Φ11.5 / M8×20 / Φ9沉Φ14 */
   spec: string;
@@ -74,6 +102,7 @@ export interface FrameModel {
   joints: Joint[];
   machining: MachiningOp[];
   cutList: CutListItem[];
+  checks: CheckResult[];
   totals: { memberCount: number; totalLengthMm: number; weightKg: number | null; priceCny: number | null };
   warnings: string[];
 }

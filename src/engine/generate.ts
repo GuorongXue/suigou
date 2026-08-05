@@ -1,5 +1,6 @@
 import type { KnowledgeBase } from '../knowledge/types';
 import type { FrameSpec, FrameModel, Member, Joint, MachiningOp } from './types';
+import { validateFrame } from './validate';
 
 /**
  * 确定性生成器（M2）：参数 → 正交工作台框架构件图。
@@ -37,7 +38,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   const addJoint = (j: Omit<Joint, 'id' | 'connectorId'>) =>
     joints.push({ id: `j-${++jn}`, connectorId: conn.id, ...j });
 
-  // 4 立柱（全高）
+  // 4 立柱（全高），记录位置供接点归属匹配
+  const postAt = new Map<string, string>();   // "x,z" -> memberId
   for (const [x, z] of [
     [-W / 2 + s / 2, -D / 2 + s / 2],
     [W / 2 - s / 2, -D / 2 + s / 2],
@@ -45,6 +47,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     [W / 2 - s / 2, D / 2 - s / 2],
   ]) {
     add({ role: 'post', sectionId: sec.id, length: H, position: [x, H / 2, z], axis: 'y' });
+    postAt.set(`${x},${z}`, `m-${n}`);
   }
 
   // 梁层：底框 + 顶框 + 均匀分布的隔板层
@@ -57,14 +60,20 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const ySide: 1 | -1 = y <= s ? 1 : -1;   // 底框角码朝上，其余朝下
     for (const z of [-D / 2 + s / 2, D / 2 - s / 2]) {
       add({ role: 'beam-x', sectionId: sec.id, length: beamX, position: [0, y, z], axis: 'x' });
+      const beamId = `m-${n}`;
       for (const outward of [1, -1] as const) {
-        addJoint({ position: [outward * (W / 2 - s), y, z], beamAxis: 'x', outward, ySide });
+        const postId = postAt.get(`${outward * (W / 2 - s / 2)},${z}`)!;
+        addJoint({ position: [outward * (W / 2 - s), y, z], beamAxis: 'x', outward, ySide,
+          beamMemberId: beamId, postMemberId: postId });
       }
     }
     for (const x of [-W / 2 + s / 2, W / 2 - s / 2]) {
       add({ role: 'beam-z', sectionId: sec.id, length: beamZ, position: [x, y, 0], axis: 'z' });
+      const beamId = `m-${n}`;
       for (const outward of [1, -1] as const) {
-        addJoint({ position: [x, y, outward * (D / 2 - s)], beamAxis: 'z', outward, ySide });
+        const postId = postAt.get(`${x},${outward * (D / 2 - s / 2)}`)!;
+        addJoint({ position: [x, y, outward * (D / 2 - s)], beamAxis: 'z', outward, ySide,
+          beamMemberId: beamId, postMemberId: postId });
       }
     }
   }
@@ -85,7 +94,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
           const G = 19 - T + 2;
           const c = at(G);
           const d = Number(op.diameter);
-          machining.push({ id, jointId: j.id, type: 'through-hole', spec: `Φ${d}`,
+          machining.push({ id, jointId: j.id, memberId: j.beamMemberId, type: 'through-hole', spec: `Φ${d}`,
             position: c, axis: 'y', diameter: d, length: s,
             discs: [
               { position: [c[0], jy + s / 2 + 0.15, c[2]], axis: 'y', dir: 1, d },
@@ -94,7 +103,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
           break;
         }
         case 'end-tap':          // 端面攻丝：梁端中心孔攻牙（贴柱面被遮挡，不出孔口片）
-          machining.push({ id, jointId: j.id, type: 'end-tap', spec: `${op.thread}×${op.depth}`,
+          machining.push({ id, jointId: j.id, memberId: j.beamMemberId, type: 'end-tap', spec: `${op.thread}×${op.depth}`,
             position: at(Number(op.depth) / 2), axis: j.beamAxis, diameter: 8, length: Number(op.depth),
             discs: [] });
           break;
@@ -103,7 +112,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
             ? [jx + j.outward * (s / 2), jy, jz] : [jx, jy, jz + j.outward * (s / 2)];
           const outer: [number, number, number] = j.beamAxis === 'x'
             ? [jx + j.outward * (s + 0.15), jy, jz] : [jx, jy, jz + j.outward * (s + 0.15)];
-          machining.push({ id, jointId: j.id, type: 'counterbore', spec: `Φ${op.d}沉Φ${op.D}×${op.depth}`,
+          machining.push({ id, jointId: j.id, memberId: j.postMemberId, type: 'counterbore', spec: `Φ${op.d}沉Φ${op.D}×${op.depth}`,
             position: pos, axis: j.beamAxis, diameter: Number(op.d), length: s,
             discs: [{ position: outer, axis: j.beamAxis, dir: j.outward, d: Number(op.d), D: Number(op.D) }] });
           break;
@@ -112,7 +121,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
           const c = at(s * 0.75);
           const dir = (-j.ySide) as 1 | -1;
           const d = Number(op.diameter);
-          machining.push({ id, jointId: j.id, type: 'wrench-hole', spec: `Φ${d}`,
+          machining.push({ id, jointId: j.id, memberId: j.beamMemberId, type: 'wrench-hole', spec: `Φ${d}`,
             position: c, axis: 'y', diameter: d, length: s,
             discs: [{ position: [c[0], jy + dir * (s / 2 + 0.15), c[2]], axis: 'y', dir, d }] });
           break;
@@ -121,24 +130,48 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     }
   }
 
-  // 切割清单：按长度聚合
-  const byLength = new Map<number, number>();
-  for (const m of members) byLength.set(m.length, (byLength.get(m.length) ?? 0) + 1);
-  const cutList = [...byLength.entries()]
-    .map(([length, qty]) => ({ sectionId: sec.id, length, qty }))
+  // 件号系统：长度+加工特征签名聚合（同长不同加工不得合并，出图/下单基准）
+  const machBy = new Map<string, string[]>();
+  for (const mc of machining) {
+    (machBy.get(mc.memberId) ?? machBy.set(mc.memberId, []).get(mc.memberId)!)
+      .push(`${mc.type}:${mc.spec}`);
+  }
+  const partKey = (m: Member) => `${m.length}|${(machBy.get(m.id) ?? []).sort().join(',')}`;
+  const partNoByKey = new Map<string, string>();
+  const cutAgg = new Map<string, { length: number; qty: number; machiningNote: string }>();
+  for (const m of members) {
+    const key = partKey(m);
+    if (!partNoByKey.has(key)) partNoByKey.set(key, `P${partNoByKey.size + 1}`);
+    m.partNo = partNoByKey.get(key)!;
+    const agg = cutAgg.get(key);
+    if (agg) agg.qty++;
+    else {
+      const ops = machBy.get(m.id) ?? [];
+      const noteMap = new Map<string, number>();
+      for (const o of ops) noteMap.set(o, (noteMap.get(o) ?? 0) + 1);
+      const machiningNote = [...noteMap.entries()]
+        .map(([o, c]) => `${o.split(':')[1]}×${c}`).join(' ');
+      cutAgg.set(key, { length: m.length, qty: 1, machiningNote });
+    }
+  }
+  const cutList = [...cutAgg.entries()]
+    .map(([key, v]) => ({ partNo: partNoByKey.get(key)!, sectionId: sec.id, ...v }))
     .sort((a, b) => b.length - a.length);
 
   const totalLengthMm = members.reduce((sum, m) => sum + m.length, 0);
   const weightKg = sec.weightPerMeter != null ? (totalLengthMm / 1000) * sec.weightPerMeter : null;
   const priceCny = sec.price.perMeter != null ? (totalLengthMm / 1000) * sec.price.perMeter : null;
 
-  return {
+  const model: FrameModel = {
     spec,
     members,
     joints,
     machining,
     cutList,
+    checks: [],
     totals: { memberCount: members.length, totalLengthMm, weightKg, priceCny },
     warnings,
   };
+  model.checks = validateFrame(model, kb);
+  return model;
 }

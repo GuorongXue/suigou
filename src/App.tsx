@@ -15,6 +15,11 @@ export default function App() {
     sectionId: 'eu-3030',
     connectorId: 'corner-bracket-30',
     shelfCount: 1,
+    loadKg: 30,
+    loadType: 'distributed',
+    scene: 'workbench',
+    highRisk: false,
+    mobility: 'fixed',
   });
   const [selection, setSelection] = useState<Selection | null>(null);
   const [mode, setMode] = useState<ViewMode>('appearance');
@@ -73,6 +78,13 @@ export default function App() {
       else byKey.set(key, { type: m.type, spec: m.spec, qty: 1 });
     }
     return [...byKey.values()];
+  }, [result]);
+
+  const warnMemberIds = useMemo(() => {
+    if (!result.model) return [];
+    return [...new Set(result.model.checks
+      .filter((c) => (c.level === 'error' || c.level === 'warn') && c.memberIds)
+      .flatMap((c) => c.memberIds!))];
   }, [result]);
 
   const set = (patch: Partial<FrameSpec>) => setSpec((s) => ({ ...s, ...patch }));
@@ -146,11 +158,52 @@ export default function App() {
     'through-hole': '通孔', 'end-tap': '端面攻丝', counterbore: '沉头孔', 'wrench-hole': '扬手孔',
   };
 
+  const downloadCsv = (name: string, header: string[], rows: (string | number)[][]) => {
+    const csv = '\ufeff' + [header, ...rows].map((r) => r.join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportCutList = () => {
+    if (!model) return;
+    downloadCsv('切割清单.csv', ['件号', '截面', '下料长度mm', '数量', '加工'],
+      model.cutList.map((c) => [c.partNo, c.sectionId, c.length, c.qty, c.machiningNote || '无']));
+  };
+
+  const exportBom = () => {
+    if (!model) return;
+    const conn = kb.connectors.find((c) => c.connector.id === spec.connectorId)!.connector;
+    const rows: (string | number)[][] = model.cutList.map((c) => [
+      '型材', `${c.sectionId} L${c.length}`, c.qty,
+      sec2Price(c.length) != null ? (sec2Price(c.length)! * c.qty).toFixed(2) : '待补']);
+    rows.push(['连接件', conn.name, model.joints.length, '']);
+    const bomAgg = new Map<string, number>();
+    for (const b of conn.bom) bomAgg.set(b.sku, (bomAgg.get(b.sku) ?? 0) + b.qty * model.joints.length);
+    for (const [sku, qty] of bomAgg) rows.push(['配件', sku, qty, '']);
+    downloadCsv('BOM清单.csv', ['类别', '名称/规格', '数量', '估价CNY'], rows);
+  };
+
+  const sec2Price = (len: number) => {
+    const sec = kb.sections.find((s) => s.section.id === spec.sectionId)!.section;
+    return sec.price.perMeter != null ? (sec.price.perMeter * len) / 1000 : null;
+  };
+
+  const levelStyle: Record<string, { color: string; bg: string; icon: string }> = {
+    error: { color: '#c0392b', bg: '#fdf0ee', icon: '✖' },
+    warn: { color: '#b7791f', bg: '#fffbeb', icon: '⚠' },
+    info: { color: '#2b6cb0', bg: '#ebf4ff', icon: 'ℹ' },
+    pass: { color: '#2f855a', bg: '#f0fff4', icon: '✓' },
+  };
+
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh' }}>
       <aside style={{ width: 320, padding: 16, background: '#fff', borderRight: '1px solid #e2e5ea', overflowY: 'auto', fontSize: 13, lineHeight: 1.7 }}>
-        <h2 style={{ margin: '0 0 4px', fontSize: 18 }}>随构 · M2 生成引擎</h2>
-        <div style={{ color: '#888', marginBottom: 12 }}>参数 → 构件图 → 查看器（纯确定性）</div>
+        <h2 style={{ margin: '0 0 4px', fontSize: 18 }}>随构 · M3 规则引擎</h2>
+        <div style={{ color: '#888', marginBottom: 12 }}>参数 → 构件图 → 校验 → 清单</div>
 
         {([
           ['总宽 W', 'width', 200, 2000],
@@ -169,6 +222,38 @@ export default function App() {
           <input type="range" min={0} max={4} step={1} value={spec.shelfCount}
             onChange={(e) => set({ shelfCount: Number(e.target.value) })} style={{ width: '100%' }} />
         </label>
+
+        <label style={{ display: 'block', marginBottom: 8 }}>
+          顶面载荷 {spec.loadKg} kg
+          <input type="range" min={0} max={200} step={5} value={spec.loadKg}
+            onChange={(e) => set({ loadKg: Number(e.target.value) })} style={{ width: '100%' }} />
+        </label>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <label style={{ flex: 1 }}>
+            载荷分布
+            <select value={spec.loadType} onChange={(e) => set({ loadType: e.target.value as FrameSpec['loadType'] })} style={{ width: '100%', marginTop: 4 }}>
+              <option value="distributed">均匀分布</option>
+              <option value="concentrated">集中一点</option>
+            </select>
+          </label>
+          <label style={{ flex: 1 }}>
+            使用场景
+            <select value={spec.scene} onChange={(e) => set({ scene: e.target.value as FrameSpec['scene'] })} style={{ width: '100%', marginTop: 4 }}>
+              <option value="diy-furniture">家具/置物</option>
+              <option value="workbench">工作台</option>
+              <option value="industrial-rack">设备机架</option>
+              <option value="precision">精密设备</option>
+            </select>
+          </label>
+        </div>
+
+        <div style={{ display: 'flex', gap: 14, marginBottom: 8 }}>
+          <label><input type="checkbox" checked={spec.highRisk}
+            onChange={(e) => set({ highRisk: e.target.checked })} /> 高风险(水族/儿童/头顶)</label>
+          <label><input type="checkbox" checked={spec.mobility === 'caster'}
+            onChange={(e) => set({ mobility: e.target.checked ? 'caster' : 'fixed' })} /> 带脚轮</label>
+        </div>
 
         <label style={{ display: 'block', marginBottom: 8 }}>
           截面系列
@@ -196,21 +281,33 @@ export default function App() {
               <div key={w} style={{ color: '#b7791f', background: '#fffbeb', padding: '6px 8px', borderRadius: 4, marginBottom: 8, fontSize: 12 }}>⚠ {w}</div>
             ))}
 
-            <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>切割清单</h3>
+            <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>结构校验</h3>
+            {model.checks.map((c, i) => {
+              const st = levelStyle[c.level];
+              return (
+                <div key={i} style={{ color: st.color, background: st.bg, padding: '5px 8px', borderRadius: 4, marginBottom: 4, fontSize: 12 }}>
+                  {st.icon} <b>{c.ruleId}</b> {c.message}
+                </div>
+              );
+            })}
+
+            <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>切割清单（按件号）</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #d8dce2', color: '#666', textAlign: 'left' }}>
-                  <th style={{ padding: '4px 0' }}>截面</th>
-                  <th style={{ textAlign: 'right' }}>下料长度</th>
+                  <th style={{ padding: '4px 0' }}>件号</th>
+                  <th style={{ textAlign: 'right' }}>长度</th>
                   <th style={{ textAlign: 'right' }}>数量</th>
+                  <th style={{ textAlign: 'right' }}>加工</th>
                 </tr>
               </thead>
               <tbody>
                 {model.cutList.map((c) => (
-                  <tr key={c.length} style={{ borderBottom: '1px solid #f0f2f5' }}>
-                    <td style={{ padding: '4px 0' }}>{c.sectionId}</td>
-                    <td style={{ textAlign: 'right' }}>{c.length} mm</td>
+                  <tr key={c.partNo} style={{ borderBottom: '1px solid #f0f2f5' }}>
+                    <td style={{ padding: '4px 0' }}>{c.partNo}</td>
+                    <td style={{ textAlign: 'right' }}>{c.length}</td>
                     <td style={{ textAlign: 'right' }}>×{c.qty}</td>
+                    <td style={{ textAlign: 'right', fontSize: 11, color: '#777' }}>{c.machiningNote || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -246,6 +343,18 @@ export default function App() {
                 <div style={{ color: '#999', fontSize: 12 }}>深色圆片 = 孔口位置（表面可见面）</div>
               </>
             )}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button onClick={exportCutList} style={{ flex: 1, padding: '7px 0', border: '1px solid #1e6fff', borderRadius: 6, background: '#fff', color: '#1e6fff', cursor: 'pointer' }}>导出切割清单</button>
+              <button onClick={exportBom} style={{ flex: 1, padding: '7px 0', border: 'none', borderRadius: 6, background: '#1e6fff', color: '#fff', cursor: 'pointer' }}>导出 BOM</button>
+            </div>
+
+            {/* 免责三要素（07文档责任设计） */}
+            <div style={{ marginTop: 12, padding: '8px 10px', background: '#f7f8fa', borderRadius: 6, color: '#888', fontSize: 11, lineHeight: 1.6 }}>
+              ① 本方案的承重/挠度为工程估算参考，基于典型截面参数（厂家间差异可达20%~50%）；
+              ② 未经专业结构认证，不替代持证工程师核算；
+              ③ 水族/儿童/头顶等高风险场景请务必勾选高风险选项并保留安全冗余，最终装配质量需自行确认。
+            </div>
           </>
         )}
 
@@ -263,6 +372,7 @@ export default function App() {
           focusY={spec.height / 2}
           onSelect={setSelection}
           selection={selection}
+          warnMemberIds={warnMemberIds}
         />
         {/* 视图模式工具条：按用户任务阶段分层显示 */}
         <div style={{

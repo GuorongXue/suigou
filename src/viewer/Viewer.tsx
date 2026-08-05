@@ -56,11 +56,14 @@ interface ViewerProps {
   focusY: number;
   onSelect?: (sel: Selection | null) => void;
   selection?: Selection | null;
+  /** 校验问题构件（橙色警示） */
+  warnMemberIds?: string[];
 }
 
 const SELECT_COLOR = 0x1e6fff;
+const WARN_COLOR = 0xe8833a;
 
-export function Viewer({ items, joints, machining, dims, focusY, onSelect, selection }: ViewerProps) {
+export function Viewer({ items, joints, machining, dims, focusY, onSelect, selection, warnMemberIds }: ViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const ctxRef = useRef<{
     scene: THREE.Scene;
@@ -323,6 +326,7 @@ export function Viewer({ items, joints, machining, dims, focusY, onSelect, selec
 
     const selMemberId = selection?.type === 'member' ? selection.id : null;
     const selJointId = selection?.type === 'joint' ? selection.id : null;
+    const warnSet = new Set(warnMemberIds ?? []);
 
     for (const [id, mesh] of ctx.memberMeshes) {
       const mat = mesh.material as THREE.MeshStandardMaterial;
@@ -331,6 +335,11 @@ export function Viewer({ items, joints, machining, dims, focusY, onSelect, selec
         mat.metalness = 0.4;
         mat.roughness = 0.35;
         mat.emissive.setHex(0x0a2a66);
+      } else if (warnSet.has(id)) {   // 校验问题构件：橙色警示
+        mat.color.setHex(WARN_COLOR);
+        mat.metalness = 0.5;
+        mat.roughness = 0.4;
+        mat.emissive.setHex(0x4a2408);
       } else {
         mat.color.setHex(0xc4c9cf);
         mat.metalness = 0.9;
@@ -346,7 +355,7 @@ export function Viewer({ items, joints, machining, dims, focusY, onSelect, selec
         mat.emissiveIntensity = id === selJointId ? 0.6 : 1;
       }
     }
-  }, [selection, items]);
+  }, [selection, items, warnMemberIds]);
 
   // 尺寸标注渲染（dims 数组驱动：主线 + 两端引线 + 蓝色标签）
   useEffect(() => {
