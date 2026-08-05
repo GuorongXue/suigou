@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { loadKnowledgeBase } from './knowledge/loader';
 import { generateFrame } from './engine/generate';
 import type { FrameSpec } from './engine/types';
-import { Viewer, type RenderMember, type RenderJoint } from './viewer/Viewer';
+import { Viewer, type RenderMember, type RenderJoint, type Selection } from './viewer/Viewer';
 
 export default function App() {
   const kb = useMemo(() => loadKnowledgeBase(), []);
@@ -14,7 +14,7 @@ export default function App() {
     connectorId: 'corner-bracket-30',
     shelfCount: 1,
   });
-  const [selected, setSelected] = useState<RenderMember | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
 
   const result = useMemo(() => {
     try {
@@ -42,6 +42,8 @@ export default function App() {
     return result.model.joints.map((j) => {
       const conn = kb.connectors.find((c) => c.connector.id === j.connectorId)!.connector;
       return {
+        id: j.id,
+        connectorId: j.connectorId,
         position: j.position,
         beamAxis: j.beamAxis,
         outward: j.outward,
@@ -52,9 +54,33 @@ export default function App() {
     });
   }, [result, kb]);
 
-  const set = (patch: Partial<FrameSpec>) => { setSpec((s) => ({ ...s, ...patch })); setSelected(null); };
+  const set = (patch: Partial<FrameSpec>) => setSpec((s) => ({ ...s, ...patch }));
   const model = result.model;
   const roleName: Record<string, string> = { post: '立柱', 'beam-x': '横梁(X向)', 'beam-z': '纵梁(Z向)' };
+
+  const selectedMember = selection?.type === 'member' ? items.find((i) => i.id === selection.id) ?? null : null;
+  const selectedJoint = selection?.type === 'joint' && model
+    ? model.joints.find((j) => j.id === selection.id) ?? null : null;
+  const selectedConnector = selectedJoint
+    ? kb.connectors.find((c) => c.connector.id === selectedJoint.connectorId) ?? null : null;
+
+  /** 改构件长度 = 反算对应整体尺寸重新生成（参数微调，非自由编辑） */
+  const commitLength = (raw: string) => {
+    if (!selectedMember || !model) return;
+    const newLen = Math.round(Number(raw));
+    if (!Number.isFinite(newLen) || newLen <= 0) return;
+    const sec = kb.sections.find((s) => s.section.id === model.spec.sectionId)!.section;
+    const conn = kb.connectors.find((c) => c.connector.id === model.spec.connectorId)!.connector;
+    const s = sec.size[0];
+    const overall = newLen + 2 * s - 2 * conn.lengthOffset;
+    const clamp = (v: number) => Math.min(2000, Math.max(200, v));
+    if (selectedMember.role === 'beam-x') set({ width: clamp(overall) });
+    else if (selectedMember.role === 'beam-z') set({ depth: clamp(overall) });
+    else set({ height: clamp(newLen) });
+  };
+  const lengthTarget: Record<string, string> = {
+    post: '总高 H 同步调整', 'beam-x': '总宽 W 同步调整', 'beam-z': '总深 D 同步调整',
+  };
 
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh' }}>
@@ -144,23 +170,60 @@ export default function App() {
           items={items}
           joints={joints}
           focusY={spec.height / 2}
-          onSelect={setSelected}
-          selectedId={selected?.id ?? null}
+          onSelect={setSelection}
+          selection={selection}
         />
-        {selected && (
+        {selectedMember && (
           <div style={{
-            position: 'absolute', top: 14, right: 14, width: 230,
+            position: 'absolute', top: 14, right: 14, width: 240,
             background: 'rgba(255,255,255,.96)', borderRadius: 8, padding: '12px 14px',
             boxShadow: '0 4px 16px rgba(0,0,0,.12)', fontSize: 13, lineHeight: 1.8,
           }}>
             <div style={{ fontWeight: 600, marginBottom: 4, color: '#1e6fff' }}>
-              {roleName[selected.role] ?? selected.role} · {selected.id}
+              {roleName[selectedMember.role] ?? selectedMember.role} · {selectedMember.id}
             </div>
-            <div>截面：{selected.section.name}</div>
-            <div>下料长度：<b>{selected.length} mm</b></div>
-            <div>米重：{selected.section.weightPerMeter != null ? `${selected.section.weightPerMeter} kg/m` : '待补'}</div>
-            <div>单根约：{selected.section.price.perMeter != null ? `¥${((selected.section.price.perMeter * selected.length) / 1000).toFixed(2)}` : '待补'}</div>
+            <div>截面：{selectedMember.section.name}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              下料长度：
+              <input
+                key={selectedMember.id + ':' + selectedMember.length}
+                type="number"
+                defaultValue={selectedMember.length}
+                min={40}
+                max={2000}
+                step={10}
+                style={{ width: 76, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 4 }}
+                onKeyDown={(e) => { if (e.key === 'Enter') commitLength((e.target as HTMLInputElement).value); }}
+                onBlur={(e) => { if (Number(e.target.value) !== selectedMember.length) commitLength(e.target.value); }}
+              /> mm
+            </div>
+            <div style={{ color: '#888', fontSize: 12 }}>回车确认，{lengthTarget[selectedMember.role]}</div>
+            <div>米重：{selectedMember.section.weightPerMeter != null ? `${selectedMember.section.weightPerMeter} kg/m` : '待补'}</div>
+            <div>单根约：{selectedMember.section.price.perMeter != null ? `¥${((selectedMember.section.price.perMeter * selectedMember.length) / 1000).toFixed(2)}` : '待补'}</div>
             <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>点击空白处取消选择</div>
+          </div>
+        )}
+        {selectedJoint && selectedConnector && (
+          <div style={{
+            position: 'absolute', top: 14, right: 14, width: 240,
+            background: 'rgba(255,255,255,.96)', borderRadius: 8, padding: '12px 14px',
+            boxShadow: '0 4px 16px rgba(0,0,0,.12)', fontSize: 13, lineHeight: 1.8,
+          }}>
+            <div style={{ fontWeight: 600, marginBottom: 4, color: '#1e6fff' }}>
+              连接件 · {selectedJoint.id}
+            </div>
+            <div>{selectedConnector.connector.name}</div>
+            <div>强度等级：{selectedConnector.connector.strengthClass} / 5</div>
+            <div>承载角色：{selectedConnector.connector.loadRole === 'primary' ? '主承重' : '定位/外观'}</div>
+            <div>安装：{selectedConnector.connector.visibility === 'hidden' ? '隐藏式' : '外露式'}
+              {selectedConnector.connector.machining.length > 0 && ` · 需加工 ${selectedConnector.connector.machining.length} 项`}</div>
+            <div style={{ color: '#666', fontSize: 12 }}>
+              BOM：{selectedConnector.connector.bom.map((b) => `${b.sku}×${b.qty}`).join('，')}
+            </div>
+            {selectedConnector.connector.note && (
+              <div style={{ color: '#b7791f', fontSize: 12, marginTop: 4 }}>⚠ {selectedConnector.connector.note}</div>
+            )}
+            <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>在左侧下拉框可更换连接件类型</div>
           </div>
         )}
       </main>
