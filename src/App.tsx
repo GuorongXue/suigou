@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { loadKnowledgeBase } from './knowledge/loader';
 import { generateFrame } from './engine/generate';
 import { selectSection } from './engine/select';
@@ -18,12 +18,32 @@ interface ChatMsg {
 const FIELD_NAMES: Record<string, string> = {
   width: '总宽', depth: '总深', height: '总高', shelfCount: '隔板层数', loadKg: '载荷',
   loadType: '载荷分布', scene: '场景', highRisk: '高风险', mobility: '移动性',
-  sectionId: '截面', connectorId: '连接件',
+  sectionId: '截面', connectorId: '连接件', topPanel: '顶面板', shelfPanel: '隔板材质',
+};
+
+// 手动锁定字段 → 抽取字段路径（_explicitFields 解锁依据，9.4.1）
+const FIELD_TO_PATH: Record<string, string> = {
+  width: 'dimensions.width', depth: 'dimensions.depth', height: 'dimensions.height',
+  loadKg: 'load.totalKg', loadType: 'load.type', mobility: 'mobility',
+  shelfCount: 'layers', scene: 'scene', highRisk: 'scene',
+  topPanel: 'panels', shelfPanel: 'panels',
+};
+
+const DRAFT_KEY = 'suigou_draft_v1';
+interface Draft {
+  spec: FrameSpec;
+  chat: ChatMsg[];
+  manual: [string, string][];
+  unsupported: string[];
+}
+const loadDraft = (): Draft | null => {
+  try { return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null'); } catch { return null; }
 };
 
 export default function App() {
   const kb = useMemo(() => loadKnowledgeBase(), []);
-  const [spec, setSpec] = useState<FrameSpec>({
+  const draft = useMemo(loadDraft, []);
+  const [spec, setSpec] = useState<FrameSpec>(draft?.spec ?? {
     width: 700,
     depth: 400,
     height: 720,
@@ -45,9 +65,21 @@ export default function App() {
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<IntentResult | null>(null);
-  const [chat, setChat] = useState<ChatMsg[]>([]);
-  const [manualChanges, setManualChanges] = useState<Map<string, string>>(new Map());
+  const [chat, setChat] = useState<ChatMsg[]>(draft?.chat ?? []);
+  const [manualChanges, setManualChanges] = useState<Map<string, string>>(new Map(draft?.manual ?? []));
+  const [unsupportedSaved, setUnsupportedSaved] = useState<string[]>(draft?.unsupported ?? []);
   const [hasKey, setHasKey] = useState(() => !!getApiKey());
+
+  // 草稿持久化（9.4.3："已记录"必须真实——刷新不丢）
+  useEffect(() => {
+    const unsupported = aiResult?.unsupported ?? unsupportedSaved;
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ spec, chat, manual: [...manualChanges], unsupported } satisfies Draft));
+  }, [spec, chat, manualChanges, aiResult, unsupportedSaved]);
+
+  const resetDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+    location.reload();
+  };
 
   const runIntent = async () => {
     if (!aiText.trim() || aiBusy) return;
@@ -57,29 +89,41 @@ export default function App() {
     setChat((c) => [...c, { role: 'user', text: userMsg }]);
     setAiText('');
     try {
-      // 滑杆手动调整作为状态事实注入上下文：模型基于当前方案增量理解，不覆盖用户手调
+      // 9.4.2：追问与回答成对传递（assistant/user 轮次），模型能理解"要/不要/50公斤"指代什么
+      const history = chat.slice(-6).map((m) => ({
+        role: (m.role === 'ai' ? 'assistant' : 'user') as 'assistant' | 'user',
+        content: m.text,
+      }));
+      // 当前方案状态作为结构化 JSON 上下文（非自然语言备注）
+      const stateJson = aiResult ? `\n[当前方案参数] ${JSON.stringify({
+        width: spec.width, depth: spec.depth, height: spec.height,
+        loadKg: spec.loadKg, loadType: spec.loadType, mobility: spec.mobility,
+        layers: spec.shelfCount + 1, topPanel: spec.topPanel, shelfPanel: spec.shelfPanel,
+      })}` : '';
       const manualNote = manualChanges.size > 0
-        ? `\n[用户已在界面手动调整且必须保持：${[...manualChanges.values()].join('，')}]`
+        ? `\n[用户手动锁定项，除非本轮明确改口否则保持：${[...manualChanges.values()].join('，')}]`
         : '';
-      const stateNote = aiResult
-        ? `\n[当前方案状态：宽${spec.width} 深${spec.depth} 高${spec.height}mm，载荷${spec.loadKg}kg，${spec.mobility === 'caster' ? '带脚轮' : '固定'}，隔板${spec.shelfCount}层]`
-        : '';
-      const history = chat.filter((m) => m.role === 'user').map((m) => m.text);
-      const merged = [...history, userMsg].join('\n补充：') + stateNote + manualNote;
-      const extraction = await extractIntent(merged);
+      const extraction = await extractIntent(userMsg + stateJson + manualNote, history);
       const result = intentToSpec(extraction, kb);
-      // 手动调整过的尺寸字段不被 AI 覆盖（除非本轮用户明说）
+      // 9.4.1：锁定解锁由模型返回的 _explicitFields 决定，不再用数字正则
+      const explicit = new Set(extraction._explicitFields ?? []);
       const guarded = { ...result.spec };
+      const nextManual = new Map(manualChanges);
       for (const key of manualChanges.keys()) {
-        if (!userMsg.match(/\d/) || !['width', 'depth', 'height'].includes(key)) {
+        const path = FIELD_TO_PATH[key];
+        if (path && explicit.has(path)) {
+          nextManual.delete(key);   // 用户本轮明确改口 → 采用 AI 新值并解锁
+        } else {
           (guarded as unknown as Record<string, unknown>)[key] = spec[key as keyof FrameSpec];
         }
       }
+      setManualChanges(nextManual);
       setSpec(guarded);
       setAiResult(result);
+      if (result.unsupported.length) setUnsupportedSaved(result.unsupported);
       const aiReply = [
         `已更新方案：宽${guarded.width}×深${guarded.depth}×高${guarded.height}mm，${guarded.sectionId}，载荷${guarded.loadKg}kg`,
-        result.unsupported.length ? `🚧 已记录但当前版本暂不支持：${result.unsupported.join('、')}（不会丢失，后续版本支持）` : '',
+        result.unsupported.length ? `🚧 已存入方案草稿但当前版本暂不支持：${result.unsupported.join('、')}` : '',
         result.riskFlags.length ? `⚠ ${result.riskFlags[0]}` : '',
         result.questions.length ? `❓ ${result.questions[0]}` : '参数已齐，可微调或导出清单',
       ].filter(Boolean).join('\n');
@@ -342,7 +386,12 @@ export default function App() {
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh' }}>
       <aside style={{ width: 320, padding: 16, background: '#fff', borderRight: '1px solid #e2e5ea', overflowY: 'auto', fontSize: 13, lineHeight: 1.7 }}>
-        <h2 style={{ margin: '0 0 4px', fontSize: 18 }}>随构 · 一句话出方案</h2>
+        <h2 style={{ margin: '0 0 4px', fontSize: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          随构 · 一句话出方案
+          {(chat.length > 0 || manualChanges.size > 0) && (
+            <button onClick={resetDraft} style={{ fontSize: 11, padding: '3px 10px', border: '1px solid #c9d2e0', borderRadius: 6, background: '#fff', color: '#666', cursor: 'pointer', fontWeight: 400 }}>新方案</button>
+          )}
+        </h2>
         <div style={{ color: '#888', marginBottom: 10 }}>说需求 → AI抽参 → 生成 → 校验 → 清单</div>
 
         {/* 意图输入（M4） */}
@@ -396,13 +445,13 @@ export default function App() {
           </div>
         )}
 
+        {(aiResult?.unsupported.length || unsupportedSaved.length) ? (
+          <div style={{ background: '#fdf9e8', color: '#8a7a3a', padding: '6px 8px', borderRadius: 6, fontSize: 12, marginBottom: 4 }}>
+            🚧 已存入草稿但暂不支持：{(aiResult?.unsupported ?? unsupportedSaved).join('、')}（当前版本只做正交框架+顶板/隔板）
+          </div>
+        ) : null}
         {aiResult && (
           <div style={{ marginBottom: 10 }}>
-            {aiResult.unsupported.length > 0 && (
-              <div style={{ background: '#fdf9e8', color: '#8a7a3a', padding: '6px 8px', borderRadius: 6, fontSize: 12, marginBottom: 4 }}>
-                🚧 已记录但暂不支持：{aiResult.unsupported.join('、')}（当前版本只做正交框架+顶板/隔板，这些需求已存档）
-              </div>
-            )}
             <details style={{ fontSize: 12, color: '#666' }}>
               <summary style={{ cursor: 'pointer' }}>AI 假设与选型依据（{aiResult.assumptions.length}）</summary>
               {aiResult.assumptions.map((a) => <div key={a} style={{ padding: '1px 0' }}>· {a}</div>)}
@@ -416,7 +465,12 @@ export default function App() {
           ['总高 H', 'height', 200, 2000],
         ] as const).map(([label, key, min, max]) => (
           <label key={key} style={{ display: 'block', marginBottom: 8 }}>
-            {label} {spec[key]} mm
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {label}
+              <input type="number" value={spec[key]} min={min} max={max} step={10}
+                onChange={(e) => { const v = Number(e.target.value); if (v >= min && v <= max) set({ [key]: v } as Partial<FrameSpec>); }}
+                style={{ width: 72, padding: '1px 4px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 12 }} /> mm
+            </span>
             <input type="range" min={min} max={max} step={10} value={spec[key]}
               onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<FrameSpec>)} style={{ width: '100%' }} />
           </label>
@@ -602,18 +656,15 @@ export default function App() {
           </>
         )}
 
-        <div style={{ marginTop: 12, color: '#aaa', fontSize: 12 }}>
-          知识库：{kb.sections.length} 截面 · {kb.connectors.length} 连接件 · {Object.keys(kb.rules).length} 规则包
-        </div>
-
-        <details style={{ marginTop: 6, fontSize: 12 }}>
-          <summary style={{ cursor: 'pointer', color: goldenPass === golden.length ? '#2f855a' : '#c0392b' }}>
-            Golden 用例 {goldenPass}/{golden.length} {goldenPass === golden.length ? '✓ 全部通过' : '✖ 存在失败'}
-          </summary>
-          {golden.map((g) => (
-            <div key={g.id} style={{ color: g.pass ? '#2f855a' : '#c0392b', padding: '2px 0' }}>
-              {g.pass ? '✓' : '✖'} {g.id}（{g.rule}）actual: {g.actual}
-            </div>
+        {/* 研发诊断信息收纳，不暴露给普通用户（16号评测 2.2.5） */}
+        <details style={{ marginTop: 12, fontSize: 12, color: '#aaa' }}>
+          <summary style={{ cursor: 'pointer' }}>开发者诊断</summary>
+          <div>知识库：{kb.sections.length} 截面 · {kb.connectors.length} 连接件 · {Object.keys(kb.rules).length} 规则包</div>
+          <div style={{ color: goldenPass === golden.length ? '#2f855a' : '#c0392b' }}>
+            Golden 用例 {goldenPass}/{golden.length} {goldenPass === golden.length ? '✓' : '✖'}
+          </div>
+          {golden.filter((g) => !g.pass).map((g) => (
+            <div key={g.id} style={{ color: '#c0392b' }}>✖ {g.id} actual: {g.actual}</div>
           ))}
         </details>
       </aside>

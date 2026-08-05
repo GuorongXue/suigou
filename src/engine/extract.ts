@@ -16,6 +16,8 @@ export interface Extraction {
   appearance: { color: string | null; hiddenConnectorsPreferred: boolean | null };
   budgetSensitivity: string;
   layers: number | null;
+  /** 本轮用户输入中明确提到的字段路径（手动锁定解锁依据，9.4.1） */
+  _explicitFields?: string[];
   _missing: string[];
   _assumptions: string[];
   _riskFlags: string[];
@@ -35,6 +37,7 @@ const SYSTEM_PROMPT = `你是一位资深机械结构工程师，负责把用户
 8. 载荷区分集中/均布：桌面放一台机器=concentrated，摆满杂物=distributed；拿不准=unknown
 9. _missing 按重要性排序：先安全相关（载荷/跨度/高度），再成本相关（系列/材质），最后外观
 10. 数字缺少单位、或无法确定对应宽/深/高哪个维度时（如"三段式 75 30 5"），dimensions 一律保持 null：把可能的解释写入 _assumptions，并在 _missing 中列出需确认的尺寸
+11. _explicitFields：列出本轮用户输入（最后一条消息）中明确提到或明确修改的字段路径，可选值："dimensions.width","dimensions.depth","dimensions.height","load.totalKg","load.type","mobility","scene","layers","panels"。仅基于最后一条用户消息判断，历史提过但本轮未提的不要列入
 
 Schema：
 {
@@ -49,6 +52,7 @@ Schema：
   "appearance": { "color": null, "hiddenConnectorsPreferred": null },
   "budgetSensitivity": "low | medium | high | unknown",
   "layers": null,
+  "_explicitFields": [],
   "_missing": [],
   "_assumptions": [],
   "_riskFlags": []
