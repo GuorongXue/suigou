@@ -265,8 +265,21 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  /** 导出质量闸门：函数层自身校验，不只靠按钮禁用（9.2.2） */
+  const exportGate = (): boolean => {
+    if (!model) return false;
+    if (model.status === 'invalid') {
+      alert('方案存在结构错误（见结构校验红色项），禁止导出制造文件。请先修复。');
+      return false;
+    }
+    if (model.status === 'needs-confirmation') {
+      return confirm('方案存在警告项（见结构校验），确认已知晓风险并继续导出？');
+    }
+    return true;
+  };
+
   const exportCutList = () => {
-    if (!model) return;
+    if (!model || !exportGate()) return;
     // 工序链映射源：knowledge/rules/cam.yaml（cam-001~006）
     const processOf = (note: string) => {
       if (!note) return '切割→去毛刺';
@@ -283,7 +296,7 @@ export default function App() {
   };
 
   const exportBom = () => {
-    if (!model) return;
+    if (!model || !exportGate()) return;
     const conn = kb.connectors.find((c) => c.connector.id === spec.connectorId)!.connector;
     const rows: (string | number)[][] = model.cutList.map((c) => [
       '型材', `${c.sectionId} L${c.length}`, c.qty,
@@ -455,9 +468,16 @@ export default function App() {
         <label style={{ display: 'block', marginBottom: 12 }}>
           连接件
           <select value={spec.connectorId} onChange={(e) => set({ connectorId: e.target.value })} style={{ width: '100%', marginTop: 4 }}>
-            {kb.connectors.map((c) => (
-              <option key={c.connector.id} value={c.connector.id}>{c.connector.name}</option>
-            ))}
+            {kb.connectors.map((c) => {
+              const sec = kb.sections.find((s) => s.section.id === spec.sectionId)!.section;
+              const ok = c.connector.compatible.series.includes(sec.id)
+                && c.connector.compatible.slotWidths.includes(sec.slot.width);
+              return (
+                <option key={c.connector.id} value={c.connector.id} disabled={!ok}>
+                  {c.connector.name}{ok ? '' : '（与当前截面不兼容）'}
+                </option>
+              );
+            })}
           </select>
         </label>
 
@@ -477,7 +497,16 @@ export default function App() {
               <div key={w} style={{ color: '#b7791f', background: '#fffbeb', padding: '6px 8px', borderRadius: 4, marginBottom: 8, fontSize: 12 }}>⚠ {w}</div>
             ))}
 
-            <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>结构校验</h3>
+            <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>
+              结构校验
+              <span style={{
+                marginLeft: 8, fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 400,
+                background: model.status === 'valid' ? '#f0fff4' : model.status === 'needs-confirmation' ? '#fffbeb' : '#fdf0ee',
+                color: model.status === 'valid' ? '#2f855a' : model.status === 'needs-confirmation' ? '#b7791f' : '#c0392b',
+              }}>
+                {model.status === 'valid' ? '可导出' : model.status === 'needs-confirmation' ? '有警告，确认后可导出' : '存在错误，禁止导出'}
+              </span>
+            </h3>
             {model.checks.map((c, i) => {
               const st = levelStyle[c.level];
               return (
@@ -541,8 +570,8 @@ export default function App() {
             )}
 
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button onClick={exportCutList} style={{ flex: 1, padding: '7px 0', border: '1px solid #1e6fff', borderRadius: 6, background: '#fff', color: '#1e6fff', cursor: 'pointer' }}>导出切割清单</button>
-              <button onClick={exportBom} style={{ flex: 1, padding: '7px 0', border: 'none', borderRadius: 6, background: '#1e6fff', color: '#fff', cursor: 'pointer' }}>导出 BOM</button>
+              <button onClick={exportCutList} disabled={model.status === 'invalid'} style={{ flex: 1, padding: '7px 0', border: '1px solid #1e6fff', borderRadius: 6, background: '#fff', color: model.status === 'invalid' ? '#aaa' : '#1e6fff', cursor: model.status === 'invalid' ? 'not-allowed' : 'pointer', borderColor: model.status === 'invalid' ? '#ccc' : '#1e6fff' }}>导出切割清单</button>
+              <button onClick={exportBom} disabled={model.status === 'invalid'} style={{ flex: 1, padding: '7px 0', border: 'none', borderRadius: 6, background: model.status === 'invalid' ? '#ccc' : '#1e6fff', color: '#fff', cursor: model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>导出 BOM</button>
             </div>
 
             {/* 免责三要素（07文档责任设计） */}

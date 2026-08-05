@@ -18,9 +18,9 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   if (!connectorRecord) throw new Error(`知识库中不存在连接件 ${spec.connectorId}`);
   const conn = connectorRecord.connector;
 
-  if (!conn.compatible.series.includes(sec.id)) {
-    warnings.push(`连接件 ${conn.name} 的兼容清单不含 ${sec.name}（compatible.series），请核实`);
-  }
+  // 兼容性是原子约束：不兼容组合 = 不可装配方案，error 级阻断导出（9.2.1）
+  const incompatible = !conn.compatible.series.includes(sec.id)
+    || !conn.compatible.slotWidths.includes(sec.slot.width);
   if (conn.loadRole === 'positioning-aesthetic') {
     warnings.push(`${conn.name} 仅限定位/外观用途，禁止单独主承重（行家规则 val-006）`);
   }
@@ -157,11 +157,17 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     }
   }
 
-  // 件号系统：长度+加工特征签名聚合（同长不同加工不得合并，出图/下单基准）
+  // 件号系统：长度+完整加工特征签名（含局部位置/加工面/方向，防镜像件误合并，9.2.5）
   const machBy = new Map<string, string[]>();
+  const memberById = new Map(members.map((m) => [m.id, m]));
   for (const mc of machining) {
+    const m = memberById.get(mc.memberId)!;
+    // 构件局部坐标：沿构件轴距起端距离 + 加工方向轴相对构件的面
+    const axisIdx = m.axis === 'x' ? 0 : m.axis === 'y' ? 1 : 2;
+    const fromStart = Math.round(mc.position[axisIdx] - (m.position[axisIdx] - m.length / 2));
+    const face = mc.axis === m.axis ? 'end' : `${mc.axis}${mc.discs[0]?.dir ?? ''}`;
     (machBy.get(mc.memberId) ?? machBy.set(mc.memberId, []).get(mc.memberId)!)
-      .push(`${mc.type}:${mc.spec}`);
+      .push(`${mc.type}:${mc.spec}@${fromStart}/${face}`);
   }
   const partKey = (m: Member) => `${m.length}|${(machBy.get(m.id) ?? []).sort().join(',')}`;
   const partNoByKey = new Map<string, string>();
@@ -175,7 +181,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     else {
       const ops = machBy.get(m.id) ?? [];
       const noteMap = new Map<string, number>();
-      for (const o of ops) noteMap.set(o, (noteMap.get(o) ?? 0) + 1);
+      for (const o of ops) noteMap.set(o.split('@')[0], (noteMap.get(o.split('@')[0]) ?? 0) + 1);
       const machiningNote = [...noteMap.entries()]
         .map(([o, c]) => `${o.split(':')[1]}×${c}`).join(' ');
       cutAgg.set(key, { length: m.length, qty: 1, machiningNote });
@@ -197,9 +203,20 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     panels,
     cutList,
     checks: [],
+    status: 'valid',
     totals: { memberCount: members.length, totalLengthMm, weightKg, priceCny },
     warnings,
   };
   model.checks = validateFrame(model, kb);
+  if (incompatible) {
+    model.checks.unshift({
+      level: 'error', ruleId: 'compat-001',
+      message: `不兼容组合：${conn.name}（适配槽宽${conn.compatible.slotWidths.join('/')}）不适用于 ${sec.name}（槽宽${sec.slot.width}），无法装配。请更换连接件或截面`,
+    });
+  }
+  // 导出闸门状态派生：error→invalid（禁导出），warn→needs-confirmation
+  model.status = model.checks.some((c) => c.level === 'error') ? 'invalid'
+    : model.checks.some((c) => c.level === 'warn') ? 'needs-confirmation'
+    : 'valid';
   return model;
 }

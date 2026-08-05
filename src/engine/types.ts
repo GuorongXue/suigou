@@ -56,6 +56,9 @@ export interface CheckResult {
   memberIds?: string[];
 }
 
+/** 方案状态（导出质量闸门）：invalid/incomplete 禁止导出 */
+export type ModelStatus = 'valid' | 'needs-confirmation' | 'invalid' | 'incomplete';
+
 /** 接点：梁端与立柱面的交汇处，携带连接件放置信息 */
 export interface Joint {
   id: string;
@@ -119,6 +122,8 @@ export interface FrameModel {
   panels: PanelItem[];
   cutList: CutListItem[];
   checks: CheckResult[];
+  /** 导出闸门状态：由 checks 派生（error→invalid，warn→needs-confirmation） */
+  status: ModelStatus;
   totals: { memberCount: number; totalLengthMm: number; weightKg: number | null; priceCny: number | null };
   warnings: string[];
 }
