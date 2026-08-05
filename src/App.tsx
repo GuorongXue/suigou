@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import { loadKnowledgeBase } from './knowledge/loader';
 import { generateFrame } from './engine/generate';
 import type { FrameSpec } from './engine/types';
-import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type Selection } from './viewer/Viewer';
+import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type RenderDim, type Selection } from './viewer/Viewer';
+
+type ViewMode = 'appearance' | 'structure' | 'drawing';
 
 export default function App() {
   const kb = useMemo(() => loadKnowledgeBase(), []);
@@ -15,6 +17,7 @@ export default function App() {
     shelfCount: 1,
   });
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [mode, setMode] = useState<ViewMode>('appearance');
 
   const result = useMemo(() => {
     try {
@@ -81,6 +84,46 @@ export default function App() {
     ? model.joints.find((j) => j.id === selection.id) ?? null : null;
   const selectedConnector = selectedJoint
     ? kb.connectors.find((c) => c.connector.id === selectedJoint.connectorId) ?? null : null;
+
+  // 尺寸标注：外观/图纸模式显示整体 W/D/H；图纸模式加每种下料长度代表标注；选中构件始终标注
+  const dims: RenderDim[] = useMemo(() => {
+    const out: RenderDim[] = [];
+    const { width: W, depth: D, height: H } = spec;
+    const secSize = kb.sections.find((s) => s.section.id === spec.sectionId)?.section.size[0] ?? 30;
+    if (mode !== 'structure') {
+      out.push({ a: [-W / 2, 2, D / 2], b: [W / 2, 2, D / 2], offset: [0, 0, 90], label: `W ${W}` });
+      out.push({ a: [W / 2, 2, D / 2], b: [W / 2, 2, -D / 2], offset: [90, 0, 0], label: `D ${D}` });
+      out.push({ a: [-W / 2, 0, -D / 2], b: [-W / 2, H, -D / 2], offset: [-90, 0, 0], label: `H ${H}` });
+    }
+    if (mode === 'drawing' && model) {
+      const seen = new Set<number>();
+      for (const m of model.members) {
+        if (m.role === 'post' || seen.has(m.length)) continue;
+        seen.add(m.length);
+        const along: [number, number, number] = m.axis === 'x' ? [1, 0, 0] : [0, 0, 1];
+        const a: [number, number, number] = [
+          m.position[0] - along[0] * m.length / 2, m.position[1], m.position[2] - along[2] * m.length / 2];
+        const b: [number, number, number] = [
+          m.position[0] + along[0] * m.length / 2, m.position[1], m.position[2] + along[2] * m.length / 2];
+        out.push({ a, b, offset: [0, secSize * 1.6, 0], label: `${m.length}` });
+      }
+    }
+    if (selectedMember) {
+      const s = selectedMember.section.size[0];
+      const along: [number, number, number] = selectedMember.axis === 'x' ? [1, 0, 0]
+        : selectedMember.axis === 'y' ? [0, 1, 0] : [0, 0, 1];
+      const p = selectedMember.position;
+      const off: [number, number, number] = selectedMember.axis === 'y'
+        ? [Math.sign(p[0] || 1) * s * 1.6, 0, 0] : [0, s * 1.6, 0];
+      out.push({
+        a: [p[0] - along[0] * selectedMember.length / 2, p[1] - along[1] * selectedMember.length / 2, p[2] - along[2] * selectedMember.length / 2],
+        b: [p[0] + along[0] * selectedMember.length / 2, p[1] + along[1] * selectedMember.length / 2, p[2] + along[2] * selectedMember.length / 2],
+        offset: off,
+        label: `${selectedMember.length} mm`,
+      });
+    }
+    return out;
+  }, [mode, spec, model, selectedMember, kb]);
 
   /** 改构件长度 = 反算对应整体尺寸重新生成（参数微调，非自由编辑） */
   const commitLength = (raw: string) => {
@@ -214,12 +257,27 @@ export default function App() {
       <main style={{ flex: 1, position: 'relative' }}>
         <Viewer
           items={items}
-          joints={joints}
-          machining={machining}
+          joints={mode === 'structure' ? joints : []}
+          machining={mode !== 'appearance' ? machining : []}
+          dims={dims}
           focusY={spec.height / 2}
           onSelect={setSelection}
           selection={selection}
         />
+        {/* 视图模式工具条：按用户任务阶段分层显示 */}
+        <div style={{
+          position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)',
+          display: 'flex', gap: 4, background: 'rgba(255,255,255,.95)', padding: 4,
+          borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,.1)',
+        }}>
+          {([['appearance', '外观'], ['structure', '结构'], ['drawing', '图纸']] as const).map(([m, name]) => (
+            <button key={m} onClick={() => setMode(m)} style={{
+              border: 'none', borderRadius: 6, padding: '6px 18px', cursor: 'pointer', fontSize: 13,
+              background: mode === m ? '#1e6fff' : 'transparent',
+              color: mode === m ? '#fff' : '#555',
+            }}>{name}</button>
+          ))}
+        </div>
         {selectedMember && (
           <div style={{
             position: 'absolute', top: 14, right: 14, width: 240,

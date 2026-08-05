@@ -39,10 +39,19 @@ export interface RenderMachining {
   D?: number;
 }
 
+/** 尺寸标注：主线 a→b 平移 offset，两端引线，中点挂标签 */
+export interface RenderDim {
+  a: [number, number, number];
+  b: [number, number, number];
+  offset: [number, number, number];
+  label: string;
+}
+
 interface ViewerProps {
   items: RenderMember[];
   joints: RenderJoint[];
   machining: RenderMachining[];
+  dims: RenderDim[];
   /** 相机注视高度（一般取框架半高） */
   focusY: number;
   onSelect?: (sel: Selection | null) => void;
@@ -51,7 +60,7 @@ interface ViewerProps {
 
 const SELECT_COLOR = 0x1e6fff;
 
-export function Viewer({ items, joints, machining, focusY, onSelect, selection }: ViewerProps) {
+export function Viewer({ items, joints, machining, dims, focusY, onSelect, selection }: ViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const ctxRef = useRef<{
     scene: THREE.Scene;
@@ -63,9 +72,6 @@ export function Viewer({ items, joints, machining, focusY, onSelect, selection }
     memberMeshes: Map<string, THREE.Mesh>;
     jointMeshes: Map<string, THREE.Mesh[]>;
     dimGroup: THREE.Group;
-    dimLine: THREE.LineSegments;
-    dimLabel: CSS2DObject;
-    dimLabelEl: HTMLDivElement;
   } | null>(null);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
@@ -126,21 +132,8 @@ export function Viewer({ items, joints, machining, focusY, onSelect, selection }
       [new THREE.Vector3(0, 0.5, -3000), new THREE.Vector3(0, 0.5, 3000)]), axisMat(0x3aa05a));
     scene.add(xAxis, zAxis);
 
-    // 尺寸标注（主线+两端引线 + 蓝色标签），选中构件时显示
+    // 尺寸标注容器（内容由 dims prop 驱动重建）
     const dimGroup = new THREE.Group();
-    dimGroup.visible = false;
-    const dimGeom = new THREE.BufferGeometry();
-    dimGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(18), 3));
-    const dimLine = new THREE.LineSegments(dimGeom, new THREE.LineBasicMaterial({ color: SELECT_COLOR }));
-    dimLine.frustumCulled = false;
-    dimGroup.add(dimLine);
-    const dimLabelEl = document.createElement('div');
-    Object.assign(dimLabelEl.style, {
-      background: '#1e6fff', color: '#fff', padding: '2px 10px', borderRadius: '10px',
-      fontSize: '12px', fontFamily: 'system-ui, sans-serif', whiteSpace: 'nowrap',
-    });
-    const dimLabel = new CSS2DObject(dimLabelEl);
-    dimGroup.add(dimLabel);
     scene.add(dimGroup);
 
     renderer.setAnimationLoop(() => {
@@ -188,7 +181,7 @@ export function Viewer({ items, joints, machining, focusY, onSelect, selection }
     ctxRef.current = {
       scene, camera, renderer, controls, group, raycaster,
       memberMeshes: new Map(), jointMeshes: new Map(),
-      dimGroup, dimLine, dimLabel, dimLabelEl,
+      dimGroup,
     };
 
     return () => {
@@ -353,33 +346,42 @@ export function Viewer({ items, joints, machining, focusY, onSelect, selection }
         mat.emissiveIntensity = id === selJointId ? 0.6 : 1;
       }
     }
-
-    // 尺寸标注：选中构件时沿构件轴显示（主线 + 两端引线 + mm 标签）
-    const item = selMemberId ? items.find((i) => i.id === selMemberId) : null;
-    if (item) {
-      const s = item.section.size[0];
-      const p = new THREE.Vector3(...item.position);
-      const along = new THREE.Vector3(
-        item.axis === 'x' ? 1 : 0, item.axis === 'y' ? 1 : 0, item.axis === 'z' ? 1 : 0);
-      const offset = item.axis === 'y'
-        ? new THREE.Vector3(Math.sign(p.x || 1) * s * 1.6, 0, 0)
-        : new THREE.Vector3(0, s * 1.6, 0);
-      const e1 = p.clone().addScaledVector(along, -item.length / 2);
-      const e2 = p.clone().addScaledVector(along, item.length / 2);
-      const o1 = e1.clone().add(offset);
-      const o2 = e2.clone().add(offset);
-      const pos = ctx.dimLine.geometry.getAttribute('position') as THREE.BufferAttribute;
-      const pts = [o1, o2, e1, o1, e2, o2];
-      pts.forEach((v, i) => pos.setXYZ(i, v.x, v.y, v.z));
-      pos.needsUpdate = true;
-      ctx.dimLine.geometry.computeBoundingSphere();
-      ctx.dimLabel.position.copy(o1.clone().add(o2).multiplyScalar(0.5).add(offset.clone().multiplyScalar(0.35)));
-      ctx.dimLabelEl.textContent = `${item.length} mm`;
-      ctx.dimGroup.visible = true;
-    } else {
-      ctx.dimGroup.visible = false;
-    }
   }, [selection, items]);
+
+  // 尺寸标注渲染（dims 数组驱动：主线 + 两端引线 + 蓝色标签）
+  useEffect(() => {
+    const ctx = ctxRef.current;
+    if (!ctx) return;
+
+    for (const child of [...ctx.dimGroup.children]) {
+      ctx.dimGroup.remove(child);
+      if (child instanceof CSS2DObject) child.element.remove();
+      else (child as THREE.LineSegments).geometry?.dispose();
+    }
+
+    const mat = new THREE.LineBasicMaterial({ color: SELECT_COLOR });
+    for (const d of dims) {
+      const a = new THREE.Vector3(...d.a);
+      const b = new THREE.Vector3(...d.b);
+      const off = new THREE.Vector3(...d.offset);
+      const o1 = a.clone().add(off);
+      const o2 = b.clone().add(off);
+      const geom = new THREE.BufferGeometry().setFromPoints([o1, o2, a, o1, b, o2]);
+      const line = new THREE.LineSegments(geom, mat);
+      line.frustumCulled = false;
+      ctx.dimGroup.add(line);
+
+      const el = document.createElement('div');
+      Object.assign(el.style, {
+        background: '#1e6fff', color: '#fff', padding: '2px 10px', borderRadius: '10px',
+        fontSize: '12px', fontFamily: 'system-ui, sans-serif', whiteSpace: 'nowrap',
+      });
+      el.textContent = d.label;
+      const label = new CSS2DObject(el);
+      label.position.copy(o1.clone().add(o2).multiplyScalar(0.5).add(off.clone().multiplyScalar(0.35)));
+      ctx.dimGroup.add(label);
+    }
+  }, [dims]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
