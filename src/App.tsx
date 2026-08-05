@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { loadKnowledgeBase } from './knowledge/loader';
 import { generateFrame } from './engine/generate';
+import { selectSection } from './engine/select';
+import { runGolden } from './engine/golden';
 import type { FrameSpec } from './engine/types';
 import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type RenderDim, type Selection } from './viewer/Viewer';
 
@@ -86,6 +88,17 @@ export default function App() {
       .filter((c) => (c.level === 'error' || c.level === 'warn') && c.memberIds)
       .flatMap((c) => c.memberIds!))];
   }, [result]);
+
+  // 选型建议：按当前跨度/载荷正向推荐截面（sel 规则）
+  const recommendation = useMemo(() => {
+    const secSize = kb.sections.find((s) => s.section.id === spec.sectionId)?.section.size[0] ?? 30;
+    const span = Math.max(spec.width, spec.depth) - 2 * secSize;
+    const r = selectSection({ span, loadKg: spec.loadKg, loadType: spec.loadType, highRisk: spec.highRisk });
+    return r.use !== spec.sectionId ? r : null;
+  }, [spec, kb]);
+
+  const golden = useMemo(() => runGolden(kb), [kb]);
+  const goldenPass = golden.filter((g) => g.pass).length;
 
   const set = (patch: Partial<FrameSpec>) => setSpec((s) => ({ ...s, ...patch }));
   const model = result.model;
@@ -275,6 +288,14 @@ export default function App() {
 
         {result.error && <div style={{ color: '#c0392b', marginBottom: 12 }}>⚠ {result.error}</div>}
 
+        {recommendation && (
+          <div style={{ background: '#ebf4ff', color: '#2b6cb0', padding: '7px 9px', borderRadius: 6, marginBottom: 8, fontSize: 12, lineHeight: 1.6 }}>
+            💡 选型建议（{recommendation.ruleIds.join('+')}）：推荐 <b>{kb.sections.find((s) => s.section.id === recommendation.use)?.section.name ?? recommendation.use}</b>
+            ——{recommendation.rationale}
+            <button onClick={() => set({ sectionId: recommendation.use })} style={{ marginLeft: 6, border: '1px solid #2b6cb0', background: '#fff', color: '#2b6cb0', borderRadius: 4, padding: '1px 8px', cursor: 'pointer', fontSize: 12 }}>一键应用</button>
+          </div>
+        )}
+
         {model && (
           <>
             {model.warnings.map((w) => (
@@ -361,6 +382,17 @@ export default function App() {
         <div style={{ marginTop: 12, color: '#aaa', fontSize: 12 }}>
           知识库：{kb.sections.length} 截面 · {kb.connectors.length} 连接件 · {Object.keys(kb.rules).length} 规则包
         </div>
+
+        <details style={{ marginTop: 6, fontSize: 12 }}>
+          <summary style={{ cursor: 'pointer', color: goldenPass === golden.length ? '#2f855a' : '#c0392b' }}>
+            Golden 用例 {goldenPass}/{golden.length} {goldenPass === golden.length ? '✓ 全部通过' : '✖ 存在失败'}
+          </summary>
+          {golden.map((g) => (
+            <div key={g.id} style={{ color: g.pass ? '#2f855a' : '#c0392b', padding: '2px 0' }}>
+              {g.pass ? '✓' : '✖'} {g.id}（{g.rule}）actual: {g.actual}
+            </div>
+          ))}
+        </details>
       </aside>
 
       <main style={{ flex: 1, position: 'relative' }}>

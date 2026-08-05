@@ -22,7 +22,8 @@ section:
     - { index: 3, normal: [0, -1, 0], slots: [{ offset: 0, width: 8 }] }
   outlineRef: dxf/eu-3030.dxf
   geometry: { lipDepth: 2.0, cavityWidth: 16.5, cavityDepth: 6 }
-  price: { perMeter: 23.62, currency: CNY, tax: false }    # 与清单页反推一致(123mm→3.01✓)
+  # 24.47 由清单页实价反推(123mm→3.01, 实际成交价证据强于库页截图 23.62)；两来源差异待下次采集核实
+  price: { perMeter: 24.47, currency: CNY, tax: false }
   mechanics:
     momentOfInertia: { ix: 3.3e4, iy: 3.3e4, range: [3.0e4, 3.8e4] }
     elasticModulus: 6.9e4
