@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { loadKnowledgeBase } from './knowledge/loader';
 import { generateFrame } from './engine/generate';
 import type { FrameSpec } from './engine/types';
-import { Viewer, type RenderMember } from './viewer/Viewer';
+import { Viewer, type RenderMember, type RenderJoint } from './viewer/Viewer';
 
 export default function App() {
   const kb = useMemo(() => loadKnowledgeBase(), []);
@@ -31,6 +31,22 @@ export default function App() {
       position: m.position,
       axis: m.axis,
     }));
+  }, [result, kb]);
+
+  const joints: RenderJoint[] = useMemo(() => {
+    if (!result.model) return [];
+    const sec = kb.sections.find((s) => s.section.id === result.model!.spec.sectionId)!.section;
+    return result.model.joints.map((j) => {
+      const conn = kb.connectors.find((c) => c.connector.id === j.connectorId)!.connector;
+      return {
+        position: j.position,
+        beamAxis: j.beamAxis,
+        outward: j.outward,
+        ySide: j.ySide,
+        hidden: conn.visibility === 'hidden',
+        size: sec.size[0],
+      };
+    });
   }, [result, kb]);
 
   const set = (patch: Partial<FrameSpec>) => setSpec((s) => ({ ...s, ...patch }));
@@ -120,7 +136,7 @@ export default function App() {
       </aside>
 
       <main style={{ flex: 1 }}>
-        <Viewer items={items} focusY={spec.height / 2} />
+        <Viewer items={items} joints={joints} focusY={spec.height / 2} />
       </main>
     </div>
   );

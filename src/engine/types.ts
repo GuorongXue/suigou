@@ -29,9 +29,23 @@ export interface CutListItem {
   qty: number;
 }
 
+/** 接点：梁端与立柱面的交汇处，携带连接件放置信息 */
+export interface Joint {
+  id: string;
+  connectorId: string;
+  /** 梁端面中心点（即立柱内侧面） */
+  position: [number, number, number];
+  beamAxis: 'x' | 'z';
+  /** 从梁端指向立柱的方向符号 */
+  outward: 1 | -1;
+  /** 角码放置侧：+1 梁上方（底框），-1 梁下方（顶框/隔板） */
+  ySide: 1 | -1;
+}
+
 export interface FrameModel {
   spec: FrameSpec;
   members: Member[];
+  joints: Joint[];
   cutList: CutListItem[];
   totals: { memberCount: number; totalLengthMm: number; weightKg: number | null; priceCny: number | null };
   warnings: string[];

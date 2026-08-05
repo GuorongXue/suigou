@@ -1,5 +1,5 @@
 import type { KnowledgeBase } from '../knowledge/types';
-import type { FrameSpec, FrameModel, Member } from './types';
+import type { FrameSpec, FrameModel, Member, Joint } from './types';
 
 /**
  * 确定性生成器（M2）：参数 → 正交工作台框架构件图。
@@ -30,8 +30,12 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   if (beamX <= 0 || beamZ <= 0) throw new Error('总尺寸过小，扣除立柱截面后梁长为负');
 
   const members: Member[] = [];
+  const joints: Joint[] = [];
   let n = 0;
+  let jn = 0;
   const add = (m: Omit<Member, 'id'>) => members.push({ id: `m-${++n}`, ...m });
+  const addJoint = (j: Omit<Joint, 'id' | 'connectorId'>) =>
+    joints.push({ id: `j-${++jn}`, connectorId: conn.id, ...j });
 
   // 4 立柱（全高）
   for (const [x, z] of [
@@ -50,11 +54,18 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   }
 
   for (const y of levels) {
+    const ySide: 1 | -1 = y <= s ? 1 : -1;   // 底框角码朝上，其余朝下
     for (const z of [-D / 2 + s / 2, D / 2 - s / 2]) {
       add({ role: 'beam-x', sectionId: sec.id, length: beamX, position: [0, y, z], axis: 'x' });
+      for (const outward of [1, -1] as const) {
+        addJoint({ position: [outward * (W / 2 - s), y, z], beamAxis: 'x', outward, ySide });
+      }
     }
     for (const x of [-W / 2 + s / 2, W / 2 - s / 2]) {
       add({ role: 'beam-z', sectionId: sec.id, length: beamZ, position: [x, y, 0], axis: 'z' });
+      for (const outward of [1, -1] as const) {
+        addJoint({ position: [x, y, outward * (D / 2 - s)], beamAxis: 'z', outward, ySide });
+      }
     }
   }
 
@@ -72,6 +83,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   return {
     spec,
     members,
+    joints,
     cutList,
     totals: { memberCount: members.length, totalLengthMm, weightKg, priceCny },
     warnings,
