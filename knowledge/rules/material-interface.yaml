@@ -1,0 +1,22 @@
+# 材料接口规则 v0.2（行家实答替换预设，verified）
+rules:
+  - id: mat-wood
+    material: wood-board
+    risk: 吸湿热胀冷缩尺寸变化明显
+    mount: [长孔, 压条, 浮动安装]      # 禁止完全锁死
+    action: allow_expansion_gap
+  - id: mat-glass
+    material: glass
+    risk: 抗压强/抗拉弱/边缘极脆——风险最大的板材
+    forbidden: 玻璃直接压铝槽
+    require: [EPDM胶条, 橡胶垫, 尼龙垫片]
+    safetyNote: 必须钢化玻璃，边缘倒角
+  - id: mat-acrylic
+    material: acrylic
+    thermalExpansion: 70e-6   # /K，大于铝
+    example: 1m跨度温差40℃伸长≈2.8mm，锁死→开裂/鼓包
+    rule: "length > 500mm → require_clearance"
+  - id: mat-led
+    material: led-strip
+    mount: slot-inlay          # 槽内嵌入(槽宽8mm适配10mm内灯条需检查)
+    maxWidth: 8

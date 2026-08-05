@@ -1,0 +1,22 @@
+meta:
+  id: screw-joint-30
+  source: jlcfa-order-page
+  confidence: verified
+  review: approved
+  version: 0.6.0
+connector:
+  id: screw-joint-30
+  name: 打孔攻丝连接 30系列(M8圆柱头)
+  category: tap
+  visibility: hidden
+  compatible: { slotWidths: [8], series: [eu-3030] }
+  strengthClass: 5        # 行家：端面攻丝=轴向预紧充分利用端面受力，四类中最强
+  loadRole: primary
+  removable: true
+  lengthOffset: 0
+  attach: { facesRequired: 1, orientation: perpendicular, usesCoreHole: true }
+  machining:
+    - { type: end-tap, thread: M8, depth: 20, onMember: target }          # 被连接件端面攻丝
+    - { type: counterbore, d: 9, D: 14, depth: 8.5, onMember: through }   # 穿过件沉头孔(源:工艺页欧标30 Z8)
+  bom:
+    - { sku: edla-s1-m8-l40, qty: 1, priceUntaxed: 0.5646 }   # 源:配件清单页

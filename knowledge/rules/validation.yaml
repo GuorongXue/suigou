@@ -1,0 +1,65 @@
+# 校验规则 v0.6（挠度场景化 + Euler屈曲完整规范 + 斜撑五触发 + 禁忌组合）
+deflectionLimits:            # val-002 v2：按场景选限值（行家行业分档，verified）
+  diy-furniture: L/275       # 行业 L/250~L/300 取中
+  industrial-rack: L/300     # 默认值
+  workbench: L/450           # L/400~L/500
+  automation: L/500
+  precision: L/800
+  optical: L/1000            # 行业 L/1000~L/2000 保守端
+
+rules:
+  - { id: val-001, type: max-span, expr: "span <= verified阈值(见selection)", onFail: reject-and-ask, confidence: verified }
+  - { id: val-002, version: 2, type: deflection,
+      expr: "5*q*L^4/(384*E*I) <= deflectionLimits[scene]",
+      defaultScene: industrial-rack, onFail: suggest, confidence: verified }
+  - { id: val-003, type: high-risk-scene, when: { scene: [aquarium, child, overhead] },
+      action: { addSafetyFactor: 2.0, deflectionCheckMandatory: true, showWarning: true },
+      rationale: 行家：人身安全结构安全系数≥2.0且必须控制挠度（不能只满足强度）, confidence: verified }
+  - id: val-004
+    version: 2
+    type: post-buckling
+    # 认知前提：立柱失效通常不是压碎，而是欧拉屈曲失稳
+    formula: "Pcr = pi^2 * E * I / (K*L)^2"
+    allowable: "P_allow = Pcr / 3"          # 安全系数=3（行家）
+    trigger: { postHeight: ">=800" }         # 800mm为软件默认触发值（工程经验分界非物理分界）
+    K:
+      default: 1.0                           # 型材框架实际≈0.8~1.0；禁止按两端固定0.5算（过于乐观）
+      table: { 两端铰支: 1.0, 悬臂柱: 2.0, 两端固定: 0.5, 一端固定一端铰支: 0.7 }
+    slenderness:                             # λ = K·L / r，r = √(I/A)
+      "<30": 短柱按材料压缩强度
+      "30..80": 过渡区综合判断
+      ">80": Euler适用
+      ">120": 典型细长柱
+    confidence: verified
+  - { id: val-005, type: bracing, version: 2,
+      when: { anyOf: { height: ">1000", aspectRatio: ">3", mobility: caster, vibration: any, highSpeedMotion: any } },
+      action: requireDiagonalBrace,
+      rationale: 晃不是型材不够强，是整体抗剪不足（行家原话，入AI解释话术库）, confidence: verified }
+  - { id: val-006, type: forbidden-combo, checks:
+        [内置连接件不得单独承担主承重, 长横梁不得只靠单个角码（至少双侧固定，尽量闭合框架）],
+      confidence: verified }
+  - { id: val-007, type: dynamic-load, check: 动态载荷下禁止仅靠型材槽内摩擦连接, confidence: verified }
+  - { id: val-008, type: connection-strength, rule: "beam >= 4040 → connection_strength >= medium；主承重节点禁单内置",
+      confidence: verified }
+
+postHeightBands:                             # 立柱高度分档（行家，verified）
+  general: { "<600": 不考虑屈曲, "600..800": 看载荷, "800..1200": 建议校核, ">1200": 必须校核, ">2000": 需加横撑 }
+  eu-2020: { "<600": 安全, "600..800": 仅轻载, ">800": 不推荐单独承重 }
+  eu-3030: { "<1000": 安全, "1000..1500": 需计算, ">1500": 建议升级 }
+  eu-4040-s8: { "<1500": 通常安全, "1500..2500": 校核, ">2500": 加横撑 }
+
+# "一看就晃"四模式（AI预警话术素材）
+wobblePatterns:
+  - 高瘦结构 H/W>3（如400宽×1800高=4.5）
+  - 无抗侧向结构（无斜撑/背板/三角）
+  - 四角仅普通角码（静载可以，有人扶一下整框摆动）
+  - 脚轮+高架（wheel && height>800 → 必须加撑）
+
+# 行家六规则引擎总纲（引擎最小校验集，验收基准）
+engineChecklist:
+  1: { name: stiffness_check,    condition: span_limit_exceeded,           action: upgrade_profile }
+  2: { name: connection_check,   condition: load_high && connector_low,    action: warning }
+  3: { name: stability_check,    condition: "H/W > 3",                     action: require_brace }
+  4: { name: material_interface, condition: glass_or_acrylic,              action: add_soft_layer }
+  5: { name: assembly_check,     condition: no_tool_access,                action: redesign }
+  6: { name: tolerance_stack,    condition: accumulated_error > clearance, action: warning }

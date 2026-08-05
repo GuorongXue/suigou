@@ -1,0 +1,22 @@
+# 选型规则 v0.2（行家评审第一部分通过，阈值 verified）
+loadModel:
+  loadType: [distributed, concentrated]
+  # 行家：集中载荷挠度显著大于均布；规则默认按均布评估，集中载荷时跨度降一档
+rules:
+  - { id: sel-001,  when: { span: "<=600",  loadKg: "<=20", loadType: distributed }, use: eu-2020,
+      rationale: 2020定位轻型框架/护罩/电子设备，不承担较大结构载荷（行家原话）, confidence: verified }
+  - { id: sel-001b, when: { span: "<=800",  loadKg: "<=10", loadType: distributed }, use: eu-2020, confidence: verified }
+  - { id: sel-002,  when: { span: "<=1000", loadKg: "<=50", loadType: distributed }, use: eu-3030,
+      rationale: 行家闭眼边界1000@50均布, confidence: verified }
+  - { id: sel-002b, when: { span: "<=800",  loadKg: "<=80", loadType: distributed }, use: eu-3030, confidence: verified }
+  - { id: sel-003,  when: { anyOf: { span: ">1200", loadKg: ">80", scene: vibration, need: precision } }, use: eu-4040-s8,
+      rationale: 4040核心优势是刚度更大挠度更小（非仅强度）, confidence: verified }
+  - { id: sel-004,  when: { scene: [aquarium, child, overhead] }, action: upgradeOneSeries, rationale: 高风险场景升一级 }
+  - { id: sel-005,  when: { loadType: concentrated }, action: downgradeSpanOneLevel,
+      rationale: 集中载荷挠度约为均布的显著倍数, confidence: verified }
+  - { id: sel-006,  type: post-selection,
+      rule: 短立柱可比横梁小一级；高立柱不可简单降级（校核Euler屈曲而非弯曲）,
+      heightThreshold: 800,   # ⚠ inferred 高度分界待二次确认
+      confidence: partially-verified }
+conflicts:
+  priority: [safety, budget, aesthetics]   # 安全永远压倒预算

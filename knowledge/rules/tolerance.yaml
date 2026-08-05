@@ -1,0 +1,13 @@
+# 公差链规则（v0.6 新增，verified）
+stack:
+  single: ±0.3          # 单根切割公差
+  fourFrame: 0.6~1.2    # 四边框累积→对角线误差/门板装不上/玻璃塞不进
+  modules: ±0.3×n       # 模块拼接线性累积（3×1000mm→±0.9）
+sensitiveScenes: [玻璃嵌入(间隙仅1~2mm), 滑轨平行度, 门框卡滞]
+cuttingPrecision:        # 按应用推荐切割精度（行家表）
+  普通机架: ±0.5
+  工作台: ±0.3
+  门框/玻璃框: ±0.2
+  精密设备: ±0.1
+rules:
+  - { id: tol-001, check: "accumulatedError > clearance → warning + 建议提升切割精度档位" }

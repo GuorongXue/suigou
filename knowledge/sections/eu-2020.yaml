@@ -1,0 +1,30 @@
+meta:
+  id: eu-2020
+  source: jlcfa-library-screenshot
+  confidence: public
+  review: pending
+  version: 0.6.0
+  updated: 2026-08-05
+section:
+  id: eu-2020
+  name: 2020铝型材 欧标
+  standard: eu
+  series: 20
+  size: [20, 20]
+  slot: { type: T, width: 6 }
+  wallThickness: 1.4
+  weightPerMeter: 0.48
+  coreHole: { diameter: 5.0, tapping: M6, tapDepth: 15 }   # 源:工艺页(欧标20系列)
+  faces:
+    - { index: 0, normal: [1, 0, 0], slots: [{ offset: 0, width: 6 }] }
+    - { index: 1, normal: [-1, 0, 0], slots: [{ offset: 0, width: 6 }] }
+    - { index: 2, normal: [0, 1, 0], slots: [{ offset: 0, width: 6 }] }
+    - { index: 3, normal: [0, -1, 0], slots: [{ offset: 0, width: 6 }] }
+  outlineRef: dxf/eu-2020.dxf   # 待描摹
+  # 显示几何参数（供参数化挤出渲染，近似值，仅用于展示不用于制造）
+  geometry: { lipDepth: 1.5, cavityWidth: 11, cavityDepth: 4 }
+  price: { perMeter: 13.30, currency: CNY, tax: false }
+  mechanics:
+    # v0.2 行家评审：默认值+range，厂家间差20%~50%，正式设计用 brandOverrides
+    momentOfInertia: { ix: 0.7e4, iy: 0.7e4, range: [0.6e4, 0.8e4] }   # mm^4
+    elasticModulus: 6.9e4    # MPa 6063-T5

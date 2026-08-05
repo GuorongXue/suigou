@@ -1,0 +1,14 @@
+# 材料库 + 力学数据源分级（v0.2 行家评审第三部分，verified）
+materials:
+  al-6063-t5:
+    elasticModulus: 6.9e4   # MPa
+    density: 2700           # kg/m³
+    poisson: 0.33
+    confidence: verified
+
+dataSourceTiers:            # meta.source 分级标准（行家给出）
+  tier1-5star: [厂商CAD, 厂商Catalog]              # FEA验证，可信度最高，可入库
+  tier2-4star: [机械设计手册, Roark's, Shigley's]   # 只用于公式，不用于型材参数
+  tier3-3star: [网络转载, 淘宝, 论坛]               # 禁止入库
+
+brandOverrides: {}          # 待填：Bosch Rexroth / item / MISUMI / 80/20 官方型录（A/Ix/Iy/Wx/Wy/rx/ry）

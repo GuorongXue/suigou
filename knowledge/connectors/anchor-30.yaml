@@ -1,0 +1,24 @@
+meta:
+  id: anchor-30
+  source: jlcfa-process-page
+  confidence: verified
+  review: approved
+  version: 0.6.0
+connector:
+  id: anchor-30
+  name: 锚式连接件 30系列
+  category: anchor
+  visibility: hidden
+  compatible: { slotWidths: [8], series: [eu-3030] }
+  strengthClass: 4
+  loadRole: primary
+  removable: true
+  lengthOffset: 0
+  attach: { facesRequired: 2, orientation: perpendicular }
+  machining:
+    - type: through-hole
+      diameter: 11.5
+      onMember: adjacent
+      offsetFromEnd: "19 - slotWallThickness + 2"   # G=19-T+2(源:工艺页)
+  bom:
+    - { sku: tpef-308-0, qty: 1 }

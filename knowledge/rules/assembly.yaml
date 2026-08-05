@@ -1,0 +1,6 @@
+# 装配可行性规则（v0.6 新增："装得上拆不下"四大坑，verified）
+rules:
+  - { id: asm-001, check: tool_access,       desc: 工具空间校验——装时手能进、拆时扳手进不去 }
+  - { id: asm-002, check: assembly_sequence, desc: 装配顺序校验——先内梁后外框→最后一颗螺丝装不上 }
+  - { id: asm-003, check: end_access,        desc: 内置连接件需端面插入口——两端封死即失败, when: { connector: internal } }
+  - { id: asm-004, check: modular_design,    desc: 大型框架须拆分设计（运输/维修）, when: { maxDim: ">2000" } }

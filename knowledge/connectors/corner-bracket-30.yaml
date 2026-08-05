@@ -1,0 +1,21 @@
+meta:
+  id: corner-bracket-30
+  source: jlcfa-designer
+  confidence: verified   # v0.2 行家评审第二部分
+  review: approved
+  version: 0.6.0
+connector:
+  id: corner-bracket-30
+  name: 角码 30系列(面型)
+  category: corner
+  visibility: external
+  compatible: { slotWidths: [8], series: [eu-3030, eu-4040-s8] }
+  strengthClass: 3        # 行家排序：端攻5 > 锚式4 > 角码3 > 内置2
+  loadRole: primary
+  removable: true
+  lengthOffset: 0         # 角码不占端面，下料长度无修正
+  attach: { facesRequired: 2, orientation: perpendicular }
+  machining: []           # 免加工
+  bom:
+    - { sku: t-nut-m6, qty: 2 }
+    - { sku: bolt-m6-l12, qty: 2 }

@@ -1,0 +1,28 @@
+meta:
+  id: eu-4040-s8
+  source: jlcfa-process-page
+  confidence: public
+  review: pending
+  version: 0.6.0
+  updated: 2026-08-05
+section:
+  id: eu-4040-s8
+  name: 4040铝型材 欧标 槽8
+  standard: eu
+  series: 40
+  size: [40, 40]
+  slot: { type: T, width: 8 }
+  wallThickness: null          # ⚠ 未采集，待补（数据缺口清单）
+  weightPerMeter: null         # ⚠ 未采集，待补
+  coreHole: { diameter: 6.8, tapping: M8, tapDepth: 20 }   # 源:工艺页(欧标40槽8同30系列)
+  faces:
+    - { index: 0, normal: [1, 0, 0], slots: [{ offset: 0, width: 8 }] }
+    - { index: 1, normal: [-1, 0, 0], slots: [{ offset: 0, width: 8 }] }
+    - { index: 2, normal: [0, 1, 0], slots: [{ offset: 0, width: 8 }] }
+    - { index: 3, normal: [0, -1, 0], slots: [{ offset: 0, width: 8 }] }
+  outlineRef: dxf/eu-4040-s8.dxf
+  geometry: { lipDepth: 2.5, cavityWidth: 20, cavityDepth: 8 }
+  price: { perMeter: null }    # ⚠ 待补
+  mechanics:
+    momentOfInertia: { ix: 8.8e4, iy: 8.8e4, range: [8.0e4, 10.0e4] }   # 重型系列可超10 cm⁴
+    elasticModulus: 6.9e4

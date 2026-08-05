@@ -1,0 +1,30 @@
+# 连接决策 v0.3（行家评审第二部分修正 + 组合连接/主框架惯例）
+dimensions:
+  mobility: [fixed, caster]    # 脚轮结构载荷特性远劣于固定（水平冲击+扭转+疲劳）
+
+# Schema级修正：接点支持多连接件组合，各带角色（打破"一接点一连接件"假设）
+jointModel:
+  connectorsPerJoint: multiple
+  connectorRoles: [stiffness, positioning]
+  industryPattern: 角码(刚度) + 内置(定位) 组合使用（工业设备常见做法）
+
+rules:
+  - { id: con-001, when: { joint: corner-90, load: light, hiddenRequired: false }, use: corner-bracket-30, confidence: verified }
+  - { id: con-002, when: { joint: corner-90, hiddenRequired: true, load: light, loadRole: secondary }, use: internal-30,
+      rationale: 仅限外观定位与轻载辅助，禁止主承重（行家）, confidence: verified }
+  - { id: con-003, when: { joint: corner-90, load: heavy }, use: anchor-30, confidence: verified }
+  - { id: con-004, when: { joint: end-to-face, alignedCoreHole: true }, use: screw-joint-30,
+      rationale: 端面攻丝为四类中抗弯最强（轴向预紧）, confidence: verified }
+  - { id: con-005, version: 2, when: { mobility: caster },
+      impactFactor: 2.5,       # 越门槛瞬间冲击2~3倍静载，取中值入设计载荷
+      upgradeOptions: [connectionLevel+1, profileSeries+1, doubleCornerBrackets],
+      requireDiagonalBrace: true, confidence: verified }
+  - { id: con-006, type: combo, pattern: { stiffness: corner-bracket-30, positioning: internal-30 },
+      rationale: 内置负责定位美观、角码负责刚度——新人误以为内置高级，实际承载不行（行家）, confidence: verified }
+  - { id: con-007, when: { frameRole: mainFrame }, prefer: screw-joint-30,
+      rationale: 主框架几乎全用端面攻丝——刚度最高/不易松/受力最好（行家）, confidence: verified }
+  - { id: con-008, when: { joint: beam-bending-corner, scene: [workbench, cnc, laser, aquarium] },
+      require: corner-bracket-each-corner, rationale: 横梁受弯四角必加角码（行家）, confidence: verified }
+
+designPrinciples:
+  - 尽量形成闭合框架（行家）

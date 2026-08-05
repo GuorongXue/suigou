@@ -1,0 +1,28 @@
+meta:
+  id: eu-3030
+  source: jlcfa-library-screenshot
+  confidence: public
+  review: pending
+  version: 0.6.0
+  updated: 2026-08-05
+section:
+  id: eu-3030
+  name: 3030铝型材 欧标
+  standard: eu
+  series: 30
+  size: [30, 30]
+  slot: { type: T, width: 8 }
+  wallThickness: 2.0
+  weightPerMeter: 0.85
+  coreHole: { diameter: 6.8, tapping: M8, tapDepth: 20 }   # 源:工艺页(欧标30系列 6.8/7→M8/20mm)
+  faces:
+    - { index: 0, normal: [1, 0, 0], slots: [{ offset: 0, width: 8 }] }
+    - { index: 1, normal: [-1, 0, 0], slots: [{ offset: 0, width: 8 }] }
+    - { index: 2, normal: [0, 1, 0], slots: [{ offset: 0, width: 8 }] }
+    - { index: 3, normal: [0, -1, 0], slots: [{ offset: 0, width: 8 }] }
+  outlineRef: dxf/eu-3030.dxf
+  geometry: { lipDepth: 2.0, cavityWidth: 16.5, cavityDepth: 6 }
+  price: { perMeter: 23.62, currency: CNY, tax: false }    # 与清单页反推一致(123mm→3.01✓)
+  mechanics:
+    momentOfInertia: { ix: 3.3e4, iy: 3.3e4, range: [3.0e4, 3.8e4] }
+    elasticModulus: 6.9e4

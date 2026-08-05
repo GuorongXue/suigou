@@ -1,0 +1,22 @@
+meta:
+  id: internal-30
+  source: jlcfa-designer
+  confidence: verified
+  review: approved
+  version: 0.6.0
+connector:
+  id: internal-30
+  name: 内置连接件 30系列
+  category: internal
+  visibility: hidden
+  compatible: { slotWidths: [8], series: [eu-3030] }
+  strengthClass: 2        # 行家关键修正：原误标3级高于角码
+  loadRole: positioning-aesthetic
+  note: 定位与外观用途，长期振动下易松动，禁止单独主承重
+  removable: true
+  lengthOffset: 0
+  attach: { facesRequired: 2, orientation: perpendicular }
+  machining:
+    - { type: wrench-hole, diameter: 8.5, onMember: self, note: 扳手操作孔(源:工艺页30系列欧标8.5) }
+  bom:
+    - { sku: internal-conn-30, qty: 1 }
