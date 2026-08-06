@@ -135,7 +135,7 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xe8edf4);   // 嘉立创浅蓝灰画布
 
-    const camera = new THREE.PerspectiveCamera(50, mount.clientWidth / mount.clientHeight, 5, 10000);
+    const camera = new THREE.PerspectiveCamera(50, mount.clientWidth / mount.clientHeight, 5, 40000);
     camera.position.set(1000, 780, 1250);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -523,7 +523,9 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       const dir = cam.position.clone().sub(ctx.controls.target).normalize();
       // 图纸模式多留 25% 边距给尺寸标注
       cam.position.copy(ctx.controls.target).addScaledVector(dir, dist * k * (isD ? 1.25 : 0.8));
-      ctx.controls.maxDistance = isD ? 18000 : 4500;
+      // 窄 fov 下相机被拉得很远：同步拉开缩放区间，避免近/远裁剪面切进模型（页面"失真"缺角）
+      ctx.controls.minDistance = isD ? 800 : 120;
+      ctx.controls.maxDistance = isD ? 30000 : 4500;
       ctx.controls.update();
       prevDrawing.current = isD;
     }
