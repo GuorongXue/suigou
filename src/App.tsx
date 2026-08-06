@@ -6,6 +6,7 @@ import { runGolden } from './engine/golden';
 import { extractIntent, getApiKey, setApiKey } from './engine/extract';
 import { intentToSpec, type IntentResult } from './engine/intent';
 import { nestCutList } from './engine/nesting';
+import { buildAssemblySteps } from './engine/assembly';
 import type { FrameSpec } from './engine/types';
 import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type RenderPanel, type RenderAccessory, type RenderMountPoint, type RenderDim, type RenderBubble, type Selection } from './viewer/Viewer';
 import { PartDrawing } from './components/PartDrawing';
@@ -247,6 +248,31 @@ export default function App() {
   const goldenPass = golden.filter((g) => g.pass).length;
 
   const nesting = useMemo(() => (result.model ? nestCutList(result.model.cutList, kb) : null), [result, kb]);
+  const assembly = useMemo(() => (result.model ? buildAssemblySteps(result.model, kb) : []), [result, kb]);
+
+  const exportAssembly = () => {
+    if (!model || !exportGate()) return;
+    const txt = [
+      `随构 · 装配说明（${spec.width}×${spec.depth}×${spec.height}mm · ${spec.sectionId}）`,
+      `生成时间：${new Date().toLocaleString()} · 方案状态：${model.status}`,
+      '',
+      ...assembly.flatMap((s) => [
+        `【第 ${s.step} 步】${s.title}`,
+        s.parts.length ? `  用件：${s.parts.join('、')}` : '',
+        s.fasteners.length ? `  紧固件：${s.fasteners.join('、')}` : '',
+        s.tools.length ? `  工具：${s.tools.join('、')}` : '',
+        `  说明：${s.note}`,
+        '',
+      ]).filter((l) => l !== ''),
+      '⚠ 本说明由方案装配关系自动生成；高风险场景请保留安全冗余并自行确认装配质量。',
+    ].join('\n');
+    const url = URL.createObjectURL(new Blob(['\ufeff' + txt], { type: 'text/plain;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '装配说明.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const set = (patch: Partial<FrameSpec>) => {
     setSpec((s) => ({ ...s, ...patch }));
@@ -479,6 +505,7 @@ export default function App() {
           <button onClick={resetDraft} style={{ fontSize: 12, padding: '5px 14px', border: '1px solid #c9d2e0', borderRadius: 6, background: '#fff', color: '#666', cursor: 'pointer' }}>新方案</button>
         )}
         <button onClick={exportCutList} disabled={!model || model.status === 'invalid'} style={{ fontSize: 12, padding: '5px 14px', border: '1px solid #1e6fff', borderRadius: 6, background: '#fff', color: !model || model.status === 'invalid' ? '#aaa' : '#1e6fff', borderColor: !model || model.status === 'invalid' ? '#ccc' : '#1e6fff', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>导出切割清单</button>
+        <button onClick={exportAssembly} disabled={!model || model.status === 'invalid'} style={{ fontSize: 12, padding: '5px 14px', border: '1px solid #1e6fff', borderRadius: 6, background: '#fff', color: !model || model.status === 'invalid' ? '#aaa' : '#1e6fff', borderColor: !model || model.status === 'invalid' ? '#ccc' : '#1e6fff', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>导出装配说明</button>
         <button onClick={exportBom} disabled={!model || model.status === 'invalid'} style={{ fontSize: 12, padding: '5px 14px', border: 'none', borderRadius: 6, background: !model || model.status === 'invalid' ? '#ccc' : '#1e6fff', color: '#fff', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>导出 BOM</button>
       </header>
 
@@ -945,6 +972,21 @@ export default function App() {
                 </table>
                 <div style={{ color: '#999', fontSize: 12 }}>深色圆片 = 孔口位置（表面可见面）</div>
               </>
+            )}
+
+            {assembly.length > 0 && (
+              <details style={{ marginTop: 12 }}>
+                <summary style={{ cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>装配步骤（{assembly.length} 步）</summary>
+                {assembly.map((s) => (
+                  <div key={s.step} style={{ padding: '6px 0', borderBottom: '1px solid #f0f2f5', fontSize: 12 }}>
+                    <b>{s.step}. {s.title}</b>
+                    {s.parts.length > 0 && <div style={{ color: '#555' }}>用件：{s.parts.join('、')}</div>}
+                    {s.fasteners.length > 0 && <div style={{ color: '#555' }}>紧固件：{s.fasteners.join('、')}</div>}
+                    {s.tools.length > 0 && <div style={{ color: '#777' }}>工具：{s.tools.join('、')}</div>}
+                    <div style={{ color: '#999' }}>{s.note}</div>
+                  </div>
+                ))}
+              </details>
             )}
 
             {/* 免责三要素（07文档责任设计） */}
