@@ -13,7 +13,7 @@ section:
   size: [40, 40]
   slot: { type: T, width: 8 }
   wallThickness: 2.4           # 参考值：工艺页 4040B A翅壁 2.4±0.15（型号是否对应本槽8截面待核，confidence: inferred）
-  weightPerMeter: null         # ⚠ 未采集，待补
+  weightPerMeter: 1.5          # 市场量级估值(confidence: inferred)，待实采
   coreHole: { diameter: 6.8, tapping: M8, tapDepth: 20 }   # 源:工艺页(欧标40槽8同30系列)
   faces:
     - { index: 0, normal: [1, 0, 0], slots: [{ offset: 0, width: 8 }] }
@@ -22,7 +22,7 @@ section:
     - { index: 3, normal: [0, -1, 0], slots: [{ offset: 0, width: 8 }] }
   outlineRef: dxf/eu-4040-s8.dxf
   geometry: { lipDepth: 2.5, cavityWidth: 20, cavityDepth: 8 }
-  price: { perMeter: null }    # ⚠ 待补
+  price: { perMeter: 42 }      # 市场量级估价(confidence: inferred)，待嘉立创实价核对
   mechanics:
     momentOfInertia: { ix: 8.8e4, iy: 8.8e4, range: [8.0e4, 10.0e4] }   # 重型系列可超10 cm⁴
     elasticModulus: 6.9e4
