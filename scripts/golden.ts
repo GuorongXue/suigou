@@ -59,7 +59,7 @@ console.log('== 3. 生成冒烟 + 强制不变量 ==');
     width: 800, depth: 400, height: 1500, sectionId: 'eu-3030', connectorId: 'anchor-30',
     shelfCount: 2, loadKg: 15, loadType: 'distributed', scene: 'workbench', highRisk: false,
     mobility: 'caster', topPanel: 'wood', shelfPanel: 'glass', backPanel: 'pegboard',
-    leftPanel: 'none', rightPanel: 'none', brace: true,
+    bottomPanel: 'none', leftPanel: 'none', rightPanel: 'none', brace: true,
   };
   try {
     const m = generateFrame(spec, kb);

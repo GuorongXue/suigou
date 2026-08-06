@@ -20,7 +20,7 @@ interface ChatMsg {
 const FIELD_NAMES: Record<string, string> = {
   width: '总宽', depth: '总深', height: '总高', shelfCount: '隔板层数', loadKg: '载荷',
   loadType: '载荷分布', scene: '场景', highRisk: '高风险', mobility: '移动性',
-  sectionId: '截面', connectorId: '连接件', topPanel: '顶面板', shelfPanel: '隔板材质',
+  sectionId: '截面', connectorId: '连接件', topPanel: '顶面板', shelfPanel: '隔板材质', bottomPanel: '底板',
 };
 
 // 手动锁定字段 → 抽取字段路径（_explicitFields 解锁依据，9.4.1）
@@ -50,6 +50,7 @@ export default function App() {
     backPanel: draft.spec.backPanel ?? 'none',
     leftPanel: draft.spec.leftPanel ?? 'none',
     rightPanel: draft.spec.rightPanel ?? 'none',
+    bottomPanel: draft.spec.bottomPanel ?? 'none',
     brace: draft.spec.brace ?? false,
   } : {
     width: 700,
@@ -65,6 +66,7 @@ export default function App() {
     mobility: 'fixed',
     topPanel: 'none',
     shelfPanel: 'none',
+    bottomPanel: 'none',
     backPanel: 'none',
     leftPanel: 'none',
     rightPanel: 'none',
@@ -566,7 +568,7 @@ export default function App() {
         </label>
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          {([['顶面板', 'topPanel'], ['隔板材质', 'shelfPanel']] as const).map(([label, key]) => (
+          {([['顶面板', 'topPanel'], ['隔板材质', 'shelfPanel'], ['底板', 'bottomPanel']] as const).map(([label, key]) => (
             <label key={key} style={{ flex: 1 }}>
               {label}
               <select value={spec[key]} onChange={(e) => set({ [key]: e.target.value } as Partial<FrameSpec>)} style={{ width: '100%', marginTop: 4 }}>

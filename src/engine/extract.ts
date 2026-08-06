@@ -52,7 +52,7 @@ Schema：
   "mobility": "fixed | caster | unknown",
   "stiffnessNeed": "normal | high | unknown",
   "environment": { "humid": null, "outdoor": null, "vibration": null },
-  "panels": [ { "material": "wood | glass | acrylic | pegboard | other | none", "position": "top | shelf | side | door | drawer" } ],
+  "panels": [ { "material": "wood | glass | acrylic | pegboard | other | none", "position": "top | shelf | bottom | side | door | drawer" } ],
   "appearance": { "color": null, "hiddenConnectorsPreferred": null },
   "budgetSensitivity": "low | medium | high | unknown",
   "layers": null,

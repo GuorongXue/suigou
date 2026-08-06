@@ -125,6 +125,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     });
   };
   addPanel(spec.topPanel, H, true);   // 顶梁上表面 = H
+  addPanel(spec.bottomPanel, s, false);   // 底框梁上表面 = s（搭梁式同隔板）
   for (let i = 1; i <= spec.shelfCount; i++) {
     addPanel(spec.shelfPanel, (H * i) / (spec.shelfCount + 1) + s / 2, false);
   }

@@ -19,9 +19,10 @@ export interface FrameSpec {
   mobility: 'fixed' | 'caster';
   /** 设备振动工况（3D打印机/CNC 等）→ val-005 斜撑触发 */
   vibration?: boolean;
-  /** 板材：顶面与隔板层各一种材质 */
+  /** 板材：顶面、隔板层、底框各一种材质 */
   topPanel: PanelMaterial;
   shelfPanel: PanelMaterial;
+  bottomPanel: PanelMaterial;
   /** 侧围板（背/左/右）：兼作抗侧向体系（val-lateral） */
   backPanel: PanelMaterial;
   leftPanel: PanelMaterial;
