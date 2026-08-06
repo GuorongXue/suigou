@@ -647,7 +647,7 @@ export default function App() {
         </div>
         {selectedMember && (
           <div style={{
-            position: 'absolute', top: 14, right: 14, width: 240,
+            position: 'absolute', top: 130, right: 14, width: 240,
             background: 'rgba(255,255,255,.96)', borderRadius: 8, padding: '12px 14px',
             boxShadow: '0 4px 16px rgba(0,0,0,.12)', fontSize: 13, lineHeight: 1.8,
           }}>
@@ -677,7 +677,7 @@ export default function App() {
         )}
         {selectedJoint && selectedConnector && (
           <div style={{
-            position: 'absolute', top: 14, right: 14, width: 240,
+            position: 'absolute', top: 130, right: 14, width: 240,
             background: 'rgba(255,255,255,.96)', borderRadius: 8, padding: '12px 14px',
             boxShadow: '0 4px 16px rgba(0,0,0,.12)', fontSize: 13, lineHeight: 1.8,
           }}>

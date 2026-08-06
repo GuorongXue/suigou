@@ -166,9 +166,66 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
     const dimGroup = new THREE.Group();
     scene.add(dimGroup);
 
+    // ---- 视角立方体（嘉立创同款）：右上角姿态同步，点面切正交视角 ----
+    const cubeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    cubeRenderer.setSize(104, 104);
+    Object.assign(cubeRenderer.domElement.style, { position: 'absolute', top: '14px', right: '14px', cursor: 'pointer' });
+    mount.appendChild(cubeRenderer.domElement);
+    const cubeScene = new THREE.Scene();
+    const cubeCam = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
+    cubeCam.position.set(0, 0, 4);
+    const faceMat = (text: string) => {
+      const c = document.createElement('canvas');
+      c.width = c.height = 128;
+      const g = c.getContext('2d')!;
+      g.fillStyle = '#f4f7fb'; g.fillRect(0, 0, 128, 128);
+      g.strokeStyle = '#b8c2d2'; g.lineWidth = 6; g.strokeRect(3, 3, 122, 122);
+      g.fillStyle = '#44536b'; g.font = 'bold 44px system-ui';
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(text, 64, 68);
+      return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c) });
+    };
+    // BoxGeometry 面序：+x -x +y -y +z -z
+    const cubeMesh = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.7, 1.7),
+      [faceMat('右'), faceMat('左'), faceMat('上'), faceMat('下'), faceMat('前'), faceMat('后')]);
+    cubeScene.add(cubeMesh);
+
+    // 视角切换补间
+    let viewTween: { from: THREE.Vector3; to: THREE.Vector3; t: number } | null = null;
+    cubeRenderer.domElement.addEventListener('click', (e) => {
+      const rect = cubeRenderer.domElement.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      const rc = new THREE.Raycaster();
+      rc.setFromCamera(ndc, cubeCam);
+      const hit = rc.intersectObject(cubeMesh, false)[0];
+      if (!hit?.face) return;
+      // cube 姿态=相机逆 → 局部法线即主场景世界方向
+      const dir = hit.face.normal.clone();
+      if (Math.abs(dir.y) > 0.99) dir.z = 0.02;   // 避免俯仰视 lookAt 退化
+      dir.normalize();
+      const dist = camera.position.distanceTo(controls.target);
+      viewTween = {
+        from: camera.position.clone(),
+        to: controls.target.clone().addScaledVector(dir, dist),
+        t: 0,
+      };
+    });
+
     renderer.setAnimationLoop(() => {
+      if (viewTween) {
+        viewTween.t = Math.min(1, viewTween.t + 0.07);
+        const k = viewTween.t * viewTween.t * (3 - 2 * viewTween.t);   // smoothstep
+        camera.position.lerpVectors(viewTween.from, viewTween.to, k);
+        controls.update();
+        if (viewTween.t >= 1) viewTween = null;
+      }
       renderer.render(scene, camera);
       labelRenderer.render(scene, camera);
+      cubeMesh.quaternion.copy(camera.quaternion).invert();
+      cubeRenderer.render(cubeScene, cubeCam);
     });
 
     const group = new THREE.Group();
@@ -218,9 +275,11 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       ro.disconnect();
       renderer.setAnimationLoop(null);
       renderer.dispose();
+      cubeRenderer.dispose();
       pmrem.dispose();
       mount.removeChild(renderer.domElement);
       mount.removeChild(labelRenderer.domElement);
+      mount.removeChild(cubeRenderer.domElement);
       ctxRef.current = null;
     };
   }, []);
