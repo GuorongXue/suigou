@@ -1,4 +1,4 @@
-export type PanelMaterial = 'none' | 'wood' | 'glass' | 'acrylic' | 'pegboard';
+export type PanelMaterial = 'none' | 'wood' | 'glass' | 'acrylic' | 'pegboard' | 'wire-mesh';
 
 /** 框架生成参数（M2：正交工作台框架；M3 加载荷/场景维度；M4.5 加板材） */
 export interface FrameSpec {

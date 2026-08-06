@@ -86,7 +86,9 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
 
   // ---- val-005 斜撑触发器（五触发，行家 verified）；已加斜撑/背板则通过 ----
   const hasBrace = spec.brace;
-  const hasShear = spec.backPanel !== 'none' || spec.leftPanel !== 'none' || spec.rightPanel !== 'none';
+  // 围网是围护件非剪力板（16号评测：区分围护板与结构剪力板），不计入抗剪体系
+  const shearPanel = (m: string) => m !== 'none' && m !== 'wire-mesh';
+  const hasShear = shearPanel(spec.backPanel) || shearPanel(spec.leftPanel) || shearPanel(spec.rightPanel);
   const aspectW = spec.height / spec.width;
   const aspectD = spec.height / spec.depth;
   const braceTriggers: string[] = [];

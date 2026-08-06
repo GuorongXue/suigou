@@ -106,6 +106,7 @@ const PANEL_MATERIALS: Record<string, () => THREE.MeshStandardMaterial> = {
   pegboard: () => new THREE.MeshStandardMaterial({ color: 0xc9a06a, roughness: 0.75, metalness: 0.05 }),
   glass: () => new THREE.MeshStandardMaterial({ color: 0xa8cfe0, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.35 }),
   acrylic: () => new THREE.MeshStandardMaterial({ color: 0xf2f6f8, roughness: 0.15, metalness: 0.05, transparent: true, opacity: 0.45 }),
+  'wire-mesh': () => new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.6, metalness: 0.5, transparent: true, opacity: 0.3 }),
 };
 
 export function Viewer({ items, joints, machining, panels, accessories, mountPoints, dims, drawing, bubbles, viewRequest, focusY, onSelect, selection, warnMemberIds }: ViewerProps) {

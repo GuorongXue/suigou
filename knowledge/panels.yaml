@@ -38,3 +38,11 @@ panels:
     mount: t-nut-screw
     holeDiameter: 7
     mountNote: 洞洞板螺栓固定四角(mat-wood同源)
+  wire-mesh:
+    name: 围网(钢丝网片)
+    thickness: 2
+    kgPerM2: 2
+    pricePerM2: 40
+    mount: t-nut-screw
+    holeDiameter: 7
+    mountNote: 网片U型包边后四角螺栓固定，适用防护/透风围护（非结构剪力板）

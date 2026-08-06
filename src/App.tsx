@@ -598,6 +598,7 @@ export default function App() {
                 <option value="wood">木板</option>
                 <option value="acrylic">亚克力</option>
                 <option value="pegboard">洞洞板</option>
+                <option value="wire-mesh">围网</option>
               </select>
             </label>
           ))}
