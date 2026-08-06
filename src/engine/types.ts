@@ -46,6 +46,18 @@ export interface Member {
   partNo?: string;
 }
 
+/** 单件加工特征（件局部坐标，单件加工图数据源） */
+export interface PartOp {
+  type: string;
+  /** 人读规格，如 Φ11.5 / M8×20 */
+  spec: string;
+  /** 孔心距件起端 mm */
+  fromStart: number;
+  /** 加工面：end / y+ / y- / z+ / z- / x+ / x- */
+  face: string;
+  diameter: number;
+}
+
 export interface CutListItem {
   partNo: string;
   sectionId: string;
@@ -53,6 +65,8 @@ export interface CutListItem {
   qty: number;
   /** 加工特征摘要（如 "通孔Φ11.5×2"），无加工为空 */
   machiningNote: string;
+  /** 结构化孔位（代表件）：单件加工图用 */
+  ops: PartOp[];
 }
 
 /** 校验结果（规则管道输出） */

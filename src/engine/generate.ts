@@ -1,5 +1,5 @@
 import type { KnowledgeBase } from '../knowledge/types';
-import type { FrameSpec, FrameModel, Member, Joint, MachiningOp, PanelItem, PanelMaterial, MountItem, AccessoryItem, PanelListItem } from './types';
+import type { FrameSpec, FrameModel, Member, Joint, MachiningOp, PanelItem, PanelMaterial, MountItem, AccessoryItem, PanelListItem, PartOp } from './types';
 import { validateFrame } from './validate';
 
 /**
@@ -302,6 +302,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   }
 
   const machBy = new Map<string, string[]>();
+  const opsBy = new Map<string, PartOp[]>();
   const memberById = new Map(members.map((m) => [m.id, m]));
   for (const mc of machining) {
     const m = memberById.get(mc.memberId)!;
@@ -311,10 +312,12 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const face = mc.axis === m.axis ? 'end' : `${mc.axis}${mc.discs[0]?.dir ?? ''}`;
     (machBy.get(mc.memberId) ?? machBy.set(mc.memberId, []).get(mc.memberId)!)
       .push(`${mc.type}:${mc.spec}@${fromStart}/${face}`);
+    (opsBy.get(mc.memberId) ?? opsBy.set(mc.memberId, []).get(mc.memberId)!)
+      .push({ type: mc.type, spec: mc.spec, fromStart, face, diameter: mc.diameter });
   }
   const partKey = (m: Member) => `${m.length}|${(machBy.get(m.id) ?? []).sort().join(',')}`;
   const partNoByKey = new Map<string, string>();
-  const cutAgg = new Map<string, { length: number; qty: number; machiningNote: string }>();
+  const cutAgg = new Map<string, { length: number; qty: number; machiningNote: string; ops: PartOp[] }>();
   for (const m of members) {
     const key = partKey(m);
     if (!partNoByKey.has(key)) partNoByKey.set(key, `P${partNoByKey.size + 1}`);
@@ -327,7 +330,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       for (const o of ops) noteMap.set(o.split('@')[0], (noteMap.get(o.split('@')[0]) ?? 0) + 1);
       const machiningNote = [...noteMap.entries()]
         .map(([o, c]) => `${o.split(':')[1]}×${c}`).join(' ');
-      cutAgg.set(key, { length: m.length, qty: 1, machiningNote });
+      cutAgg.set(key, { length: m.length, qty: 1, machiningNote, ops: (opsBy.get(m.id) ?? []).sort((a, b) => a.fromStart - b.fromStart) });
     }
   }
   const cutList = [...cutAgg.entries()]

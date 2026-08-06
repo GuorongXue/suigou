@@ -7,6 +7,7 @@ import { extractIntent, getApiKey, setApiKey } from './engine/extract';
 import { intentToSpec, type IntentResult } from './engine/intent';
 import type { FrameSpec } from './engine/types';
 import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type RenderPanel, type RenderAccessory, type RenderMountPoint, type RenderDim, type RenderBubble, type Selection } from './viewer/Viewer';
+import { PartDrawing } from './components/PartDrawing';
 
 type ViewMode = 'appearance' | 'structure' | 'drawing';
 
@@ -332,6 +333,7 @@ export default function App() {
   const [viewReq, setViewReq] = useState<{ dir: [number, number, number]; seq: number } | null>(null);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
+  const [partDetail, setPartDetail] = useState<string | null>(null);
   const requestView = (dir: [number, number, number]) =>
     setViewReq((v) => ({ dir, seq: (v?.seq ?? 0) + 1 }));
 
@@ -379,6 +381,10 @@ export default function App() {
     return true;
   };
 
+  /** 下料公差（cam.yaml 分段）：L≤1000 ±0.3 / >1000 ±0.5；precision 单向 */
+  const tolOf = (len: number) =>
+    spec.scene === 'precision' ? '+0/-0.2' : len <= 1000 ? '±0.3' : '±0.5';
+
   const exportCutList = () => {
     if (!model || !exportGate()) return;
     // 工序链映射源：knowledge/rules/cam.yaml（cam-001~006）
@@ -389,9 +395,6 @@ export default function App() {
       if (note.includes('Φ')) return '切割→钻孔→去毛刺';
       return '切割→去毛刺';
     };
-    // 下料公差按工艺页分段：L≤1000 ±0.3 / L>1000 ±0.5；precision 场景单向公差
-    const tolOf = (len: number) =>
-      spec.scene === 'precision' ? '+0/-0.2' : len <= 1000 ? '±0.3' : '±0.5';
     downloadCsv('切割清单.csv', ['件号', '截面/材质', '下料尺寸mm', '公差', '数量', '加工', '工序链', '去毛刺'],
       [
         ...model.cutList.map((c) => [c.partNo, c.sectionId, c.length, tolOf(c.length), c.qty, c.machiningNote || '无', processOf(c.machiningNote), '孔口双面去毛刺+锐边倒铝'] as (string | number)[]),
@@ -767,6 +770,12 @@ export default function App() {
             <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>在左侧下拉框可更换连接件类型</div>
           </div>
         )}
+        {partDetail && model && (() => {
+          const item = model.cutList.find((c) => c.partNo === partDetail);
+          if (!item) return null;
+          const ss = kb.sections.find((s) => s.section.id === item.sectionId)?.section.size[0] ?? 30;
+          return <PartDrawing item={item} sectionSize={ss} tolerance={tolOf(item.length)} onClose={() => setPartDetail(null)} />;
+        })()}
       </main>
 
       {/* 右栏：方案结果——为什么可靠、要买什么（16号评测 2.3） */}
@@ -804,8 +813,9 @@ export default function App() {
               </thead>
               <tbody>
                 {model.cutList.map((c) => (
-                  <tr key={c.partNo} style={{ borderBottom: '1px solid #f0f2f5' }}>
-                    <td style={{ padding: '4px 0' }}>{c.partNo}</td>
+                  <tr key={c.partNo} onClick={() => setPartDetail(c.partNo)} title="点击查看单件加工图"
+                    style={{ borderBottom: '1px solid #f0f2f5', cursor: 'pointer' }}>
+                    <td style={{ padding: '4px 0', color: '#1e6fff', textDecoration: 'underline' }}>{c.partNo}</td>
                     <td style={{ textAlign: 'right' }}>{c.length}</td>
                     <td style={{ textAlign: 'right' }}>×{c.qty}</td>
                     <td style={{ textAlign: 'right', fontSize: 11, color: '#777' }}>{c.machiningNote || '—'}</td>
