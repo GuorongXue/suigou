@@ -1,0 +1,18 @@
+# 紧固件/配件单价库 v0.1（未税CNY；edla 为配件清单页实价，其余为量级估价 inferred）
+meta:
+  id: fasteners
+  source: jlcfa-parts-page + market-estimate
+  confidence: inferred
+  review: pending
+  version: 0.1.0
+fasteners:
+  t-nut-m6:            { name: T型螺母 M6,            price: 0.15 }
+  bolt-m6-l12:         { name: 内六角螺栓 M6×12,      price: 0.10 }
+  bolt-m6-l16:         { name: 内六角螺栓 M6×16,      price: 0.12 }
+  corner-bracket-30-body: { name: 角码本体 30系列,    price: 2.50 }
+  tpef-308-0:          { name: 锚式连接件本体,        price: 1.80 }
+  internal-conn-30:    { name: 内置连接件本体,        price: 1.20 }
+  edla-s1-m8-l40:      { name: 端攻螺栓 M8×40 圆柱头, price: 0.5646, confidence: verified }
+  epdm-gasket-pad:     { name: EPDM 胶垫,             price: 0.50 }
+  clamp-strip-200:     { name: 压条 200mm,            price: 1.50 }
+  caster-stem-m8-50:   { name: 丝杆脚轮 M8 Φ50,       price: 8.00 }

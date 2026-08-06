@@ -1,0 +1,40 @@
+# 板材库 v0.1：厚度/面密度/单价（嘉立创+市场量级估价，inferred 待实价核对）
+meta:
+  id: panels
+  source: market-estimate
+  confidence: inferred
+  review: pending
+  version: 0.1.0
+panels:
+  wood:
+    name: 多层实木板
+    thickness: 18
+    kgPerM2: 11
+    pricePerM2: 90
+    mount: t-nut-screw
+    holeDiameter: 7        # M6 螺栓过孔
+    mountNote: T型螺母+螺钉四角固定，长孔浮动留胀缩(mat-wood)
+  glass:
+    name: 钢化玻璃
+    thickness: 8
+    kgPerM2: 20
+    pricePerM2: 120
+    mount: gasket-clamp    # 玻璃不打孔：胶垫承托+压条
+    holeDiameter: 0
+    mountNote: 钢化玻璃+EPDM胶垫四角承托+压条(mat-glass)
+  acrylic:
+    name: 亚克力板
+    thickness: 5
+    kgPerM2: 6
+    pricePerM2: 150
+    mount: gasket-clamp
+    holeDiameter: 0
+    mountNote: 胶垫承托+压条，留热胀间隙(mat-acrylic)
+  pegboard:
+    name: 洞洞板
+    thickness: 5
+    kgPerM2: 5
+    pricePerM2: 60
+    mount: t-nut-screw
+    holeDiameter: 7
+    mountNote: 洞洞板螺栓固定四角(mat-wood同源)

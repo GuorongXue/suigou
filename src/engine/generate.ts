@@ -1,5 +1,5 @@
 import type { KnowledgeBase } from '../knowledge/types';
-import type { FrameSpec, FrameModel, Member, Joint, MachiningOp, PanelItem, PanelMaterial, MountItem, AccessoryItem } from './types';
+import type { FrameSpec, FrameModel, Member, Joint, MachiningOp, PanelItem, PanelMaterial, MountItem, AccessoryItem, PanelListItem } from './types';
 import { validateFrame } from './validate';
 
 /**
@@ -81,12 +81,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   // 板材构件（9.2.3 修复：真实搭接几何 + Mount 固定关系，不再悬空）
   const panels: PanelItem[] = [];
   const mounts: MountItem[] = [];
-  const PANEL_SPEC: Record<Exclude<PanelMaterial, 'none'>, { thickness: number; kgPerM2: number; mountNote: string }> = {
-    wood:     { thickness: 18, kgPerM2: 11, mountNote: 'T型螺母+螺钉四角固定，长孔浮动留胀缩(mat-wood)' },
-    glass:    { thickness: 8,  kgPerM2: 20, mountNote: '钢化玻璃+EPDM胶垫四角承托+压条(mat-glass)' },
-    acrylic:  { thickness: 5,  kgPerM2: 6,  mountNote: '胶垫承托+压条，留热胀间隙(mat-acrylic)' },
-    pegboard: { thickness: 5,  kgPerM2: 5,  mountNote: '洞洞板螺栓固定四角(mat-wood同源)' },
-  };
+  const PANEL_SPEC = kb.panels;   // knowledge/panels.yaml：厚度/面密度/单价/固定方式/孔径
   let pn = 0;
   let mtn = 0;
   const addPanel = (material: PanelMaterial, beamTopY: number, isTop: boolean) => {
@@ -98,6 +93,12 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const pd = isTop ? D : D - 2 * s + 2 * overlap;
     if (pw <= 0 || pd <= 0) return;
     const panelId = `pn-${++pn}`;
+    // 固定孔（板局部坐标）：顶板孔心落梁中心线距边 s/2；隔板落搭接区中心距边 overlap/2
+    const inset = isTop ? s / 2 : overlap / 2;
+    const holes = ps.mount === 't-nut-screw'
+      ? [[inset, inset], [pw - inset, inset], [inset, pd - inset], [pw - inset, pd - inset]]
+        .map(([x, y]) => ({ x, y, diameter: ps.holeDiameter }))
+      : [];
     panels.push({
       id: panelId, material,
       size: [pw, pd, ps.thickness],
@@ -105,13 +106,14 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       position: [0, beamTopY + ps.thickness / 2, 0],   // 底面落在梁上表面
       mode: isTop ? 'top-overlay' : 'shelf-overlap',
       mountNote: (isTop ? '顶面板(覆盖式)：' : '隔板(搭梁式)：') + ps.mountNote,
+      holes,
     });
     // 固定点：四角内缩，落在梁中心线上方
     const px = W / 2 - s / 2, pz = D / 2 - s / 2;
     const points: [number, number, number][] = [
       [-px, beamTopY, -pz], [px, beamTopY, -pz], [-px, beamTopY, pz], [px, beamTopY, pz],
     ];
-    const soft = material === 'glass' || material === 'acrylic';
+    const soft = ps.mount === 'gasket-clamp';
     mounts.push({
       id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId,
       method: soft ? 'gasket-clamp' : 't-nut-screw',
@@ -140,11 +142,17 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const position: [number, number, number] = isBack
       ? [0, H / 2, -D / 2 - ps.thickness / 2]
       : [side === 'left' ? -W / 2 - ps.thickness / 2 : W / 2 + ps.thickness / 2, H / 2, 0];
+    // 固定孔（板局部坐标，沿板宽×板高）：孔心落柱中心线，横向距边 s/2，纵向距上下边 s
+    const holes = ps.mount === 't-nut-screw'
+      ? [[s / 2, s], [pw - s / 2, s], [s / 2, ph - s], [pw - s / 2, ph - s]]
+        .map(([x, y]) => ({ x, y, diameter: ps.holeDiameter }))
+      : [];
     panels.push({
       id: panelId, material,
       size: [pw, ph, ps.thickness], boxSize, position,
       mode: isBack ? 'back-overlay' : 'side-overlay',
       mountNote: `${isBack ? '背板' : side === 'left' ? '左侧板' : '右侧板'}(外贴式)：${ps.mountNote}；兼作抗剪体系`,
+      holes,
     });
     // 固定点：四角柱上
     const points: [number, number, number][] = isBack
@@ -153,7 +161,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         const x = side === 'left' ? -W / 2 : W / 2;
         return [[x, s, -D / 2 + s / 2], [x, s, D / 2 - s / 2], [x, H - s, -D / 2 + s / 2], [x, H - s, D / 2 - s / 2]] as [number, number, number][];
       })();
-    const soft = material === 'glass' || material === 'acrylic';
+    const soft = ps.mount === 'gasket-clamp';
     mounts.push({
       id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId,
       method: soft ? 'gasket-clamp' : 't-nut-screw',
@@ -326,6 +334,25 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     .map(([key, v]) => ({ partNo: partNoByKey.get(key)!, sectionId: sec.id, ...v }))
     .sort((a, b) => b.length - a.length);
 
+  // 板材下料清单（件号 B1..）：同材质+尺寸+孔位合并；单件估价 = 面积×单价 + 钻孔费
+  const mprice = (((kb.rules.pricing as Record<string, unknown>)?.machiningPrice ?? {}) as Record<string, number>);
+  const panelAgg = new Map<string, PanelListItem>();
+  for (const p of panels) {
+    const key = `${p.material}|${p.size.join('x')}|${p.holes.map((h) => `${h.x},${h.y}`).join(';')}`;
+    const hit = panelAgg.get(key);
+    if (hit) { hit.qty++; p.partNo = hit.partNo; continue; }
+    const ps = PANEL_SPEC[p.material as Exclude<PanelMaterial, 'none'>];
+    const partNo = `B${panelAgg.size + 1}`;
+    p.partNo = partNo;
+    const area = (p.size[0] / 1000) * (p.size[1] / 1000);
+    panelAgg.set(key, {
+      partNo, material: p.material, materialName: ps?.name ?? p.material, size: p.size, qty: 1,
+      holeNote: p.holes.length ? `Φ${p.holes[0].diameter}×${p.holes.length}孔@四角` : '免钻孔(胶垫压条)',
+      priceCny: +(area * (ps?.pricePerM2 ?? 0) + p.holes.length * (mprice['panel-hole'] ?? 0)).toFixed(2),
+    });
+  }
+  const panelList = [...panelAgg.values()];
+
   const totalLengthMm = members.reduce((sum, m) => sum + m.length, 0);
   // 重量 = 型材 + 板材（面密度）+ 脚轮（9.2.4：可见零件必须计重）
   const panelKg = panels.reduce((sum, p) => {
@@ -335,7 +362,25 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   const accKg = accessories.reduce((sum, a) => sum + a.weightKg, 0);
   const weightKg = sec.weightPerMeter != null
     ? (totalLengthMm / 1000) * sec.weightPerMeter + panelKg + accKg : null;
-  const priceCny = sec.price.perMeter != null ? (totalLengthMm / 1000) * sec.price.perMeter : null;
+
+  // 全 BOM 价格明细（未税估价）：型材/板材/连接件/紧固件/加工费/附件
+  const fprice = (sku: string) => kb.fasteners[sku]?.price ?? 0;
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  const profile = r2(sec.price.perMeter != null ? (totalLengthMm / 1000) * sec.price.perMeter : 0);
+  const panelsCost = r2(panelList.reduce((sum, p) => sum + p.priceCny * p.qty, 0));
+  const connectorsCost = r2(joints.length * conn.bom.reduce((sum, b) => sum + (b.priceUntaxed ?? fprice(b.sku)) * b.qty, 0));
+  // 脚轮的 mount 紧固件即脚轮本体，归入附件项避免重计
+  const fastenersCost = r2(mounts.filter((mt) => mt.method !== 'caster-stem')
+    .reduce((sum, mt) => sum + mt.fasteners.reduce((a, f) => a + fprice(f.sku) * f.qty, 0), 0));
+  const machiningCost = r2(machining.reduce((sum, mc) => sum + (mprice[mc.type] ?? 0), 0)
+    + members.filter((m) => m.role === 'brace').length * 2 * (mprice['miter-cut'] ?? 0));
+  const accessoriesCost = r2(accessories.reduce((sum, a) => sum + fprice(a.sku), 0));
+  const cost = {
+    profile, panels: panelsCost, connectors: connectorsCost,
+    fasteners: fastenersCost, machining: machiningCost, accessories: accessoriesCost,
+    total: r2(profile + panelsCost + connectorsCost + fastenersCost + machiningCost + accessoriesCost),
+  };
+  const priceCny = cost.total > 0 ? cost.total : null;
 
   const model: FrameModel = {
     spec,
@@ -346,9 +391,10 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     mounts,
     accessories,
     cutList,
+    panelList,
     checks: [],
     status: 'valid',
-    totals: { memberCount: members.length, totalLengthMm, weightKg, priceCny },
+    totals: { memberCount: members.length, totalLengthMm, weightKg, priceCny, cost },
     warnings,
   };
   model.checks = validateFrame(model, kb);

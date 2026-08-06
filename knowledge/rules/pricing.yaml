@@ -1,0 +1,14 @@
+# 加工计价 v0.1（每处/每刀 未税CNY；嘉立创工艺页按孔计价的量级估价，inferred 待实价核对）
+meta:
+  id: pricing
+  source: jlcfa-process-page-estimate
+  confidence: inferred
+  review: pending
+  version: 0.1.0
+machiningPrice:
+  through-hole: 1.0    # 通孔/孔
+  end-tap: 1.5         # 端面攻牙/孔
+  counterbore: 2.0     # 沉头孔/孔
+  wrench-hole: 1.0     # 扳手操作孔/孔
+  miter-cut: 5.0       # 非标斜切/刀（斜撑每段两端各一刀）
+  panel-hole: 1.0      # 板材钻孔/孔

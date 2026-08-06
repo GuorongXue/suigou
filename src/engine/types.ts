@@ -124,6 +124,10 @@ export interface PanelItem {
   /** 覆盖模式 */
   mode: 'top-overlay' | 'shelf-overlap' | 'back-overlay' | 'side-overlay';
   mountNote: string;
+  /** 固定孔（板局部坐标，原点=板角，沿长×宽）；胶垫压条固定的软材质为空 */
+  holes: { x: number; y: number; diameter: number }[];
+  /** 板材件号（B1/B2…，同材质+尺寸+孔位合并） */
+  partNo?: string;
 }
 
 /** 固定关系：板材/附件/斜撑与主体的真实连接（消除"字符串式已安装"） */
@@ -147,6 +151,31 @@ export interface AccessoryItem {
   weightKg: number;
 }
 
+/** 板材下料清单行（按件号聚合） */
+export interface PanelListItem {
+  partNo: string;
+  material: PanelMaterial;
+  materialName: string;
+  /** [长, 宽, 厚] mm */
+  size: [number, number, number];
+  qty: number;
+  /** 如 Φ7×4孔@四角 */
+  holeNote: string;
+  /** 单件估价（含钻孔费） */
+  priceCny: number;
+}
+
+/** 价格明细（未税CNY，非 verified 单价均为估价） */
+export interface CostBreakdown {
+  profile: number;
+  panels: number;
+  connectors: number;
+  fasteners: number;
+  machining: number;
+  accessories: number;
+  total: number;
+}
+
 export interface FrameModel {
   spec: FrameSpec;
   members: Member[];
@@ -156,9 +185,10 @@ export interface FrameModel {
   mounts: MountItem[];
   accessories: AccessoryItem[];
   cutList: CutListItem[];
+  panelList: PanelListItem[];
   checks: CheckResult[];
   /** 导出闸门状态：由 checks 派生（error→invalid，warn→needs-confirmation） */
   status: ModelStatus;
-  totals: { memberCount: number; totalLengthMm: number; weightKg: number | null; priceCny: number | null };
+  totals: { memberCount: number; totalLengthMm: number; weightKg: number | null; priceCny: number | null; cost: CostBreakdown };
   warnings: string[];
 }

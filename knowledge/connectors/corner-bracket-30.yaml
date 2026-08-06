@@ -17,5 +17,6 @@ connector:
   attach: { facesRequired: 2, orientation: perpendicular }
   machining: []           # 免加工
   bom:
+    - { sku: corner-bracket-30-body, qty: 1 }
     - { sku: t-nut-m6, qty: 2 }
     - { sku: bolt-m6-l12, qty: 2 }

@@ -71,10 +71,29 @@ export interface ConnectorRecord {
   connector: Connector;
 }
 
+/** 板材规格（knowledge/panels.yaml） */
+export interface PanelSpecDef {
+  name: string;
+  thickness: number;
+  kgPerM2: number;
+  pricePerM2: number;
+  mount: 't-nut-screw' | 'gasket-clamp';
+  holeDiameter: number;
+  mountNote: string;
+}
+
+/** 紧固件单价（knowledge/fasteners.yaml） */
+export interface FastenerDef {
+  name: string;
+  price: number;
+}
+
 export interface KnowledgeBase {
   sections: SectionRecord[];
   connectors: ConnectorRecord[];
   rules: Record<string, unknown>;   // selection/connection/validation 等原始规则文档，M3 时再类型化
   tests: Record<string, unknown>;
   materials: Record<string, unknown>;
+  panels: Record<string, PanelSpecDef>;
+  fasteners: Record<string, FastenerDef>;
 }

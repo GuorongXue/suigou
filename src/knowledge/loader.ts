@@ -8,7 +8,7 @@ const files = import.meta.glob('../../knowledge/**/*.yaml', {
 }) as Record<string, string>;
 
 export function loadKnowledgeBase(): KnowledgeBase {
-  const kb: KnowledgeBase = { sections: [], connectors: [], rules: {}, tests: {}, materials: {} };
+  const kb: KnowledgeBase = { sections: [], connectors: [], rules: {}, tests: {}, materials: {}, panels: {}, fasteners: {} };
 
   for (const [path, raw] of Object.entries(files)) {
     const doc = parse(raw);
@@ -24,6 +24,10 @@ export function loadKnowledgeBase(): KnowledgeBase {
       kb.tests[name] = doc;
     } else if (path.endsWith('materials.yaml')) {
       kb.materials = doc;
+    } else if (path.endsWith('panels.yaml')) {
+      kb.panels = doc.panels;
+    } else if (path.endsWith('fasteners.yaml')) {
+      kb.fasteners = doc.fasteners;
     }
   }
 

@@ -385,8 +385,11 @@ export default function App() {
     // 下料公差按工艺页分段：L≤1000 ±0.3 / L>1000 ±0.5；precision 场景单向公差
     const tolOf = (len: number) =>
       spec.scene === 'precision' ? '+0/-0.2' : len <= 1000 ? '±0.3' : '±0.5';
-    downloadCsv('切割清单.csv', ['件号', '截面', '下料长度mm', '公差', '数量', '加工', '工序链', '去毛刺'],
-      model.cutList.map((c) => [c.partNo, c.sectionId, c.length, tolOf(c.length), c.qty, c.machiningNote || '无', processOf(c.machiningNote), '孔口双面去毛刺+锐边倒钝']));
+    downloadCsv('切割清单.csv', ['件号', '截面/材质', '下料尺寸mm', '公差', '数量', '加工', '工序链', '去毛刺'],
+      [
+        ...model.cutList.map((c) => [c.partNo, c.sectionId, c.length, tolOf(c.length), c.qty, c.machiningNote || '无', processOf(c.machiningNote), '孔口双面去毛刺+锐边倒铝'] as (string | number)[]),
+        ...model.panelList.map((p) => [p.partNo, p.materialName, `${p.size[0]}×${p.size[1]}×${p.size[2]}`, '±1.0', p.qty, p.holeNote, '开料→钻孔→修边', ''] as (string | number)[]),
+      ]);
   };
 
   const exportBom = () => {
@@ -402,12 +405,13 @@ export default function App() {
     for (const mt of model.mounts) {
       for (const f of mt.fasteners) bomAgg.set(f.sku, (bomAgg.get(f.sku) ?? 0) + f.qty);
     }
-    for (const [sku, qty] of bomAgg) rows.push(['配件', sku, qty, '']);
-    for (const p of model.panels) {
-      const matName: Record<string, string> = { wood: '木板', glass: '钢化玻璃', acrylic: '亚克力', pegboard: '洞洞板' };
-      rows.push(['板材', `${matName[p.material] ?? p.material} ${p.size[0]}×${p.size[1]}×${p.size[2]}`, 1, '待询价']);
+    for (const [sku, qty] of bomAgg) rows.push(['配件', sku, qty, (kb.fasteners[sku] ? (kb.fasteners[sku].price * qty).toFixed(2) : '待补')]);
+    for (const p of model.panelList) {
+      rows.push(['板材', `${p.partNo} ${p.materialName} ${p.size[0]}×${p.size[1]}×${p.size[2]} ${p.holeNote}`, p.qty, (p.priceCny * p.qty).toFixed(2)]);
     }
-    for (const a of model.accessories) rows.push(['附件', a.sku, 1, '待询价']);
+    for (const a of model.accessories) rows.push(['附件', a.sku, 1, (kb.fasteners[a.sku]?.price ?? 0).toFixed(2)]);
+    rows.push(['加工费', '型材打孔/攻牙/斜切合计', '', model.totals.cost.machining.toFixed(2)]);
+    rows.push(['合计', '（未税估价，以平台实际报价为准）', '', model.totals.cost.total.toFixed(2)]);
     downloadCsv('BOM清单.csv', ['类别', '名称/规格', '数量', '估价CNY'], rows);
   };
 
@@ -444,7 +448,7 @@ export default function App() {
             <span style={{ color: '#666' }}>
               构件 {model.totals.memberCount} 根
               {model.totals.weightKg != null && ` · 约 ${model.totals.weightKg.toFixed(1)} kg`}
-              {model.totals.priceCny != null && ` · 型材约 ¥${model.totals.priceCny.toFixed(0)}`}
+              {model.totals.priceCny != null && ` · 合计约 ¥${model.totals.priceCny.toFixed(0)}`}
             </span>
           </>
         )}
@@ -792,10 +796,62 @@ export default function App() {
               </tbody>
             </table>
 
+            {model.panelList.length > 0 && (
+              <>
+                <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>板材清单（按件号）</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #d8dce2', color: '#666', textAlign: 'left' }}>
+                      <th style={{ padding: '4px 0' }}>件号</th>
+                      <th>材质</th>
+                      <th style={{ textAlign: 'right' }}>长×宽×厚</th>
+                      <th style={{ textAlign: 'right' }}>数量</th>
+                      <th style={{ textAlign: 'right' }}>估价</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {model.panelList.map((p) => (
+                      <tr key={p.partNo} style={{ borderBottom: '1px solid #f0f2f5' }}>
+                        <td style={{ padding: '4px 0' }}>{p.partNo}</td>
+                        <td>{p.materialName}</td>
+                        <td style={{ textAlign: 'right', fontSize: 11 }}>{p.size[0]}×{p.size[1]}×{p.size[2]}</td>
+                        <td style={{ textAlign: 'right' }}>×{p.qty}</td>
+                        <td style={{ textAlign: 'right' }}>¥{(p.priceCny * p.qty).toFixed(0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+                  {model.panelList.map((p) => `${p.partNo}: ${p.holeNote}`).join(' · ')}
+                </div>
+              </>
+            )}
+
+            <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>价格明细（未税估价）</h3>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <tbody>
+                {([['型材', model.totals.cost.profile], ['板材(含钻孔)', model.totals.cost.panels],
+                   ['连接件', model.totals.cost.connectors], ['紧固件/胶垫压条', model.totals.cost.fasteners],
+                   ['型材加工费', model.totals.cost.machining], ['附件', model.totals.cost.accessories]] as const)
+                  .filter(([, v]) => v > 0)
+                  .map(([label, v]) => (
+                    <tr key={label} style={{ borderBottom: '1px solid #f0f2f5' }}>
+                      <td style={{ padding: '3px 0', color: '#666' }}>{label}</td>
+                      <td style={{ textAlign: 'right' }}>¥{v.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                <tr>
+                  <td style={{ padding: '4px 0', fontWeight: 600 }}>合计</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>¥{model.totals.cost.total.toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>非实价报价：板材/紧固件/加工费为市场量级估价，以平台实际报价为准</div>
+
             <div style={{ marginTop: 10, color: '#555' }}>
               构件 {model.totals.memberCount} 根 · 总长 {(model.totals.totalLengthMm / 1000).toFixed(2)} m
               {model.totals.weightKg != null && <> · 约 {model.totals.weightKg.toFixed(1)} kg</>}
-              {model.totals.priceCny != null && <> · 型材约 ¥{model.totals.priceCny.toFixed(0)}（未税）</>}
+              {model.totals.priceCny != null && <> · 合计约 ¥{model.totals.priceCny.toFixed(0)}（未税）</>}
             </div>
 
             {machiningSummary.length > 0 && (
