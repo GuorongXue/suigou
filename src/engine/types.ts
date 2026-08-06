@@ -29,6 +29,8 @@ export interface FrameSpec {
   rightPanel: PanelMaterial;
   /** 背面对角斜撑（val-005 解药） */
   brace: boolean;
+  /** LED 灯条：顶框前梁下槽内嵌（mat-004） */
+  ledStrip?: boolean;
 }
 
 export type MemberRole = 'post' | 'beam-x' | 'beam-z' | 'brace';
@@ -152,20 +154,22 @@ export interface MountItem {
   id: string;
   targetType: 'panel' | 'accessory' | 'member';
   targetId: string;
-  method: 't-nut-screw' | 'gasket-clamp' | 'caster-stem';
+  method: 't-nut-screw' | 'gasket-clamp' | 'caster-stem' | 'slot-embed';
   note: string;
   fasteners: { sku: string; qty: number }[];
   /** 固定点（装配图/结构视图数据源） */
   points: [number, number, number][];
 }
 
-/** 附件：脚轮等（进模型/重量/价格/BOM） */
+/** 附件：脚轮/LED灯条等（进模型/重量/价格/BOM） */
 export interface AccessoryItem {
   id: string;
-  kind: 'caster';
+  kind: 'caster' | 'led-strip';
   sku: string;
   position: [number, number, number];
   weightKg: number;
+  /** 长条类附件的长度（LED 灯条） */
+  lengthMm?: number;
 }
 
 /** 板材下料清单行（按件号聚合） */

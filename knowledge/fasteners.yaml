@@ -16,3 +16,5 @@ fasteners:
   epdm-gasket-pad:     { name: EPDM 胶垫,             price: 0.50 }
   clamp-strip-200:     { name: 压条 200mm,            price: 1.50 }
   caster-stem-m8-50:   { name: 丝杆脚轮 M8 Φ50,       price: 8.00 }
+  led-strip-m:         { name: LED灯条 12V /米,       price: 15.00 }
+  led-psu-24w:         { name: LED电源适配器 24W,     price: 20.00 }

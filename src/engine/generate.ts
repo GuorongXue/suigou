@@ -232,6 +232,20 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     }
   }
 
+  // LED 灯条：顶框前梁下槽内嵌（mat-004），电源线沿立柱槽走线
+  if (spec.ledStrip) {
+    const ledY = H - s;
+    const ledZ = D / 2 - s / 2;
+    const accId = 'ac-led';
+    accessories.push({ id: accId, kind: 'led-strip', sku: 'led-strip-m', position: [0, ledY - 4, ledZ], weightKg: 0.2, lengthMm: beamX });
+    mounts.push({
+      id: `mt-${++mtn}`, targetType: 'accessory', targetId: accId,
+      method: 'slot-embed', note: 'LED灯条嵌入顶框前梁下槽（mat-004 槽内嵌），电源线沿立柱槽走线至底部',
+      fasteners: [{ sku: 'led-strip-m', qty: Math.ceil(beamX / 1000) }, { sku: 'led-psu-24w', qty: 1 }],
+      points: [[-beamX / 2, ledY, ledZ], [beamX / 2, ledY, ledZ]],
+    });
+  }
+
   // 加工特征派生：连接件 machining 声明 → 每个接点的孔位（位置/方向/规格）
   const machining: MachiningOp[] = [];
   let mn = 0;
@@ -373,12 +387,15 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   const profile = r2(sec.price.perMeter != null ? (totalLengthMm / 1000) * sec.price.perMeter : 0);
   const panelsCost = r2(panelList.reduce((sum, p) => sum + p.priceCny * p.qty, 0));
   const connectorsCost = r2(joints.length * conn.bom.reduce((sum, b) => sum + (b.priceUntaxed ?? fprice(b.sku)) * b.qty, 0));
-  // 脚轮的 mount 紧固件即脚轮本体，归入附件项避免重计
-  const fastenersCost = r2(mounts.filter((mt) => mt.method !== 'caster-stem')
+  // 脚轮/LED 的 mount 紧固件即附件本体，归入附件项避免重计
+  const fastenersCost = r2(mounts.filter((mt) => mt.method !== 'caster-stem' && mt.method !== 'slot-embed')
     .reduce((sum, mt) => sum + mt.fasteners.reduce((a, f) => a + fprice(f.sku) * f.qty, 0), 0));
   const machiningCost = r2(machining.reduce((sum, mc) => sum + (mprice[mc.type] ?? 0), 0)
     + members.filter((m) => m.role === 'brace').length * 2 * (mprice['miter-cut'] ?? 0));
-  const accessoriesCost = r2(accessories.reduce((sum, a) => sum + fprice(a.sku), 0));
+  const accessoriesCost = r2(accessories.reduce((sum, a) => {
+    if (a.kind === 'led-strip') return sum + fprice('led-strip-m') * Math.ceil((a.lengthMm ?? 1000) / 1000) + fprice('led-psu-24w');
+    return sum + fprice(a.sku);
+  }, 0));
   const cost = {
     profile, panels: panelsCost, connectors: connectorsCost,
     fasteners: fastenersCost, machining: machiningCost, accessories: accessoriesCost,

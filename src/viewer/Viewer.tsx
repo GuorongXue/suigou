@@ -50,6 +50,8 @@ export interface RenderPanel {
 export interface RenderAccessory {
   kind: string;
   position: [number, number, number];
+  /** 长条类附件长度（LED 灯条） */
+  lengthMm?: number;
 }
 
 export interface RenderMountPoint {
@@ -445,10 +447,17 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       ctx.group.add(mesh);
     }
 
-    // 脚轮：简化轮体+叉架
+    // 脚轮：简化轮体+叉架；LED 灯条：自发光长条
     const wheelMat = new THREE.MeshStandardMaterial({ color: 0x2a2d31, roughness: 0.7 });
     const forkMat = new THREE.MeshStandardMaterial({ color: 0x8a8f96, metalness: 0.8, roughness: 0.4 });
     for (const a of accessories) {
+      if (a.kind === 'led-strip') {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(a.lengthMm ?? 500, 6, 10),
+          new THREE.MeshStandardMaterial({ color: 0xfff6d8, emissive: 0xffe08a, emissiveIntensity: 1.4 }));
+        bar.position.set(...a.position);
+        ctx.group.add(bar);
+        continue;
+      }
       const wheel = new THREE.Mesh(new THREE.CylinderGeometry(25, 25, 20, 20), wheelMat);
       wheel.rotation.x = Math.PI / 2;
       wheel.position.set(a.position[0], a.position[1], a.position[2]);
@@ -479,8 +488,9 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
     }
 
     // 地面贴轮底：带脚轮时框架被垫高，网格/轴线下移到轮子着地平面（轮半径25）
-    const groundY = accessories.length
-      ? Math.min(...accessories.map((a) => a.position[1])) - 25 : 0;
+    const casters = accessories.filter((a) => a.kind === 'caster');
+    const groundY = casters.length
+      ? Math.min(...casters.map((a) => a.position[1])) - 25 : 0;
     ctx.decor.forEach((o) => { o.position.y = groundY; });
 
     ctx.controls.target.set(0, focusY, 0);

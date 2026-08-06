@@ -203,7 +203,7 @@ export default function App() {
 
   const accessories: RenderAccessory[] = useMemo(() => {
     if (!result.model) return [];
-    return result.model.accessories.map((a) => ({ kind: a.kind, position: a.position }));
+    return result.model.accessories.map((a) => ({ kind: a.kind, position: a.position, lengthMm: a.lengthMm }));
   }, [result]);
 
   const mountPoints: RenderMountPoint[] = useMemo(() => {
@@ -416,15 +416,22 @@ export default function App() {
     rows.push(['连接件', conn.name, model.joints.length, '']);
     const bomAgg = new Map<string, number>();
     for (const b of conn.bom) bomAgg.set(b.sku, (bomAgg.get(b.sku) ?? 0) + b.qty * model.joints.length);
-    // 装配层紧固件（板材固定/脚轮）聚合（9.2.4：可见零件必须可采购）
-    for (const mt of model.mounts) {
+    // 装配层紧固件（板材固定）聚合；脚轮/LED 本体走附件行避免重复
+    for (const mt of model.mounts.filter((m) => m.method !== 'caster-stem' && m.method !== 'slot-embed')) {
       for (const f of mt.fasteners) bomAgg.set(f.sku, (bomAgg.get(f.sku) ?? 0) + f.qty);
     }
     for (const [sku, qty] of bomAgg) rows.push(['配件', sku, qty, (kb.fasteners[sku] ? (kb.fasteners[sku].price * qty).toFixed(2) : '待补')]);
     for (const p of model.panelList) {
       rows.push(['板材', `${p.partNo} ${p.materialName} ${p.size[0]}×${p.size[1]}×${p.size[2]} ${p.holeNote}`, p.qty, (p.priceCny * p.qty).toFixed(2)]);
     }
-    for (const a of model.accessories) rows.push(['附件', a.sku, 1, (kb.fasteners[a.sku]?.price ?? 0).toFixed(2)]);
+    for (const a of model.accessories) {
+      if (a.kind === 'led-strip') {
+        const m = Math.ceil((a.lengthMm ?? 1000) / 1000);
+        rows.push(['附件', `LED灯条套件 ${m}m+电源`, 1, ((kb.fasteners['led-strip-m']?.price ?? 0) * m + (kb.fasteners['led-psu-24w']?.price ?? 0)).toFixed(2)]);
+        continue;
+      }
+      rows.push(['附件', a.sku, 1, (kb.fasteners[a.sku]?.price ?? 0).toFixed(2)]);
+    }
     rows.push(['加工费', '型材打孔/攻牙/斜切合计', '', model.totals.cost.machining.toFixed(2)]);
     rows.push(['合计', '（未税估价，以平台实际报价为准）', '', model.totals.cost.total.toFixed(2)]);
     downloadCsv('BOM清单.csv', ['类别', '名称/规格', '数量', '估价CNY'], rows);
@@ -630,6 +637,8 @@ export default function App() {
             onChange={(e) => set({ brace: e.target.checked })} /> 背面斜撑</label>
           <label><input type="checkbox" checked={spec.vibration ?? false}
             onChange={(e) => set({ vibration: e.target.checked })} /> 设备振动(3D打印/CNC)</label>
+          <label><input type="checkbox" checked={spec.ledStrip ?? false}
+            onChange={(e) => set({ ledStrip: e.target.checked })} /> LED灯条(顶框前梁槽嵌)</label>
         </div>
 
         <label style={{ display: 'block', marginBottom: 8 }}>
