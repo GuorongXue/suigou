@@ -177,6 +177,51 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   addSidePanel(spec.leftPanel, 'left');
   addSidePanel(spec.rightPanel, 'right');
 
+  // 正面单开门：槽装合页（左柱铰接）+ 磁吸 + 把手；门是可开启件，不计入抗剪体系
+  if (spec.doorPanel && spec.doorPanel !== 'none') {
+    const material = spec.doorPanel;
+    const ps = PANEL_SPEC[material];
+    const gap = 3;   // 每边开启间隙
+    const dw = W - 2 * s - 2 * gap;
+    const dh = H - 2 * s - 2 * gap;
+    if (dw > 100 && dh > 100) {
+      const panelId = `pn-${++pn}`;
+      const soft = ps.mount === 'gasket-clamp';
+      // 把手孔：硬质门右缘内40mm、中高孔距96；软质门（玻璃/亚克力）用粘贴把手免钻
+      const holes = soft ? [] : [
+        { x: dw - 40, y: dh / 2 - 48, diameter: 5 },
+        { x: dw - 40, y: dh / 2 + 48, diameter: 5 },
+      ];
+      panels.push({
+        id: panelId, material,
+        size: [dw, dh, ps.thickness],
+        boxSize: [dw, dh, ps.thickness],
+        position: [0, H / 2, D / 2 + ps.thickness / 2],
+        mode: 'door-front',
+        mountNote: `正面单开门(${soft ? '玻璃门铰夹式+粘贴把手' : '槽装合页+拉手96'})：左铰右开，每边留 ${gap}mm 间隙；${ps.mountNote}`,
+        holes,
+      });
+      // 铰接点：左前柱上下 1/5 门高处；磁吸在右柱中部
+      const hx = -W / 2 + s / 2, hz = D / 2;
+      const hingePts: [number, number, number][] = [
+        [hx, s + gap + dh / 5, hz], [hx, s + gap + dh * 4 / 5, hz],
+      ];
+      mounts.push({
+        id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId,
+        method: 'hinge',
+        note: soft ? '玻璃门铰×2 夹持门板左缘，磁吸扣右柱中部，粘贴式把手' : '槽装合页×2 入左前柱前槽（T型螺母固定），磁吸扣右柱中部，拉手孔距96',
+        fasteners: soft
+          ? [{ sku: 'glass-hinge', qty: 2 }, { sku: 'magnetic-catch', qty: 1 }, { sku: 'handle-adhesive', qty: 1 }]
+          : [{ sku: 'hinge-slot-30', qty: 2 }, { sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l12', qty: 4 },
+             { sku: 'magnetic-catch', qty: 1 }, { sku: 'handle-96', qty: 1 }],
+        points: [...hingePts, [W / 2 - s / 2, H / 2, hz]],
+      });
+      if (dw > 600) {
+        warnings.push(`门宽 ${dw}mm > 600mm：单开门铰链下垂风险，建议改双开或加第三合页`);
+      }
+    }
+  }
+
   // 背面对角斜撑（val-005 解药）：按层分段（之字形）避开隔板横梁，每段两端斜切+端孔压接
   const braceEndHoles: { memberId: string; position: [number, number, number] }[] = [];
   if (spec.brace) {

@@ -45,6 +45,7 @@ export interface RenderPanel {
   material: string;
   boxSize: [number, number, number];
   position: [number, number, number];
+  mode?: string;
 }
 
 export interface RenderAccessory {
@@ -446,6 +447,12 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(...p.boxSize), mat);
       mesh.position.set(...p.position);
       ctx.group.add(mesh);
+      if (p.mode === 'door-front') {   // 门把手：右缘内 40mm 竖拉手
+        const handle = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 110, 10),
+          new THREE.MeshStandardMaterial({ color: 0x4a4f57, metalness: 0.8, roughness: 0.3 }));
+        handle.position.set(p.position[0] + p.boxSize[0] / 2 - 40, p.position[1], p.position[2] + p.boxSize[2] / 2 + 18);
+        ctx.group.add(handle);
+      }
     }
 
     // 脚轮：简化轮体+叉架；LED 灯条：自发光长条

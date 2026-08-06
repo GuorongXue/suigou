@@ -31,6 +31,8 @@ export interface FrameSpec {
   brace: boolean;
   /** LED 灯条：顶框前梁下槽内嵌（mat-004） */
   ledStrip?: boolean;
+  /** 正面单开门（槽装合页+磁吸+把手） */
+  doorPanel?: PanelMaterial;
 }
 
 export type MemberRole = 'post' | 'beam-x' | 'beam-z' | 'brace';
@@ -141,7 +143,7 @@ export interface PanelItem {
   boxSize: [number, number, number];
   position: [number, number, number];
   /** 覆盖模式 */
-  mode: 'top-overlay' | 'shelf-overlap' | 'back-overlay' | 'side-overlay';
+  mode: 'top-overlay' | 'shelf-overlap' | 'back-overlay' | 'side-overlay' | 'door-front';
   mountNote: string;
   /** 固定孔（板局部坐标，原点=板角，沿长×宽）；胶垫压条固定的软材质为空 */
   holes: { x: number; y: number; diameter: number }[];
@@ -154,7 +156,7 @@ export interface MountItem {
   id: string;
   targetType: 'panel' | 'accessory' | 'member';
   targetId: string;
-  method: 't-nut-screw' | 'gasket-clamp' | 'caster-stem' | 'slot-embed';
+  method: 't-nut-screw' | 'gasket-clamp' | 'caster-stem' | 'slot-embed' | 'hinge';
   note: string;
   fasteners: { sku: string; qty: number }[];
   /** 固定点（装配图/结构视图数据源） */

@@ -20,7 +20,7 @@ interface ChatMsg {
 const FIELD_NAMES: Record<string, string> = {
   width: '总宽', depth: '总深', height: '总高', shelfCount: '隔板层数', loadKg: '载荷',
   loadType: '载荷分布', scene: '场景', highRisk: '高风险', mobility: '移动性',
-  sectionId: '截面', connectorId: '连接件', topPanel: '顶面板', shelfPanel: '隔板材质', bottomPanel: '底板',
+  sectionId: '截面', connectorId: '连接件', topPanel: '顶面板', shelfPanel: '隔板材质', bottomPanel: '底板', doorPanel: '门板',
 };
 
 // 手动锁定字段 → 抽取字段路径（_explicitFields 解锁依据，9.4.1）
@@ -198,7 +198,7 @@ export default function App() {
 
   const panels: RenderPanel[] = useMemo(() => {
     if (!result.model) return [];
-    return result.model.panels.map((p) => ({ material: p.material, boxSize: p.boxSize, position: p.position }));
+    return result.model.panels.map((p) => ({ material: p.material, boxSize: p.boxSize, position: p.position, mode: p.mode }));
   }, [result]);
 
   const accessories: RenderAccessory[] = useMemo(() => {
@@ -602,6 +602,15 @@ export default function App() {
               </select>
             </label>
           ))}
+          <label style={{ flex: 1, fontSize: 12 }}>
+            门板(正面)
+            <select value={spec.doorPanel ?? 'none'} onChange={(e) => set({ doorPanel: e.target.value as FrameSpec['doorPanel'] })} style={{ width: '100%', marginTop: 4 }}>
+              <option value="none">无</option>
+              <option value="wood">木门</option>
+              <option value="glass">玻璃门</option>
+              <option value="acrylic">亚克力门</option>
+            </select>
+          </label>
         </div>
 
         <label style={{ display: 'block', marginBottom: 8 }}>

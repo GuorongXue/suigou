@@ -18,3 +18,8 @@ fasteners:
   caster-stem-m8-50:   { name: 丝杆脚轮 M8 Φ50,       price: 8.00 }
   led-strip-m:         { name: LED灯条 12V /米,       price: 15.00 }
   led-psu-24w:         { name: LED电源适配器 24W,     price: 20.00 }
+  hinge-slot-30:       { name: 槽装合页 30系列,      price: 6.00 }
+  glass-hinge:         { name: 玻璃门铰(免打孔夹式), price: 12.00 }
+  magnetic-catch:      { name: 磁吸门扰,             price: 2.00 }
+  handle-96:           { name: 拉手 孔距96mm,        price: 5.00 }
+  handle-adhesive:     { name: 粘贴式把手(玻璃/亚克力), price: 3.00 }

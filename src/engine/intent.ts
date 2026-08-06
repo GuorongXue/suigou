@@ -118,6 +118,7 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   let topPanel: FrameSpec['topPanel'] = 'none';
   let shelfPanel: FrameSpec['topPanel'] = 'none';
   let bottomPanel: FrameSpec['topPanel'] = 'none';
+  let doorPanel: FrameSpec['topPanel'] = 'none';
   let backPanel: FrameSpec['topPanel'] = 'none';
   for (const p of ex.panels ?? []) {
     if (p.material === 'none') continue;
@@ -131,6 +132,9 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     } else if (p.position === 'bottom' && mat) {
       bottomPanel = mat;
       assumptions.push(`底板：${MAT_NAME[p.material]}（搭底框梁）`);
+    } else if (p.position === 'door' && mat) {
+      doorPanel = mat;
+      assumptions.push(`门板：${MAT_NAME[p.material]}（正面单开，槽装合页+磁吸+把手）`);
     } else if (p.position === 'side' && mat) {
       backPanel = mat;
       assumptions.push(`侧/背板：${MAT_NAME[p.material]}（按背板处理，兼作抗侧向体系）`);
@@ -160,7 +164,7 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
       width: clamp(width, assumptions, '宽'), depth: clamp(depth, assumptions, '深'), height: clamp(height, assumptions, '高'),
       sectionId, connectorId, shelfCount,
       loadKg, loadType, scene, highRisk, mobility, vibration,
-      topPanel, shelfPanel, bottomPanel,
+      topPanel, shelfPanel, bottomPanel, doorPanel,
       backPanel, leftPanel: 'none', rightPanel: 'none',
       brace: false,
     },
