@@ -6,7 +6,7 @@ import { runGolden } from './engine/golden';
 import { extractIntent, getApiKey, setApiKey } from './engine/extract';
 import { intentToSpec, type IntentResult } from './engine/intent';
 import type { FrameSpec } from './engine/types';
-import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type RenderPanel, type RenderAccessory, type RenderMountPoint, type RenderDim, type Selection } from './viewer/Viewer';
+import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type RenderPanel, type RenderAccessory, type RenderMountPoint, type RenderDim, type RenderBubble, type Selection } from './viewer/Viewer';
 
 type ViewMode = 'appearance' | 'structure' | 'drawing';
 
@@ -259,27 +259,38 @@ export default function App() {
   const selectedConnector = selectedJoint
     ? kb.connectors.find((c) => c.connector.id === selectedJoint.connectorId) ?? null : null;
 
-  // 尺寸标注：外观/图纸模式显示整体 W/D/H；图纸模式加每种下料长度代表标注；选中构件始终标注
+  // 尺寸标注：外观=干净无标注；图纸=完整尺寸链（总尺寸+层间距+代表长度）；选中始终标注
   const dims: RenderDim[] = useMemo(() => {
     const out: RenderDim[] = [];
     const { width: W, depth: D, height: H } = spec;
     const secSize = kb.sections.find((s) => s.section.id === spec.sectionId)?.section.size[0] ?? 30;
-    if (mode !== 'structure') {
-      out.push({ a: [-W / 2, 2, D / 2], b: [W / 2, 2, D / 2], offset: [0, 0, 90], label: `W ${W}` });
-      out.push({ a: [W / 2, 2, D / 2], b: [W / 2, 2, -D / 2], offset: [90, 0, 0], label: `D ${D}` });
-      out.push({ a: [-W / 2, 0, -D / 2], b: [-W / 2, H, -D / 2], offset: [-90, 0, 0], label: `H ${H}` });
-    }
-    if (mode === 'drawing' && model) {
-      const seen = new Set<number>();
-      for (const m of model.members) {
-        if (m.role === 'post' || seen.has(m.length)) continue;
-        seen.add(m.length);
-        const along: [number, number, number] = m.axis === 'x' ? [1, 0, 0] : [0, 0, 1];
-        const a: [number, number, number] = [
-          m.position[0] - along[0] * m.length / 2, m.position[1], m.position[2] - along[2] * m.length / 2];
-        const b: [number, number, number] = [
-          m.position[0] + along[0] * m.length / 2, m.position[1], m.position[2] + along[2] * m.length / 2];
-        out.push({ a, b, offset: [0, secSize * 1.6, 0], label: `${m.length}` });
+    if (mode === 'drawing') {
+      // 总尺寸（基准在外轮廓）
+      out.push({ a: [-W / 2, 2, D / 2], b: [W / 2, 2, D / 2], offset: [0, 0, 110], label: `W ${W}` });
+      out.push({ a: [W / 2, 2, D / 2], b: [W / 2, 2, -D / 2], offset: [110, 0, 0], label: `D ${D}` });
+      out.push({ a: [-W / 2, 0, -D / 2], b: [-W / 2, H, -D / 2], offset: [-110, 0, 0], label: `H ${H}` });
+      // 层间距尺寸链（左前柱上，从底到顶逐段，避免封闭尺寸链）
+      if (model) {
+        const ys = [...new Set(model.members.filter((m) => m.role !== 'post' && m.role !== 'brace').map((m) => m.position[1]))].sort((a, b) => a - b);
+        for (let i = 0; i < ys.length - 1; i++) {
+          const gap = Math.round(ys[i + 1] - ys[i]);
+          out.push({
+            a: [-W / 2, ys[i], D / 2], b: [-W / 2, ys[i + 1], D / 2],
+            offset: [-55, 0, 55], label: `${gap}`,
+          });
+        }
+        // 每种下料长度代表标注（横梁）
+        const seen = new Set<number>();
+        for (const m of model.members) {
+          if (m.role === 'post' || m.role === 'brace' || seen.has(m.length)) continue;
+          seen.add(m.length);
+          const along: [number, number, number] = m.axis === 'x' ? [1, 0, 0] : [0, 0, 1];
+          out.push({
+            a: [m.position[0] - along[0] * m.length / 2, m.position[1], m.position[2] - along[2] * m.length / 2],
+            b: [m.position[0] + along[0] * m.length / 2, m.position[1], m.position[2] + along[2] * m.length / 2],
+            offset: [0, secSize * 1.6, 0], label: `${m.length}`,
+          });
+        }
       }
     }
     if (selectedMember) {
@@ -298,6 +309,24 @@ export default function App() {
     }
     return out;
   }, [mode, spec, model, selectedMember, kb]);
+
+  // 件号球标（图纸模式）：每个件号取第一根构件中点，图与切割清单对照
+  const bubbles: RenderBubble[] = useMemo(() => {
+    if (mode !== 'drawing' || !model) return [];
+    const seen = new Set<string>();
+    const out: RenderBubble[] = [];
+    for (const m of model.members) {
+      if (!m.partNo || seen.has(m.partNo)) continue;
+      seen.add(m.partNo);
+      out.push({ position: [m.position[0], m.position[1], m.position[2]], label: m.partNo });
+    }
+    return out;
+  }, [mode, model]);
+
+  // 视图预设（图纸模式：主视/俯视/左视/轴测）
+  const [viewReq, setViewReq] = useState<{ dir: [number, number, number]; seq: number } | null>(null);
+  const requestView = (dir: [number, number, number]) =>
+    setViewReq((v) => ({ dir, seq: (v?.seq ?? 0) + 1 }));
 
   /** 改构件长度 = 反算对应整体尺寸重新生成（参数微调，非自由编辑） */
   const commitLength = (raw: string) => {
@@ -626,11 +655,34 @@ export default function App() {
           accessories={accessories}
           mountPoints={mode === 'structure' ? mountPoints : []}
           dims={dims}
+          drawing={mode === 'drawing'}
+          bubbles={bubbles}
+          viewRequest={viewReq}
           focusY={spec.height / 2}
           onSelect={setSelection}
           selection={selection}
           warnMemberIds={warnMemberIds}
         />
+        {/* 图纸视图预设：正交标准视角 */}
+        {mode === 'drawing' && (
+          <div style={{
+            position: 'absolute', top: 60, left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', gap: 4, background: 'rgba(255,255,255,.95)', padding: 4,
+            borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,.1)',
+          }}>
+            {([
+              ['主视图', [0, 0, 1]],
+              ['俯视图', [0, 1, 0]],
+              ['左视图', [-1, 0, 0]],
+              ['轴测', [1, 0.7, 1]],
+            ] as [string, [number, number, number]][]).map(([name, dir]) => (
+              <button key={name} onClick={() => requestView(dir)} style={{
+                border: 'none', borderRadius: 6, padding: '4px 14px', cursor: 'pointer',
+                fontSize: 12, background: 'transparent', color: '#555',
+              }}>{name}</button>
+            ))}
+          </div>
+        )}
         {/* 视图模式工具条：按用户任务阶段分层显示 */}
         <div style={{
           position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)',

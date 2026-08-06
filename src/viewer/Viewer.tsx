@@ -64,6 +64,12 @@ export interface RenderDim {
   label: string;
 }
 
+/** 件号球标（图纸模式：图与切割清单的对照桥梁） */
+export interface RenderBubble {
+  position: [number, number, number];
+  label: string;
+}
+
 interface ViewerProps {
   items: RenderMember[];
   joints: RenderJoint[];
@@ -72,6 +78,12 @@ interface ViewerProps {
   accessories: RenderAccessory[];
   mountPoints: RenderMountPoint[];
   dims: RenderDim[];
+  /** 图纸模式：白底线框风+伪正交投影（窄 fov） */
+  drawing?: boolean;
+  /** 件号球标（图纸模式） */
+  bubbles?: RenderBubble[];
+  /** 视图切换请求（seq 递增触发） */
+  viewRequest?: { dir: [number, number, number]; seq: number } | null;
   /** 相机注视高度（一般取框架半高） */
   focusY: number;
   onSelect?: (sel: Selection | null) => void;
@@ -90,7 +102,7 @@ const PANEL_MATERIALS: Record<string, () => THREE.MeshStandardMaterial> = {
   acrylic: () => new THREE.MeshStandardMaterial({ color: 0xf2f6f8, roughness: 0.15, metalness: 0.05, transparent: true, opacity: 0.45 }),
 };
 
-export function Viewer({ items, joints, machining, panels, accessories, mountPoints, dims, focusY, onSelect, selection, warnMemberIds }: ViewerProps) {
+export function Viewer({ items, joints, machining, panels, accessories, mountPoints, dims, drawing, bubbles, viewRequest, focusY, onSelect, selection, warnMemberIds }: ViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const ctxRef = useRef<{
     scene: THREE.Scene;
@@ -102,9 +114,13 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
     memberMeshes: Map<string, THREE.Mesh>;
     jointMeshes: Map<string, THREE.Mesh[]>;
     dimGroup: THREE.Group;
+    bubbleGroup: THREE.Group;
+    decor: THREE.Object3D[];
+    requestView: (dir: THREE.Vector3) => void;
   } | null>(null);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
+  const prevDrawing = useRef(false);
 
   useEffect(() => {
     const mount = mountRef.current!;
@@ -165,6 +181,8 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
     // 尺寸标注容器（内容由 dims prop 驱动重建）
     const dimGroup = new THREE.Group();
     scene.add(dimGroup);
+    const bubbleGroup = new THREE.Group();
+    scene.add(bubbleGroup);
 
     // ---- 视角立方体（嘉立创同款）：右上角姿态同步，点面切正交视角 ----
     const cubeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -192,6 +210,17 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
 
     // 视角切换补间
     let viewTween: { from: THREE.Vector3; to: THREE.Vector3; t: number } | null = null;
+    const requestView = (d: THREE.Vector3) => {
+      const dir = d.clone();
+      if (Math.abs(dir.y) > 0.99) dir.z = 0.02;
+      dir.normalize();
+      const dist = camera.position.distanceTo(controls.target);
+      viewTween = {
+        from: camera.position.clone(),
+        to: controls.target.clone().addScaledVector(dir, dist),
+        t: 0,
+      };
+    };
     cubeRenderer.domElement.addEventListener('click', (e) => {
       const rect = cubeRenderer.domElement.getBoundingClientRect();
       const ndc = new THREE.Vector2(
@@ -203,15 +232,7 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       const hit = rc.intersectObject(cubeMesh, false)[0];
       if (!hit?.face) return;
       // cube 姿态=相机逆 → 局部法线即主场景世界方向
-      const dir = hit.face.normal.clone();
-      if (Math.abs(dir.y) > 0.99) dir.z = 0.02;   // 避免俯仰视 lookAt 退化
-      dir.normalize();
-      const dist = camera.position.distanceTo(controls.target);
-      viewTween = {
-        from: camera.position.clone(),
-        to: controls.target.clone().addScaledVector(dir, dist),
-        t: 0,
-      };
+      requestView(hit.face.normal.clone());
     });
 
     renderer.setAnimationLoop(() => {
@@ -268,7 +289,9 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
     ctxRef.current = {
       scene, camera, renderer, controls, group, raycaster,
       memberMeshes: new Map(), jointMeshes: new Map(),
-      dimGroup,
+      dimGroup, bubbleGroup,
+      decor: [gridMinor, gridMajor, xAxis, zAxis],
+      requestView,
     };
 
     return () => {
@@ -299,7 +322,11 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
 
     // 同截面同长度共享一份挤出几何（渲染实验验证的性能路线）
     const geomCache = new Map<string, { geom: THREE.ExtrudeGeometry; edges: THREE.EdgesGeometry }>();
-    const edgeMat = new THREE.LineBasicMaterial({ color: 0x6b7280, transparent: true, opacity: 0.35 });
+    // 图纸风：白体深棱线（近似线框）；默认：铝材质+淡棱线
+    const baseColor = drawing ? 0xf8fafc : 0xc4c9cf;
+    const edgeMat = new THREE.LineBasicMaterial(drawing
+      ? { color: 0x2f3a4d, transparent: true, opacity: 0.9 }
+      : { color: 0x6b7280, transparent: true, opacity: 0.35 });
 
     for (const item of items) {
       const key = `${item.section.id}:${item.length}`;
@@ -309,9 +336,9 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
         cached = { geom, edges: new THREE.EdgesGeometry(geom, 25) };
         geomCache.set(key, cached);
       }
-      const alu = new THREE.MeshStandardMaterial({
-        color: 0xc4c9cf, metalness: 0.9, roughness: 0.38, envMapIntensity: 0.9,
-      });
+      const alu = drawing
+        ? new THREE.MeshStandardMaterial({ color: baseColor, metalness: 0, roughness: 1 })
+        : new THREE.MeshStandardMaterial({ color: baseColor, metalness: 0.9, roughness: 0.38, envMapIntensity: 0.9 });
       const mesh = new THREE.Mesh(cached.geom, alu);
       if (item.axis === 'x') mesh.rotation.y = Math.PI / 2;
       else if (item.axis === 'y') mesh.rotation.x = -Math.PI / 2;
@@ -323,6 +350,7 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       if (item.role !== 'post') mesh.scale.z = (item.length - 0.3) / item.length;
       mesh.userData.sel = { type: 'member', id: item.id } satisfies Selection;
       mesh.userData.member = item;
+      mesh.userData.baseColor = baseColor;
       ctx.group.add(mesh);
       ctx.memberMeshes.set(item.id, mesh);
 
@@ -438,7 +466,60 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
 
     ctx.controls.target.set(0, focusY, 0);
     ctx.controls.update();
-  }, [items, joints, machining, panels, accessories, mountPoints, focusY]);
+  }, [items, joints, machining, panels, accessories, mountPoints, focusY, drawing]);
+
+  // 图纸模式切换：白底/隐装饰/窄fov伪正交（距离补偿保持视觉尺寸）
+  useEffect(() => {
+    const ctx = ctxRef.current;
+    if (!ctx) return;
+    const isD = !!drawing;
+    ctx.scene.background = new THREE.Color(isD ? 0xffffff : 0xe8edf4);
+    ctx.decor.forEach((o) => { o.visible = !isD; });
+    if (prevDrawing.current !== isD) {
+      const cam = ctx.camera;
+      const oldFov = cam.fov;
+      const newFov = isD ? 15 : 50;
+      const k = Math.tan(THREE.MathUtils.degToRad(oldFov / 2)) / Math.tan(THREE.MathUtils.degToRad(newFov / 2));
+      cam.fov = newFov;
+      cam.updateProjectionMatrix();
+      const dist = cam.position.distanceTo(ctx.controls.target);
+      const dir = cam.position.clone().sub(ctx.controls.target).normalize();
+      // 图纸模式多留 25% 边距给尺寸标注
+      cam.position.copy(ctx.controls.target).addScaledVector(dir, dist * k * (isD ? 1.25 : 0.8));
+      ctx.controls.maxDistance = isD ? 18000 : 4500;
+      ctx.controls.update();
+      prevDrawing.current = isD;
+    }
+  }, [drawing]);
+
+  // 件号球标（图纸模式）
+  useEffect(() => {
+    const ctx = ctxRef.current;
+    if (!ctx) return;
+    for (const c of [...ctx.bubbleGroup.children]) {
+      ctx.bubbleGroup.remove(c);
+      if (c instanceof CSS2DObject) c.element.remove();
+    }
+    for (const b of bubbles ?? []) {
+      const el = document.createElement('div');
+      Object.assign(el.style, {
+        width: '26px', height: '26px', borderRadius: '50%', border: '2px solid #2f3a4d',
+        background: '#fff', color: '#2f3a4d', font: 'bold 11px system-ui',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      });
+      el.textContent = b.label;
+      const o = new CSS2DObject(el);
+      o.position.set(...b.position);
+      ctx.bubbleGroup.add(o);
+    }
+  }, [bubbles]);
+
+  // 外部视图切换请求（主视/俯视/侧视按钮）
+  useEffect(() => {
+    if (!viewRequest) return;
+    ctxRef.current?.requestView(new THREE.Vector3(...viewRequest.dir));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewRequest?.seq]);
 
   // 选中高亮 + 尺寸标注
   useEffect(() => {
@@ -462,9 +543,9 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
         mat.roughness = 0.4;
         mat.emissive.setHex(0x4a2408);
       } else {
-        mat.color.setHex(0xc4c9cf);
-        mat.metalness = 0.9;
-        mat.roughness = 0.38;
+        mat.color.setHex((mesh.userData.baseColor as number) ?? 0xc4c9cf);
+        mat.metalness = drawing ? 0 : 0.9;
+        mat.roughness = drawing ? 1 : 0.38;
         mat.emissive.setHex(0x000000);
       }
     }
@@ -476,7 +557,7 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
         mat.emissiveIntensity = id === selJointId ? 0.6 : 1;
       }
     }
-  }, [selection, items, warnMemberIds]);
+  }, [selection, items, warnMemberIds, drawing]);
 
   // 尺寸标注渲染（dims 数组驱动：主线 + 两端引线 + 蓝色标签）
   useEffect(() => {
