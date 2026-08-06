@@ -5,6 +5,7 @@ import { selectSection } from './engine/select';
 import { runGolden } from './engine/golden';
 import { extractIntent, getApiKey, setApiKey } from './engine/extract';
 import { intentToSpec, type IntentResult } from './engine/intent';
+import { nestCutList } from './engine/nesting';
 import type { FrameSpec } from './engine/types';
 import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type RenderPanel, type RenderAccessory, type RenderMountPoint, type RenderDim, type RenderBubble, type Selection } from './viewer/Viewer';
 import { PartDrawing } from './components/PartDrawing';
@@ -242,6 +243,8 @@ export default function App() {
 
   const golden = useMemo(() => runGolden(kb), [kb]);
   const goldenPass = golden.filter((g) => g.pass).length;
+
+  const nesting = useMemo(() => (result.model ? nestCutList(result.model.cutList, kb) : null), [result, kb]);
 
   const set = (patch: Partial<FrameSpec>) => {
     setSpec((s) => ({ ...s, ...patch }));
@@ -825,6 +828,20 @@ export default function App() {
                 ))}
               </tbody>
             </table>
+
+            {nesting && (
+              <>
+                <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>下料方案（套裁）</h3>
+                <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
+                  原料 {nesting.stockLengthMm}mm × {nesting.totalStockBars} 根 · 利用率 {(nesting.utilization * 100).toFixed(1)}% · 锯口 {nesting.kerfMm}mm/刀
+                </div>
+                {nesting.bars.map((b, i) => (
+                  <div key={i} style={{ fontSize: 11, color: '#777', padding: '2px 0', borderBottom: '1px solid #f0f2f5' }}>
+                    #{i + 1}：{b.cuts.map((c) => `${c.partNo}(${c.length})`).join(' + ')} → 余料 {b.remnantMm}mm
+                  </div>
+                ))}
+              </>
+            )}
 
             {model.panelList.length > 0 && (
               <>
