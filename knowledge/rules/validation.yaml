@@ -41,6 +41,8 @@ rules:
   - { id: val-007, type: dynamic-load, check: 动态载荷下禁止仅靠型材槽内摩擦连接, confidence: verified }
   - { id: val-008, type: connection-strength, rule: "beam >= 4040 → connection_strength >= medium；主承重节点禁单内置",
       confidence: verified }
+  - { id: val-postband, type: post-height-band, expr: "height > 2000 → warn 建议中部横撑",
+      source: postHeightBands.general, addedBy: M5-req-009, confidence: verified }
 
 postHeightBands:                             # 立柱高度分档（行家，verified）
   general: { "<600": 不考虑屈曲, "600..800": 看载荷, "800..1200": 建议校核, ">1200": 必须校核, ">2000": 需加横撑 }

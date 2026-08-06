@@ -103,6 +103,11 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   const shelfCount = ex.layers != null ? Math.max(0, Math.min(4, ex.layers - 1)) : 1;
   if (ex.layers == null) assumptions.push('层数未说明，按 1 层隔板假设');
 
+  // 预算敏感透传（M5 req-009）：仅记录不改选型——安全规则优先于预算（行家仲裁 safety>budget）
+  if (ex.budgetSensitivity === 'high') {
+    assumptions.push('预算敏感：已按满足安全规则的最经济选型；如需进一步降价可减层/缩尺寸（安全优先于预算）');
+  }
+
   // 板材映射：top→顶面板，shelf→隔板；门/侧板/抽屉等诚实降级（绝不静默丢弃）
   const unsupported: string[] = [];
   const MAT_MAP: Record<string, FrameSpec['topPanel']> = {
@@ -143,11 +148,14 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     if (!questions.some((q) => q.includes(m.slice(0, 4)))) questions.push(`请确认：${m}`);
   }
 
+  // 振动工况双源（M5 req-002）：environment.vibration 或 LLM 将其归入 _riskFlags
+  const vibration = (ex.environment?.vibration ?? false) || riskFlags.some((f) => /vibration|振动/.test(f));
+
   return {
     spec: {
-      width: clamp(width), depth: clamp(depth), height: clamp(height),
+      width: clamp(width, assumptions, '宽'), depth: clamp(depth, assumptions, '深'), height: clamp(height, assumptions, '高'),
       sectionId, connectorId, shelfCount,
-      loadKg, loadType, scene, highRisk, mobility,
+      loadKg, loadType, scene, highRisk, mobility, vibration,
       topPanel, shelfPanel,
       backPanel, leftPanel: 'none', rightPanel: 'none',
       brace: false,
@@ -159,4 +167,11 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   };
 }
 
-const clamp = (v: number) => Math.min(2000, Math.max(200, Math.round(v / 10) * 10));
+// Phase 0 生成域 200~3000mm；超限截断必须显式记录（M5 req-009：2400 被静默截成 2000 是几何错误）
+const clamp = (v: number, assumptions?: string[], label?: string) => {
+  const c = Math.min(3000, Math.max(200, Math.round(v / 10) * 10));
+  if (assumptions && label && c !== Math.round(v / 10) * 10) {
+    assumptions.push(`${label}度 ${v}mm 超出支持范围 200~3000，已截断为 ${c}mm，请确认`);
+  }
+  return c;
+};

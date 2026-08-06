@@ -17,6 +17,8 @@ export interface FrameSpec {
   /** 高风险场景（水族/儿童/头顶）→ val-003 安全系数 2.0 */
   highRisk: boolean;
   mobility: 'fixed' | 'caster';
+  /** 设备振动工况（3D打印机/CNC 等）→ val-005 斜撑触发 */
+  vibration?: boolean;
   /** 板材：顶面与隔板层各一种材质 */
   topPanel: PanelMaterial;
   shelfPanel: PanelMaterial;

@@ -346,7 +346,7 @@ export default function App() {
     const conn = kb.connectors.find((c) => c.connector.id === model.spec.connectorId)!.connector;
     const s = sec.size[0];
     const overall = newLen + 2 * s - 2 * conn.lengthOffset;
-    const clamp = (v: number) => Math.min(2000, Math.max(200, v));
+    const clamp = (v: number) => Math.min(3000, Math.max(200, v));
     if (selectedMember.role === 'beam-x') set({ width: clamp(overall) });
     else if (selectedMember.role === 'beam-z') set({ depth: clamp(overall) });
     else set({ height: clamp(newLen) });
@@ -540,9 +540,9 @@ export default function App() {
         )}
 
         {([
-          ['总宽 W', 'width', 200, 2000],
-          ['总深 D', 'depth', 200, 2000],
-          ['总高 H', 'height', 200, 2000],
+          ['总宽 W', 'width', 200, 3000],
+          ['总深 D', 'depth', 200, 3000],
+          ['总高 H', 'height', 200, 3000],
         ] as const).map(([label, key, min, max]) => (
           <label key={key} style={{ display: 'block', marginBottom: 8 }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -616,13 +616,15 @@ export default function App() {
           </label>
         </div>
 
-        <div style={{ display: 'flex', gap: 14, marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 14, marginBottom: 8, flexWrap: 'wrap' }}>
           <label><input type="checkbox" checked={spec.highRisk}
             onChange={(e) => set({ highRisk: e.target.checked })} /> 高风险(水族/儿童/头顶)</label>
           <label><input type="checkbox" checked={spec.mobility === 'caster'}
             onChange={(e) => set({ mobility: e.target.checked ? 'caster' : 'fixed' })} /> 带脚轮</label>
           <label><input type="checkbox" checked={spec.brace}
             onChange={(e) => set({ brace: e.target.checked })} /> 背面斜撑</label>
+          <label><input type="checkbox" checked={spec.vibration ?? false}
+            onChange={(e) => set({ vibration: e.target.checked })} /> 设备振动(3D打印/CNC)</label>
         </div>
 
         <label style={{ display: 'block', marginBottom: 8 }}>

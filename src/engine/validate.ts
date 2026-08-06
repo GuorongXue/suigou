@@ -76,6 +76,14 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
     }
   }
 
+  // ---- val-postband 超高档（行家档位 postHeightBands：>2000 需加横撑，M5 req-009） ----
+  if (spec.height > 2000) {
+    checks.push({
+      level: 'warn', ruleId: 'val-postband',
+      message: `高度 ${spec.height}mm 超过 2000mm（行家档位）：建议中部加一圈横撑降低屈曲有效长度；当前隔板层横梁可兼作横撑，但层间距>1200mm 时仍需补撑`,
+    });
+  }
+
   // ---- val-005 斜撑触发器（五触发，行家 verified）；已加斜撑/背板则通过 ----
   const hasBrace = spec.brace;
   const hasShear = spec.backPanel !== 'none' || spec.leftPanel !== 'none' || spec.rightPanel !== 'none';
@@ -85,6 +93,7 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
   if (spec.height > 1000) braceTriggers.push('高度>1000mm');
   if (aspectW > 3 || aspectD > 3) braceTriggers.push(`高宽比${Math.max(aspectW, aspectD).toFixed(1)}>3`);
   if (spec.mobility === 'caster') braceTriggers.push('脚轮工况');
+  if (spec.vibration) braceTriggers.push('设备振动工况');
   if (braceTriggers.length > 0 && !hasBrace && !hasShear) {
     checks.push({
       level: 'warn', ruleId: 'val-005',
