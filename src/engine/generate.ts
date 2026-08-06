@@ -404,7 +404,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   if (incompatible) {
     model.checks.unshift({
       level: 'error', ruleId: 'compat-001',
-      message: `不兼容组合：${conn.name}（适配槽宽${conn.compatible.slotWidths.join('/')}）不适用于 ${sec.name}（槽宽${sec.slot.width}），无法装配。请更换连接件或截面`,
+      message: `不兼容组合：${conn.name}（适配系列${conn.compatible.series.join('/')}，槽宽${conn.compatible.slotWidths.join('/')}）不适用于 ${sec.name}，无法装配。请更换连接件或截面`,
     });
   }
   // 导出闸门状态派生：error→invalid（禁导出），warn→needs-confirmation

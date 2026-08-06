@@ -3,6 +3,7 @@ tests:
   - { id: t-sel-002-a, rule: sel-002, input: { span: 900, loadKg: 50 }, expect: { use: eu-3030 } }
   - { id: t-sel-004-a, rule: sel-004, input: { span: 500, loadKg: 20, scene: aquarium }, expect: { use: eu-3030 } }  # 2020升级到3030
   - { id: t-con-001-a, rule: con-001, input: { joint: corner-90, load: light }, expect: { use: corner-bracket-30, machiningCount: 0 } }
+  - { id: t-con-002-a, rule: con-002, input: { joint: corner-90, load: light, hiddenRequired: true }, expect: { use: anchor-30 } }  # M5 req-010回归：隐藏式不得推内置件单独主承重
   - { id: t-con-003-a, rule: con-003, input: { joint: corner-90, load: heavy }, expect: { use: anchor-30, machining: [{ type: through-hole, diameter: 11.5 }] } }
   - { id: t-cut-001, rule: length-derivation, input: { overallWidth: 700, posts: eu-3030, connector: corner-bracket-30 }, expect: { beamLength: 640 } }
     # 640mm 从演示柜真实清单反推验证（700 − 2×30），长度推导规则的第一条实证锚点

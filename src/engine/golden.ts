@@ -41,6 +41,7 @@ export function runGolden(kb: KnowledgeBase): GoldenResult[] {
         const r = selectConnector({
           joint: t.input.joint as 'corner-90',
           load: t.input.load as 'light' | 'heavy',
+          hiddenRequired: Boolean(t.input.hiddenRequired),
         });
         const conn = kb.connectors.find((c) => c.connector.id === r.use)?.connector;
         actual = r.use;

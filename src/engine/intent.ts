@@ -83,8 +83,22 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     hiddenRequired: ex.appearance?.hiddenConnectorsPreferred ?? false,
     mobility,
   });
-  const connectorId = kb.connectors.some((c) => c.connector.id === connSel.use) ? connSel.use : 'corner-bracket-30';
+  let connectorId = kb.connectors.some((c) => c.connector.id === connSel.use) ? connSel.use : 'corner-bracket-30';
   assumptions.push(`连接选型：${connectorId}（${connSel.ruleIds.join('+')}，${connSel.rationale}）`);
+  // 兼容回退（M5 req-008）：截面升级后若连接件不适配，改用该截面兼容的最强主承重件
+  const secDef = kb.sections.find((s) => s.section.id === sectionId)!.section;
+  const connDef = kb.connectors.find((c) => c.connector.id === connectorId)?.connector;
+  if (connDef && (!connDef.compatible.series.includes(sectionId) || !connDef.compatible.slotWidths.includes(secDef.slot.width))) {
+    const fallback = kb.connectors
+      .filter((c) => c.connector.compatible.series.includes(sectionId)
+        && c.connector.compatible.slotWidths.includes(secDef.slot.width)
+        && c.connector.loadRole === 'primary')
+      .sort((a, b) => b.connector.strengthClass - a.connector.strengthClass)[0];
+    if (fallback) {
+      assumptions.push(`连接件兼容回退：${connectorId} 不适配 ${sectionId}，改用 ${fallback.connector.name}`);
+      connectorId = fallback.connector.id;
+    }
+  }
 
   const shelfCount = ex.layers != null ? Math.max(0, Math.min(4, ex.layers - 1)) : 1;
   if (ex.layers == null) assumptions.push('层数未说明，按 1 层隔板假设');

@@ -58,10 +58,15 @@ Schema：
   "_riskFlags": []
 }`;
 
-const ENDPOINT = '/api/longcat/openai/v1/chat/completions';
+// 浏览器走 vite 代理；Node CLI（M5 跑批）直连并从环境变量取 Key
+const IS_NODE = typeof localStorage === 'undefined';
+const ENDPOINT = IS_NODE
+  ? 'https://api.longcat.chat/openai/v1/chat/completions'
+  : '/api/longcat/openai/v1/chat/completions';
 const MODEL = 'LongCat-2.0';
 
 export function getApiKey(): string | null {
+  if (IS_NODE) return (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.LONGCAT_API_KEY ?? null;
   return localStorage.getItem('llm_api_key');
 }
 

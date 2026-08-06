@@ -94,9 +94,10 @@ export function selectConnector(inp: ConnectorSelectInput): SelectResult {
   } else if (inp.load === 'heavy') {
     use = 'anchor-30'; ruleIds.push('con-003');
     rationale = '强度优先隐藏式';
-  } else if (inp.hiddenRequired && inp.load === 'light') {
-    use = 'internal-30'; ruleIds.push('con-002');
-    rationale = '仅限外观定位与轻载辅助，禁止主承重';
+  } else if (inp.hiddenRequired) {
+    // con-002 修正（M5 req-010）：单连接件体系下内置件禁止主承重（val-006），隐藏式需求推锚式
+    use = 'anchor-30'; ruleIds.push('con-002', 'val-006');
+    rationale = '隐藏式且可主承重（内置件仅限定位/辅助，不可单独主承重）';
   } else {
     use = 'corner-bracket-30'; ruleIds.push('con-001');
     rationale = '便宜免加工可拆，轻载首选';
