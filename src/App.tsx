@@ -204,7 +204,12 @@ export default function App() {
 
   const mountPoints: RenderMountPoint[] = useMemo(() => {
     if (!result.model) return [];
-    return result.model.mounts.flatMap((m) => m.points.map((p) => ({ position: p })));
+    const methodName: Record<string, string> = { 't-nut-screw': 'T型螺母+螺栓', 'gasket-clamp': '胶垫+压条', 'caster-stem': '丝杆拧入' };
+    return result.model.mounts.flatMap((m, i) => m.points.map((p) => ({
+      position: p,
+      label: `M${i + 1}`,
+      note: `${methodName[m.method] ?? m.method}｜${m.fasteners.map((f) => `${f.sku}×${f.qty}`).join(' ')}｜${m.note}`,
+    })));
   }, [result]);
 
   const machiningSummary = useMemo(() => {
@@ -325,6 +330,8 @@ export default function App() {
 
   // 视图预设（图纸模式：主视/俯视/左视/轴测）
   const [viewReq, setViewReq] = useState<{ dir: [number, number, number]; seq: number } | null>(null);
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
   const requestView = (dir: [number, number, number]) =>
     setViewReq((v) => ({ dir, seq: (v?.seq ?? 0) + 1 }));
 
@@ -461,6 +468,7 @@ export default function App() {
       </header>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+      {leftOpen && (
       <aside style={{ width: 340, padding: 14, background: '#fff', borderRight: '1px solid #e2e5ea', overflowY: 'auto', fontSize: 13, lineHeight: 1.7, flexShrink: 0 }}>
 
         {/* 意图输入（M4） */}
@@ -649,6 +657,11 @@ export default function App() {
           </div>
         )}
       </aside>
+      )}
+      <button onClick={() => setLeftOpen((o) => !o)} title={leftOpen ? '收起左栏' : '展开左栏'}
+        style={{ width: 16, border: 'none', borderRight: '1px solid #e2e5ea', background: '#f7f8fa', cursor: 'pointer', color: '#888', fontSize: 11, flexShrink: 0, padding: 0 }}>
+        {leftOpen ? '‹' : '›'}
+      </button>
 
       <main style={{ flex: 1, position: 'relative' }}>
         <Viewer
@@ -757,6 +770,11 @@ export default function App() {
       </main>
 
       {/* 右栏：方案结果——为什么可靠、要买什么（16号评测 2.3） */}
+      <button onClick={() => setRightOpen((o) => !o)} title={rightOpen ? '收起右栏' : '展开右栏'}
+        style={{ width: 16, border: 'none', borderLeft: '1px solid #e2e5ea', background: '#f7f8fa', cursor: 'pointer', color: '#888', fontSize: 11, flexShrink: 0, padding: 0 }}>
+        {rightOpen ? '›' : '‹'}
+      </button>
+      {rightOpen && (
       <aside style={{ width: 340, padding: 14, background: '#fff', borderLeft: '1px solid #e2e5ea', overflowY: 'auto', fontSize: 13, lineHeight: 1.7, flexShrink: 0 }}>
         {model ? (
           <>
@@ -902,6 +920,7 @@ export default function App() {
           ))}
         </details>
       </aside>
+      )}
       </div>
     </div>
   );

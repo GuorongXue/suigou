@@ -54,6 +54,10 @@ export interface RenderAccessory {
 
 export interface RenderMountPoint {
   position: [number, number, number];
+  /** 固定点编号（同 Mount 共用，如 M3） */
+  label?: string;
+  /** 悬停说明：固定方式+紧固件 */
+  note?: string;
 }
 
 /** 尺寸标注：主线 a→b 平移 offset，两端引线，中点挂标签 */
@@ -314,6 +318,7 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
 
     for (const child of [...ctx.group.children]) {
       ctx.group.remove(child);
+      if (child instanceof CSS2DObject) { child.element.remove(); continue; }
       const m = child as THREE.Mesh | THREE.LineSegments;
       m.geometry?.dispose();
     }
@@ -453,14 +458,23 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       ctx.group.add(stem);
     }
 
-    // 固定点：结构视图小蓝球（装配关系可见化）
+    // 固定点：结构视图小蓝球 + 编号标签（title 原生悬停显示固定方式/紧固件）
     if (mountPoints.length) {
       const dotMat = new THREE.MeshStandardMaterial({ color: 0x1e6fff, transparent: true, opacity: 0.85, depthTest: false });
       for (const mp of mountPoints) {
-        const dot = new THREE.Mesh(new THREE.SphereGeometry(5, 12, 12), dotMat);
+        const dot = new THREE.Mesh(new THREE.SphereGeometry(6, 12, 12), dotMat);
         dot.position.set(...mp.position);
         dot.renderOrder = 997;
         ctx.group.add(dot);
+        if (mp.label) {
+          const el = document.createElement('div');
+          el.textContent = mp.label;
+          el.title = mp.note ?? '';
+          el.style.cssText = 'font:600 10px system-ui;color:#fff;background:#1e6fff;border-radius:8px;padding:1px 5px;cursor:help;pointer-events:auto;transform:translateY(-12px)';
+          const o = new CSS2DObject(el);
+          o.position.set(...mp.position);
+          ctx.group.add(o);
+        }
       }
     }
 
