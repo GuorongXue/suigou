@@ -478,6 +478,11 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       }
     }
 
+    // 地面贴轮底：带脚轮时框架被垫高，网格/轴线下移到轮子着地平面（轮半径25）
+    const groundY = accessories.length
+      ? Math.min(...accessories.map((a) => a.position[1])) - 25 : 0;
+    ctx.decor.forEach((o) => { o.position.y = groundY; });
+
     ctx.controls.target.set(0, focusY, 0);
     ctx.controls.update();
   }, [items, joints, machining, panels, accessories, mountPoints, focusY, drawing]);
