@@ -168,16 +168,42 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   addSidePanel(spec.leftPanel, 'left');
   addSidePanel(spec.rightPanel, 'right');
 
-  // 背面对角斜撑（val-005 解药）：同截面型材，两端斜切
+  // 背面对角斜撑（val-005 解药）：按层分段（之字形）避开隔板横梁，每段两端斜切+端孔压接
+  const braceEndHoles: { memberId: string; position: [number, number, number] }[] = [];
   if (spec.brace) {
-    const bx = W - 2 * s, by = H - 2 * s;
-    const braceLen = Math.round(Math.hypot(bx, by));
-    const tilt = Math.atan2(by, bx);
-    add({
-      role: 'brace', sectionId: sec.id, length: braceLen,
-      position: [0, H / 2, -D / 2 + s / 2], axis: 'x', tilt,
-    });
-    warnings.push(`背面斜撑两端需斜切 ${(tilt * 180 / Math.PI).toFixed(1)}°（嘉立创非标斜切 30~150° 可加工）`);
+    const sorted = [...levels].sort((a, b) => a - b);
+    const bx = W - 2 * s;
+    const angles = new Set<string>();
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const yLo = sorted[i] + s / 2;
+      const yHi = sorted[i + 1] - s / 2;
+      const by = yHi - yLo;
+      if (by < 100) continue;   // 层间净空太矮不放撑
+      const dir = i % 2 === 0 ? 1 : -1;   // 交替方向成之字形
+      const segLen = Math.round(Math.hypot(bx, by));
+      const tilt = Math.atan2(by, bx) * dir;
+      add({
+        role: 'brace', sectionId: sec.id, length: segLen,
+        position: [0, (yLo + yHi) / 2, -D / 2 + s / 2], axis: 'x', tilt,
+      });
+      const braceId = `m-${n}`;
+      // 端面斜切角 = 90° − 杆件倾角（嘉立创非标斜切范围 30~150°）
+      angles.add((90 - Math.abs(tilt * 180 / Math.PI)).toFixed(1));
+      // 两端固定：斜撑端孔 M6 螺栓 → 柱/梁槽内 T 型螺母压接
+      const pLo: [number, number, number] = [-dir * bx / 2, yLo, -D / 2 + s / 2];
+      const pHi: [number, number, number] = [dir * bx / 2, yHi, -D / 2 + s / 2];
+      braceEndHoles.push({ memberId: braceId, position: pLo }, { memberId: braceId, position: pHi });
+      mounts.push({
+        id: `mt-${++mtn}`, targetType: 'member', targetId: braceId,
+        method: 't-nut-screw',
+        note: `斜撑段端部压接：M6螺栓穿端孔入柱/梁槽内T型螺母`,
+        fasteners: [{ sku: 't-nut-m6', qty: 2 }, { sku: 'bolt-m6-l16', qty: 2 }],
+        points: [pLo, pHi],
+      });
+    }
+    if (angles.size) {
+      warnings.push(`斜撑分 ${braceEndHoles.length / 2} 段（避开隔板横梁），两端斜切 ${[...angles].join('/')}°（嘉立创非标斜切 30~150° 可加工）`);
+    }
   }
 
   // 脚轮附件（9.2.4 修复：进模型/BOM/重量；丝杆脚轮 → 柱底端面攻牙加工）
@@ -258,6 +284,13 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         id: `mc-${++mn}`, jointId: '-', memberId: postId, type: 'end-tap', spec: 'M8×20(脚轮)',
         position: [x, 10, z], axis: 'y', diameter: 8, length: 20, discs: [] });
     }
+  }
+
+  // 斜撑段端部固定孔（装配关系派生：每端 Φ7 通孔穿 M6 螺栓）
+  for (const h of braceEndHoles) {
+    machining.push({
+      id: `mc-${++mn}`, jointId: '-', memberId: h.memberId, type: 'through-hole', spec: 'Φ7(斜撑端)',
+      position: h.position, axis: 'z', diameter: 7, length: s, discs: [] });
   }
 
   const machBy = new Map<string, string[]>();

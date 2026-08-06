@@ -126,10 +126,10 @@ export interface PanelItem {
   mountNote: string;
 }
 
-/** 固定关系：板材/附件与主体的真实连接（消除"字符串式已安装"） */
+/** 固定关系：板材/附件/斜撑与主体的真实连接（消除"字符串式已安装"） */
 export interface MountItem {
   id: string;
-  targetType: 'panel' | 'accessory';
+  targetType: 'panel' | 'accessory' | 'member';
   targetId: string;
   method: 't-nut-screw' | 'gasket-clamp' | 'caster-stem';
   note: string;
