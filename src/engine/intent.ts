@@ -102,6 +102,11 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
 
   const shelfCount = ex.layers != null ? Math.max(0, Math.min(4, ex.layers - 1)) : 1;
   if (ex.layers == null) assumptions.push('层数未说明，按 1 层隔板假设');
+  const workbenchLowerZoneRatio = scene === 'workbench' ? 0.62 : undefined;
+  const workbenchUpperShelfDepthRatio = scene === 'workbench' ? 0.58 : undefined;
+  if (scene === 'workbench' && shelfCount > 0) {
+    assumptions.push('工作台人体工学默认：下层净空更大、上层置物搁板更浅');
+  }
 
   // 预算敏感透传（M5 req-009）：仅记录不改选型——安全规则优先于预算（行家仲裁 safety>budget）
   if (ex.budgetSensitivity === 'high') {
@@ -163,6 +168,7 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     spec: {
       width: clamp(width, assumptions, '宽'), depth: clamp(depth, assumptions, '深'), height: clamp(height, assumptions, '高'),
       sectionId, connectorId, shelfCount,
+      workbenchLowerZoneRatio, workbenchUpperShelfDepthRatio,
       loadKg, loadType, scene, highRisk, mobility, vibration,
       topPanel, shelfPanel, bottomPanel, doorPanel,
       backPanel, leftPanel: 'none', rightPanel: 'none',

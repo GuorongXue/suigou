@@ -21,6 +21,7 @@ interface ChatMsg {
 const FIELD_NAMES: Record<string, string> = {
   width: '总宽', depth: '总深', height: '总高', shelfCount: '隔板层数', loadKg: '载荷',
   loadType: '载荷分布', scene: '场景', highRisk: '高风险', mobility: '移动性',
+  workbenchLowerZoneRatio: '下层净空占比', workbenchUpperShelfDepthRatio: '上层浅搁板深度占比',
   sectionId: '截面', connectorId: '连接件', topPanel: '顶面板', shelfPanel: '隔板材质', bottomPanel: '底板', doorPanel: '门板',
 };
 
@@ -39,6 +40,11 @@ interface Draft {
   manual: [string, string][];
   unsupported: string[];
 }
+const normalizeWorkbenchSpec = (s: FrameSpec): FrameSpec => ({
+  ...s,
+  workbenchLowerZoneRatio: s.workbenchLowerZoneRatio ?? (s.scene === 'workbench' ? 0.62 : undefined),
+  workbenchUpperShelfDepthRatio: s.workbenchUpperShelfDepthRatio ?? (s.scene === 'workbench' ? 0.58 : undefined),
+});
 const loadDraft = (): Draft | null => {
   try { return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null'); } catch { return null; }
 };
@@ -46,14 +52,14 @@ const loadDraft = (): Draft | null => {
 export default function App() {
   const kb = useMemo(() => loadKnowledgeBase(), []);
   const draft = useMemo(loadDraft, []);
-  const [spec, setSpec] = useState<FrameSpec>(draft?.spec ? {
+  const [spec, setSpec] = useState<FrameSpec>(draft?.spec ? normalizeWorkbenchSpec({
     ...draft.spec,
     backPanel: draft.spec.backPanel ?? 'none',
     leftPanel: draft.spec.leftPanel ?? 'none',
     rightPanel: draft.spec.rightPanel ?? 'none',
     bottomPanel: draft.spec.bottomPanel ?? 'none',
     brace: draft.spec.brace ?? false,
-  } : {
+  }) : {
     width: 700,
     depth: 400,
     height: 720,
@@ -67,6 +73,8 @@ export default function App() {
     mobility: 'fixed',
     topPanel: 'none',
     shelfPanel: 'none',
+    workbenchLowerZoneRatio: 0.62,
+    workbenchUpperShelfDepthRatio: 0.58,
     bottomPanel: 'none',
     backPanel: 'none',
     leftPanel: 'none',
@@ -114,6 +122,8 @@ export default function App() {
         width: spec.width, depth: spec.depth, height: spec.height,
         loadKg: spec.loadKg, loadType: spec.loadType, mobility: spec.mobility,
         layers: spec.shelfCount + 1, topPanel: spec.topPanel, shelfPanel: spec.shelfPanel,
+        workbenchLowerZoneRatio: spec.workbenchLowerZoneRatio,
+        workbenchUpperShelfDepthRatio: spec.workbenchUpperShelfDepthRatio,
       })}` : '';
       const manualNote = manualChanges.size > 0
         ? `\n[用户手动锁定项，除非本轮明确改口否则保持：${[...manualChanges.values()].join('，')}]`
@@ -275,7 +285,14 @@ export default function App() {
   };
 
   const set = (patch: Partial<FrameSpec>) => {
-    setSpec((s) => ({ ...s, ...patch }));
+    setSpec((s) => {
+      const next = { ...s, ...patch };
+      if (next.scene === 'workbench') {
+        if (next.workbenchLowerZoneRatio == null) next.workbenchLowerZoneRatio = 0.62;
+        if (next.workbenchUpperShelfDepthRatio == null) next.workbenchUpperShelfDepthRatio = 0.58;
+      }
+      return next;
+    });
     // 对话开始后的手动调整要记账，下一轮注入模型上下文（单一事实源）
     if (chat.length > 0) {
       setManualChanges((mc) => {
@@ -600,6 +617,37 @@ export default function App() {
           <input type="range" min={0} max={4} step={1} value={spec.shelfCount}
             onChange={(e) => set({ shelfCount: Number(e.target.value) })} style={{ width: '100%' }} />
         </label>
+
+        {spec.scene === 'workbench' && spec.shelfCount > 0 && (
+          <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 6, background: '#f6f9ff', border: '1px solid #d8e6ff' }}>
+            <div style={{ fontSize: 12, color: '#3769b2', marginBottom: 4 }}>电脑桌语义（人体工学）</div>
+            <label style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
+              下层净空占比 {Math.round((spec.workbenchLowerZoneRatio ?? 0.62) * 100)}%
+              <input
+                type="range"
+                min={45}
+                max={82}
+                step={1}
+                value={Math.round((spec.workbenchLowerZoneRatio ?? 0.62) * 100)}
+                onChange={(e) => set({ workbenchLowerZoneRatio: Number(e.target.value) / 100 })}
+                style={{ width: '100%' }}
+              />
+            </label>
+            <label style={{ display: 'block', fontSize: 12 }}>
+              上层浅搁板深度占比 {Math.round((spec.workbenchUpperShelfDepthRatio ?? 0.58) * 100)}%
+              <input
+                type="range"
+                min={35}
+                max={95}
+                step={1}
+                value={Math.round((spec.workbenchUpperShelfDepthRatio ?? 0.58) * 100)}
+                onChange={(e) => set({ workbenchUpperShelfDepthRatio: Number(e.target.value) / 100 })}
+                style={{ width: '100%' }}
+              />
+            </label>
+            <div style={{ fontSize: 11, color: '#6d7a90', marginTop: 4 }}>上层搁板默认靠后放置，避免压缩腿部活动与桌前操作空间。</div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           {([['顶面板', 'topPanel'], ['隔板材质', 'shelfPanel'], ['底板', 'bottomPanel']] as const).map(([label, key]) => (

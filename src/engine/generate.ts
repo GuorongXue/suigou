@@ -50,11 +50,27 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     postAt.set(`${x},${z}`, `m-${n}`);
   }
 
-  // 梁层：底框 + 顶框 + 均匀分布的隔板层
-  const levels: number[] = [s / 2, H - s / 2];
-  for (let i = 1; i <= spec.shelfCount; i++) {
-    levels.push((H * i) / (spec.shelfCount + 1));
-  }
+  // 梁层：底框 + 顶框 + 隔板层（工作台场景采用非均匀人体工学分配）
+  const clampRatio = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  const shelfLevels: number[] = (() => {
+    const count = spec.shelfCount;
+    if (count <= 0) return [];
+    if (spec.scene !== 'workbench') {
+      return Array.from({ length: count }, (_, i) => (H * (i + 1)) / (count + 1));
+    }
+    const lowerRatio = clampRatio(spec.workbenchLowerZoneRatio ?? 0.62, 0.45, 0.82);
+    const endRatio = Math.max(lowerRatio + 0.08, 0.90);
+    if (count === 1) {
+      return [s / 2 + (H - s) * lowerRatio];
+    }
+    return Array.from({ length: count }, (_, i) => {
+      if (i === 0) return s / 2 + (H - s) * lowerRatio;
+      const t = i / (count - 1);
+      const ratio = lowerRatio + (endRatio - lowerRatio) * Math.pow(t, 0.85);
+      return s / 2 + (H - s) * clampRatio(ratio, lowerRatio, 0.94);
+    });
+  })();
+  const levels: number[] = [s / 2, H - s / 2, ...shelfLevels];
 
   for (const y of levels) {
     const ySide: 1 | -1 = y <= s ? 1 : -1;   // 底框角码朝上，其余朝下
@@ -84,13 +100,26 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   const PANEL_SPEC = kb.panels;   // knowledge/panels.yaml：厚度/面密度/单价/固定方式/孔径
   let pn = 0;
   let mtn = 0;
-  const addPanel = (material: PanelMaterial, beamTopY: number, isTop: boolean) => {
+  const addPanel = (
+    material: PanelMaterial,
+    beamTopY: number,
+    isTop: boolean,
+    opts?: { depthRatio?: number; align?: 'center' | 'back' | 'front' },
+  ) => {
     if (material === 'none') return;
     const ps = PANEL_SPEC[material];
     // 顶面板：覆盖整框（W×D 齐平）；隔板：四边各搭 15mm 在梁上表面（真实支撑接触）
     const overlap = 15;
+    const fullPd = D - 2 * s + 2 * overlap;
     const pw = isTop ? W : W - 2 * s + 2 * overlap;
-    const pd = isTop ? D : D - 2 * s + 2 * overlap;
+    const ratio = clampRatio(opts?.depthRatio ?? 1, 0.35, 1);
+    const pd = isTop ? D : Math.max(Math.round(fullPd * ratio), Math.round(overlap + 120));
+    const zShift = isTop ? 0 : (() => {
+      const free = Math.max(0, fullPd - pd);
+      if (opts?.align === 'back') return -free / 2;
+      if (opts?.align === 'front') return free / 2;
+      return 0;
+    })();
     if (pw <= 0 || pd <= 0) return;
     const panelId = `pn-${++pn}`;
     // 固定孔（板局部坐标）：顶板孔心落梁中心线距边 s/2；隔板落搭接区中心距边 overlap/2
@@ -103,15 +132,18 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       id: panelId, material,
       size: [pw, pd, ps.thickness],
       boxSize: [pw, ps.thickness, pd],
-      position: [0, beamTopY + ps.thickness / 2, 0],   // 底面落在梁上表面
+      position: [0, beamTopY + ps.thickness / 2, zShift],   // 底面落在梁上表面
       mode: isTop ? 'top-overlay' : 'shelf-overlap',
-      mountNote: (isTop ? '顶面板(覆盖式)：' : '隔板(搭梁式)：') + ps.mountNote,
+      mountNote: (isTop ? '顶面板(覆盖式)：' : '隔板(搭梁式)：') + ps.mountNote
+        + (!isTop && pd < fullPd ? `；浅搁板深度 ${Math.round((pd / fullPd) * 100)}%` : ''),
       holes,
     });
     // 固定点：四角内缩，落在梁中心线上方
-    const px = W / 2 - s / 2, pz = D / 2 - s / 2;
+    const px = pw / 2 - inset;
+    const pz = pd / 2 - inset;
     const points: [number, number, number][] = [
-      [-px, beamTopY, -pz], [px, beamTopY, -pz], [-px, beamTopY, pz], [px, beamTopY, pz],
+      [-px, beamTopY, zShift - pz], [px, beamTopY, zShift - pz],
+      [-px, beamTopY, zShift + pz], [px, beamTopY, zShift + pz],
     ];
     const soft = ps.mount === 'gasket-clamp';
     mounts.push({
@@ -126,8 +158,14 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   };
   addPanel(spec.topPanel, H, true);   // 顶梁上表面 = H
   addPanel(spec.bottomPanel, s, false);   // 底框梁上表面 = s（搭梁式同隔板）
-  for (let i = 1; i <= spec.shelfCount; i++) {
-    addPanel(spec.shelfPanel, (H * i) / (spec.shelfCount + 1) + s / 2, false);
+  for (let i = 0; i < shelfLevels.length; i++) {
+    const t = shelfLevels.length <= 1 ? 1 : (i + 1) / shelfLevels.length;
+    const upperDepth = clampRatio(spec.workbenchUpperShelfDepthRatio ?? 0.58, 0.35, 0.95);
+    const depthRatio = spec.scene === 'workbench' ? (1 - (1 - upperDepth) * t) : 1;
+    addPanel(spec.shelfPanel, shelfLevels[i] + s / 2, false, {
+      depthRatio,
+      align: spec.scene === 'workbench' ? 'back' : 'center',
+    });
   }
 
   // 侧围板（背/左/右）：贴在框架外侧面，兼作抗侧向体系（val-lateral 解药）

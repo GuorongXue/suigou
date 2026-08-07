@@ -7,8 +7,12 @@ export interface FrameSpec {
   height: number;   // 总高 Y (mm)
   sectionId: string;
   connectorId: string;
-  /** 隔板层数（不含顶底框），均匀分布在高度方向 */
+  /** 隔板层数（不含顶底框）；常规场景均匀分布，工作台场景可按人体工学偏置 */
   shelfCount: number;
+  /** 工作台语义：首层隔板高度占可用高度比例（下层人体工学净空优先） */
+  workbenchLowerZoneRatio?: number;
+  /** 工作台语义：最上层搁板深度占桌面深度比例（上层默认浅一些） */
+  workbenchUpperShelfDepthRatio?: number;
   /** 顶面设计载荷 kg */
   loadKg: number;
   loadType: 'distributed' | 'concentrated';
