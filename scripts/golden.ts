@@ -56,7 +56,7 @@ console.log('== 2. Golden 用例 ==');
 console.log('== 3. 生成冒烟 + 强制不变量 ==');
 {
   const spec: FrameSpec = {
-    width: 800, depth: 400, height: 1500, sectionId: 'eu-3030', connectorId: 'anchor-30',
+    width: 800, depth: 650, height: 1500, sectionId: 'eu-3030', connectorId: 'anchor-30',
     shelfCount: 2, loadKg: 15, loadType: 'distributed', scene: 'workbench', highRisk: false,
     mobility: 'caster', topPanel: 'wood', shelfPanel: 'glass', backPanel: 'pegboard',
     bottomPanel: 'none', leftPanel: 'none', rightPanel: 'none', brace: true,
@@ -79,11 +79,55 @@ console.log('== 3. 生成冒烟 + 强制不变量 ==');
     if (cutQty !== m.members.length) fail(`切割清单数量 ${cutQty} ≠ 构件数 ${m.members.length}`);
     const panelQty = m.panelList.reduce((s, p) => s + p.qty, 0);
     if (panelQty !== m.panels.length) fail(`板材清单数量 ${panelQty} ≠ 板数 ${m.panels.length}`);
+    for (const member of m.members) {
+      if (!Number.isFinite(member.length) || member.length <= 0) fail(`构件长度无效: ${member.id}=${member.length}`);
+      if (member.position.some((v) => !Number.isFinite(v))) fail(`构件位置无效: ${member.id}`);
+    }
+    const casterMounts = m.mounts.filter((mt) => mt.method === 'caster-stem');
+    if (casterMounts.length !== 4) fail(`电脑桌落地脚轮应为4个，实际 ${casterMounts.length}`);
+    if (casterMounts.some((mt) => mt.points.some((p) => p[1] !== 0))) fail('脚轮存在悬空安装点');
+    const bottomFront = m.members.filter((member) => member.role === 'beam-x'
+      && member.position[1] < 100 && member.position[2] > 0);
+    if (bottomFront.length) fail('电脑桌桌下正面存在阻挡腿部的底横梁');
+    const upperPanels = m.panels.filter((panel) => panel.mode === 'top-overlay'
+      || (panel.mode === 'shelf-overlap' && panel.position[1] > (spec.workbenchDeskTopHeightMm ?? 740) + 100));
+    const expectedUpperDepth = Math.round(spec.depth * (spec.workbenchUpperShelfDepthRatio ?? 0.55));
+    if (upperPanels.some((panel) => panel.size[1] > expectedUpperDepth + 1)) fail('上层板深度超过浅层支撑框');
     if (m.totals.cost.total <= 0) fail('总价未算出');
     if (m.status === 'invalid') fail(`冒烟方案 invalid: ${m.checks.filter((c) => c.level === 'error').map((c) => c.ruleId).join(',')}`);
     if (!failures) ok(`构件${m.members.length} 板${m.panels.length} Mount${m.mounts.length} 加工${m.machining.length} 合计¥${m.totals.cost.total} status=${m.status}`);
   } catch (e) {
     fail(`生成异常: ${(e as Error).message}`);
+  }
+
+  const mustReject = (patch: Partial<FrameSpec>, label: string) => {
+    try {
+      generateFrame({ ...spec, ...patch }, kb);
+      fail(`${label} 未被生成器拒绝`);
+    } catch {
+      ok(`${label} 已阻断`);
+    }
+  };
+  mustReject({ width: Number.NaN }, 'NaN 尺寸');
+  mustReject({ shelfCount: Number.NaN }, 'NaN 层数');
+  mustReject({ workbenchUpperShelfDepthRatio: Number.NaN }, 'NaN 上层深度比例');
+  mustReject({ depth: 400 }, '电脑桌深度不足550mm');
+  mustReject({ height: 1100, shelfCount: 3 }, '层数与总高冲突');
+
+  try {
+    for (const height of [740, 800]) {
+      const pure = generateFrame({ ...spec, height, shelfCount: 1, mobility: 'fixed', backPanel: 'none', topPanel: 'wood' }, kb);
+      if (pure.members.filter((member) => member.role === 'post').length !== 4) fail('纯电脑桌应只有4根桌腿');
+      const desktops = pure.panels.filter((panel) => panel.mode === 'shelf-overlap');
+      if (desktops.length !== 1) fail('纯电脑桌应只有1块主桌面');
+      const topY = desktops[0] ? desktops[0].position[1] + desktops[0].boxSize[1] / 2 : Number.NaN;
+      if (Math.abs(topY - height) > 0.01) fail(`纯电脑桌桌面顶高 ${topY} ≠ 请求总高 ${height}`);
+      if (pure.members.some((member) => member.position[1] > 800)) fail('纯电脑桌不应生成上架构件');
+      if (!pure.checks.some((check) => check.ruleId === 'val-002')) fail('纯电脑桌缺少主桌面挠度校验');
+    }
+    if (!failures) ok('纯电脑桌 740/800mm 拓扑通过');
+  } catch (e) {
+    fail(`纯电脑桌生成异常: ${(e as Error).message}`);
   }
 }
 

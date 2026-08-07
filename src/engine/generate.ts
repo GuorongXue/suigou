@@ -26,6 +26,24 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   }
 
   const { width: W, depth: D, height: H } = spec;
+  if (![W, D, H, spec.loadKg].every(Number.isFinite)) {
+    throw new Error('尺寸与载荷必须是有限数值');
+  }
+  if (!Number.isFinite(spec.shelfCount)
+    || (spec.workbenchDeskTopHeightMm != null && !Number.isFinite(spec.workbenchDeskTopHeightMm))
+    || (spec.workbenchUpperShelfDepthRatio != null && !Number.isFinite(spec.workbenchUpperShelfDepthRatio))) {
+    throw new Error('层数与工作台人体工学参数必须是有限数值');
+  }
+  if (W <= 0 || D <= 0 || H <= 0) {
+    throw new Error('宽、深、高必须大于 0');
+  }
+  if (spec.scene === 'workbench' && D < 550) {
+    throw new Error('电脑桌深度至少需要 550mm，推荐 600~700mm');
+  }
+  const isPureDesk = spec.scene === 'workbench' && H <= 800;
+  if (spec.scene === 'workbench' && !isPureDesk && H < 1100) {
+    throw new Error('电脑桌总高 801~1099mm 既不符合纯桌面，也不足以容纳上架');
+  }
   const beamX = W - 2 * s + 2 * conn.lengthOffset;
   const beamZ = D - 2 * s + 2 * conn.lengthOffset;
   if (beamX <= 0 || beamZ <= 0) throw new Error('总尺寸过小，扣除立柱截面后梁长为负');
@@ -39,37 +57,31 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   const addJoint = (j: Omit<Joint, 'id' | 'connectorId'>) =>
     joints.push({ id: `j-${++jn}`, connectorId: conn.id, ...j });
 
-  // 4 立柱（全高），记录位置供接点归属匹配
-  const postAt = new Map<string, string>();   // "x,z" -> memberId
-  for (const [x, z] of [
-    [-W / 2 + s / 2, -D / 2 + s / 2],
-    [W / 2 - s / 2, -D / 2 + s / 2],
-    [-W / 2 + s / 2, D / 2 - s / 2],
-    [W / 2 - s / 2, D / 2 - s / 2],
-  ]) {
-    add({ role: 'post', sectionId: sec.id, length: H, position: [x, H / 2, z], axis: 'y' });
-    postAt.set(`${x},${z}`, `m-${n}`);
-  }
-
   // 梁层：底框 + 顶框 + 隔板层（工作台场景优先保证主桌面绝对高度）
   const clampRatio = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   const shelfLevels: number[] = (() => {
-    const count = spec.shelfCount;
+    const count = Math.floor(spec.scene === 'workbench' ? Math.max(1, spec.shelfCount) : Math.max(0, spec.shelfCount));
     if (count <= 0) return [];
     if (spec.scene !== 'workbench') {
       return Array.from({ length: count }, (_, i) => (H * (i + 1)) / (count + 1));
     }
-    const panelKey = spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood';
+    const panelKey = isPureDesk && spec.topPanel !== 'none'
+      ? spec.topPanel
+      : (spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood');
     const panelT = PANEL_SPEC[panelKey].thickness;
-    const deskTop = Math.min(800, Math.max(680, spec.workbenchDeskTopHeightMm ?? 740));
+    const deskTop = isPureDesk ? H : Math.min(800, Math.max(680, spec.workbenchDeskTopHeightMm ?? 740));
     const deskLevel = Math.min(
-      H - s - 90,
+      isPureDesk ? H - (s / 2 + panelT) : H - s - 90,
       Math.max(s + 60, deskTop - (s / 2 + panelT)),
     );
+    if (isPureDesk) return [deskLevel];
     if (count === 1) return [deskLevel];
     const upperCount = count - 1;
     const upperStart = deskLevel + 240;
     const upperEnd = H - s - 90;
+    if (upperCount > 0 && upperEnd - deskLevel < upperCount * 170) {
+      throw new Error(`总高 ${H}mm 无法容纳 ${count} 层桌面/搁板（层间净距至少 170mm）`);
+    }
     const uppers = Array.from({ length: upperCount }, (_, i) => {
       const t = (i + 1) / (upperCount + 1);
       return upperStart + (upperEnd - upperStart) * t;
@@ -78,9 +90,51 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   })();
   const levels: number[] = [s / 2, H - s / 2, ...shelfLevels];
 
-  for (const y of levels) {
+  const postAt = new Map<string, string>();   // "x,z" -> memberId
+  const groundPostIds = new Set<string>();
+  const addPost = (x: number, z: number, yStart: number, yEnd: number) => {
+    if (!Number.isFinite(yStart) || !Number.isFinite(yEnd) || yEnd <= yStart) {
+      throw new Error(`立柱高度无效：${yStart}~${yEnd}mm`);
+    }
+    add({ role: 'post', sectionId: sec.id, length: yEnd - yStart, position: [x, (yStart + yEnd) / 2, z], axis: 'y' });
+    const postId = `m-${n}`;
+    postAt.set(`${x},${z}`, postId);
+    if (yStart === 0) groundPostIds.add(postId);
+  };
+  const xLeft = -W / 2 + s / 2;
+  const xRight = W / 2 - s / 2;
+  const zBack = -D / 2 + s / 2;
+  const zFront = D / 2 - s / 2;
+  const upperDepthRatio = clampRatio(spec.workbenchUpperShelfDepthRatio ?? 0.55, 0.35, 0.95);
+  const upperOuterDepth = Math.min(D, Math.max(180, Math.round(D * upperDepthRatio)));
+  const zUpperFront = -D / 2 + upperOuterDepth - s / 2;
+
+  if (spec.scene === 'workbench' && isPureDesk) {
+    const deskPostTop = shelfLevels[0] + s / 2;
+    addPost(xLeft, zBack, 0, deskPostTop);
+    addPost(xRight, zBack, 0, deskPostTop);
+    addPost(xLeft, zFront, 0, deskPostTop);
+    addPost(xRight, zFront, 0, deskPostTop);
+  } else if (spec.scene === 'workbench') {
+    const deskY = shelfLevels[0];
+    addPost(xLeft, zBack, 0, H);
+    addPost(xRight, zBack, 0, H);
+    addPost(xLeft, zFront, 0, deskY + s / 2);
+    addPost(xRight, zFront, 0, deskY + s / 2);
+    addPost(xLeft, zUpperFront, deskY + s / 2, H);
+    addPost(xRight, zUpperFront, deskY + s / 2, H);
+  } else {
+    for (const [x, z] of [[xLeft, zBack], [xRight, zBack], [xLeft, zFront], [xRight, zFront]]) {
+      addPost(x, z, 0, H);
+    }
+  }
+
+  const addRectLayer = (y: number, outerDepth: number, centerZ = 0) => {
     const ySide: 1 | -1 = y <= s ? 1 : -1;   // 底框角码朝上，其余朝下
-    for (const z of [-D / 2 + s / 2, D / 2 - s / 2]) {
+    const layerBeamZ = outerDepth - 2 * s + 2 * conn.lengthOffset;
+    const layerBack = centerZ - outerDepth / 2 + s / 2;
+    const layerFront = centerZ + outerDepth / 2 - s / 2;
+    for (const z of [layerBack, layerFront]) {
       add({ role: 'beam-x', sectionId: sec.id, length: beamX, position: [0, y, z], axis: 'x' });
       const beamId = `m-${n}`;
       for (const outward of [1, -1] as const) {
@@ -89,15 +143,34 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
           beamMemberId: beamId, postMemberId: postId });
       }
     }
-    for (const x of [-W / 2 + s / 2, W / 2 - s / 2]) {
-      add({ role: 'beam-z', sectionId: sec.id, length: beamZ, position: [x, y, 0], axis: 'z' });
+    for (const x of [xLeft, xRight]) {
+      add({ role: 'beam-z', sectionId: sec.id, length: layerBeamZ, position: [x, y, centerZ], axis: 'z' });
       const beamId = `m-${n}`;
       for (const outward of [1, -1] as const) {
-        const postId = postAt.get(`${x},${outward * (D / 2 - s / 2)}`)!;
-        addJoint({ position: [x, y, outward * (D / 2 - s)], beamAxis: 'z', outward, ySide,
+        const z = outward === -1 ? layerBack : layerFront;
+        const postId = postAt.get(`${x},${z}`)!;
+        addJoint({ position: [x, y, centerZ + outward * (outerDepth / 2 - s)], beamAxis: 'z', outward, ySide,
           beamMemberId: beamId, postMemberId: postId });
       }
     }
+  };
+
+  if (spec.scene === 'workbench' && isPureDesk) {
+    addRectLayer(shelfLevels[0], D);
+  } else if (spec.scene === 'workbench') {
+    // 桌下正面完全开放：底部仅保留后横撑，不做前梁和两侧落地围框。
+    add({ role: 'beam-x', sectionId: sec.id, length: beamX, position: [0, s / 2, zBack], axis: 'x' });
+    const bottomRearId = `m-${n}`;
+    for (const outward of [1, -1] as const) {
+      addJoint({ position: [outward * (W / 2 - s), s / 2, zBack], beamAxis: 'x', outward, ySide: 1,
+        beamMemberId: bottomRearId, postMemberId: postAt.get(`${outward * (W / 2 - s / 2)},${zBack}`)! });
+    }
+    addRectLayer(shelfLevels[0], D);
+    const upperCenterZ = -D / 2 + upperOuterDepth / 2;
+    for (const y of shelfLevels.slice(1)) addRectLayer(y, upperOuterDepth, upperCenterZ);
+    addRectLayer(H - s / 2, upperOuterDepth, upperCenterZ);
+  } else {
+    for (const y of levels) addRectLayer(y, D);
   }
 
   // 板材构件（9.2.3 修复：真实搭接几何 + Mount 固定关系，不再悬空）
@@ -115,11 +188,13 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const ps = PANEL_SPEC[material];
     // 顶面板：覆盖整框（W×D 齐平）；隔板：四边各搭 15mm 在梁上表面（真实支撑接触）
     const overlap = 15;
-    const fullPd = D - 2 * s + 2 * overlap;
+    const fullPd = isTop ? D : D - 2 * s + 2 * overlap;
     const pw = isTop ? W : W - 2 * s + 2 * overlap;
     const ratio = clampRatio(opts?.depthRatio ?? 1, 0.35, 1);
-    const pd = isTop ? D : Math.max(Math.round(fullPd * ratio), Math.round(overlap + 120));
-    const zShift = isTop ? 0 : (() => {
+    const pd = isTop && spec.scene !== 'workbench'
+      ? D
+      : Math.min(fullPd, Math.max(Math.round(fullPd * ratio), Math.round(overlap + 120)));
+    const zShift = (() => {
       const free = Math.max(0, fullPd - pd);
       if (opts?.align === 'back') return -free / 2;
       if (opts?.align === 'front') return free / 2;
@@ -139,8 +214,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       boxSize: [pw, ps.thickness, pd],
       position: [0, beamTopY + ps.thickness / 2, zShift],   // 底面落在梁上表面
       mode: isTop ? 'top-overlay' : 'shelf-overlap',
-      mountNote: (isTop ? '顶面板(覆盖式)：' : '隔板(搭梁式)：') + ps.mountNote
-        + (!isTop && pd < fullPd ? `；浅搁板深度 ${Math.round((pd / fullPd) * 100)}%` : ''),
+      mountNote: (isTop ? '顶部置物板：' : '隔板(搭梁式)：') + ps.mountNote
+        + (pd < fullPd ? `；浅搁板深度 ${Math.round((pd / fullPd) * 100)}%` : ''),
       holes,
     });
     // 固定点：四角内缩，落在梁中心线上方
@@ -161,13 +236,14 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       points,
     });
   };
-  addPanel(spec.topPanel, H, true);   // 顶梁上表面 = H
+  if (!isPureDesk) addPanel(spec.topPanel, H, true, spec.scene === 'workbench'
+    ? { depthRatio: upperDepthRatio, align: 'back' }
+    : undefined);
   addPanel(spec.bottomPanel, s, false);   // 底框梁上表面 = s（搭梁式同隔板）
   for (let i = 0; i < shelfLevels.length; i++) {
-    const t = shelfLevels.length <= 1 ? 0 : (i + 1) / shelfLevels.length;
-    const upperDepth = clampRatio(spec.workbenchUpperShelfDepthRatio ?? 0.58, 0.35, 0.95);
-    const depthRatio = spec.scene === 'workbench' ? (1 - (1 - upperDepth) * t) : 1;
-    addPanel(spec.shelfPanel, shelfLevels[i] + s / 2, false, {
+    const depthRatio = spec.scene === 'workbench' && i > 0 ? upperDepthRatio : 1;
+    const material = isPureDesk && i === 0 && spec.topPanel !== 'none' ? spec.topPanel : spec.shelfPanel;
+    addPanel(material, shelfLevels[i] + s / 2, false, {
       depthRatio,
       align: spec.scene === 'workbench' ? 'back' : 'center',
     });
@@ -180,12 +256,15 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const panelId = `pn-${++pn}`;
     const isBack = side === 'back';
     const pw = isBack ? W : D;   // 板面宽度（沿框架面）
-    const ph = H;
+    const partialWorkbenchBack = spec.scene === 'workbench' && isBack && material === 'pegboard';
+    const deskTop = spec.workbenchDeskTopHeightMm ?? 740;
+    const ph = partialWorkbenchBack ? H - deskTop : H;
     const boxSize: [number, number, number] = isBack
       ? [W, H, ps.thickness] : [ps.thickness, H, D];
     const position: [number, number, number] = isBack
-      ? [0, H / 2, -D / 2 - ps.thickness / 2]
+      ? [0, partialWorkbenchBack ? (deskTop + H) / 2 : H / 2, -D / 2 - ps.thickness / 2]
       : [side === 'left' ? -W / 2 - ps.thickness / 2 : W / 2 + ps.thickness / 2, H / 2, 0];
+    if (partialWorkbenchBack) boxSize[1] = ph;
     // 固定孔（板局部坐标，沿板宽×板高）：孔心落柱中心线，横向距边 s/2，纵向距上下边 s
     const holes = ps.mount === 't-nut-screw'
       ? [[s / 2, s], [pw - s / 2, s], [s / 2, ph - s], [pw - s / 2, ph - s]]
@@ -200,7 +279,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     });
     // 固定点：四角柱上
     const points: [number, number, number][] = isBack
-      ? [[-W / 2 + s / 2, s, -D / 2], [W / 2 - s / 2, s, -D / 2], [-W / 2 + s / 2, H - s, -D / 2], [W / 2 - s / 2, H - s, -D / 2]]
+      ? [[-W / 2 + s / 2, partialWorkbenchBack ? deskTop : s, -D / 2], [W / 2 - s / 2, partialWorkbenchBack ? deskTop : s, -D / 2], [-W / 2 + s / 2, H - s, -D / 2], [W / 2 - s / 2, H - s, -D / 2]]
       : (() => {
         const x = side === 'left' ? -W / 2 : W / 2;
         return [[x, s, -D / 2 + s / 2], [x, s, D / 2 - s / 2], [x, H - s, -D / 2 + s / 2], [x, H - s, D / 2 - s / 2]] as [number, number, number][];
@@ -308,6 +387,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   if (spec.mobility === 'caster') {
     let an = 0;
     for (const [key, postId] of postAt) {
+      if (!groundPostIds.has(postId)) continue;
       const [x, z] = key.split(',').map(Number);
       const accId = `ac-${++an}`;
       accessories.push({ id: accId, kind: 'caster', sku: 'caster-stem-m8-50', position: [x, -35, z], weightKg: 0.35 });
@@ -390,6 +470,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   // 脚轮丝杆 → 立柱底端面 M8 攻牙加工（装配关系派生加工特征）
   if (spec.mobility === 'caster') {
     for (const [key, postId] of postAt) {
+      if (!groundPostIds.has(postId)) continue;
       const [x, z] = key.split(',').map(Number);
       machining.push({
         id: `mc-${++mn}`, jointId: '-', memberId: postId, type: 'end-tap', spec: 'M8×20(脚轮)',

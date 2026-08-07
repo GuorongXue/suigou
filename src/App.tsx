@@ -45,7 +45,10 @@ interface Draft {
 const normalizeWorkbenchSpec = (s: FrameSpec): FrameSpec => {
   const next = { ...s };
   if (next.scene === 'workbench') {
-    next.height = Math.min(WORKBENCH_HEIGHT_MAX, Math.max(WORKBENCH_HEIGHT_MIN, next.height));
+    next.depth = Math.max(550, next.depth);
+    next.height = next.height <= 800
+      ? Math.min(800, Math.max(680, next.height))
+      : Math.min(WORKBENCH_HEIGHT_MAX, Math.max(WORKBENCH_HEIGHT_MIN, next.height));
     next.workbenchDeskTopHeightMm = next.workbenchDeskTopHeightMm ?? 740;
     next.workbenchLowerZoneRatio = next.workbenchLowerZoneRatio ?? 0.62;
     next.workbenchUpperShelfDepthRatio = next.workbenchUpperShelfDepthRatio ?? 0.58;
@@ -74,8 +77,8 @@ export default function App() {
     brace: draft.spec.brace ?? false,
   }) : {
     width: 700,
-    depth: 400,
-    height: 720,
+    depth: 650,
+    height: 1100,
     sectionId: 'eu-3030',
     connectorId: 'corner-bracket-30',
     shelfCount: 1,

@@ -29,3 +29,12 @@ const m = generateFrame(r.spec, kb);
 const shelfYs = m.panels.filter((p) => p.mode === 'shelf-overlap').map((p) => Math.round(p.position[1]));
 console.log('--- 生成 ---');
 console.log('隔板面高度:', shelfYs, '状态:', m.status);
+console.log('立柱:', m.members.filter((x) => x.role === 'post').map((x) => ({
+  len: x.length, y: Math.round(x.position[1]), z: Math.round(x.position[2]),
+})));
+console.log('桌下梁:', m.members.filter((x) => x.role !== 'post' && x.position[1] < 100).map((x) => ({
+  role: x.role, len: x.length, z: Math.round(x.position[2]),
+})));
+console.log('板材:', m.panels.map((p) => ({
+  mode: p.mode, material: p.material, size: p.size.map(Math.round), position: p.position.map(Math.round),
+})));

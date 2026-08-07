@@ -33,8 +33,20 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
     checks.push({ level: 'info', ruleId: 'con-005', message: '脚轮工况：设计载荷已按冲击系数 2.5 放大' });
   }
 
-  // ---- val-002 挠度校验：顶面承载梁（取最长跨，载荷分到两根同向梁） ----
-  const topBeams = members.filter((m) => m.role !== 'post' && Math.abs(m.position[1] - (spec.height - sec.size[0] / 2)) < 1);
+  // ---- val-002 挠度校验：实际主承载面下方梁（取最长跨，载荷分到两根同向梁） ----
+  const targetDeskTop = spec.workbenchDeskTopHeightMm ?? Math.min(spec.height, 740);
+  const desktop = spec.scene === 'workbench'
+    ? model.panels.filter((p) => p.mode === 'shelf-overlap')
+      .sort((a, b) => {
+        const aTop = a.position[1] + a.boxSize[1] / 2;
+        const bTop = b.position[1] + b.boxSize[1] / 2;
+        return Math.abs(aTop - targetDeskTop) - Math.abs(bTop - targetDeskTop);
+      })[0]
+    : undefined;
+  const loadBeamY = desktop
+    ? desktop.position[1] - desktop.boxSize[1] / 2 - sec.size[0] / 2
+    : spec.height - sec.size[0] / 2;
+  const topBeams = members.filter((m) => m.role !== 'post' && Math.abs(m.position[1] - loadBeamY) < 1);
   const longest = topBeams.reduce((a, b) => (b.length > a.length ? b : a), topBeams[0]);
   if (longest) {
     const L = longest.length;

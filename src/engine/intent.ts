@@ -42,7 +42,7 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
 
   const dim = ex.dimensions ?? { width: null, depth: null, height: null };
   const width = dim.width ?? 800;
-  const depth = dim.depth ?? 400;
+  let depth = dim.depth ?? 400;
   let height = dim.height ?? 750;
   if (dim.width == null) assumptions.push('宽度未说明，按 800mm 假设');
   if (dim.depth == null) assumptions.push('深度未说明，按 400mm 假设');
@@ -74,6 +74,16 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     assumptions.push('产品类型为桌子（workbench），场景按电脑桌/工作台语义处理');
   }
   if (scene === 'workbench') {
+    const deskDepthMin = desk?.depthMm?.min ?? 550;
+    if (dim.depth == null) {
+      depth = desk?.depthMm?.std ?? 650;
+      const i = assumptions.findIndex((a) => a.includes('深度未说明'));
+      if (i >= 0) assumptions.splice(i, 1);
+      assumptions.push(`电脑桌深度未说明，按舒适深度 ${depth}mm 假设`);
+    } else if (depth < deskDepthMin) {
+      assumptions.push(`电脑桌深度 ${depth}mm 小于可用下限 ${deskDepthMin}mm，已调整为 ${deskDepthMin}mm`);
+      depth = deskDepthMin;
+    }
     const rawHeight = height;
     if (dim.height == null) {
       // 高度未说明：单层=纯桌面高；多层/上方置物=hutch 形态总高（archetypes）
@@ -195,6 +205,10 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     if (shelfPanel === 'none') {
       shelfPanel = 'wood';
       assumptions.push('工作台语义默认补齐主桌面板：隔板材质未指定时按木板处理');
+    }
+    if (height >= WORKBENCH_HEIGHT_MIN && topPanel === 'none') {
+      topPanel = shelfPanel;
+      assumptions.push('带上架电脑桌默认补齐后靠浅层置物板（与主桌面同材质）');
     }
     // 开放式约束：门板/底板禁止；背板仅保留洞洞板（立面收纳）
     const hadEnclosure = doorPanel !== 'none' || bottomPanel !== 'none' || (backPanel !== 'none' && backPanel !== 'pegboard');
