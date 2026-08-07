@@ -32,6 +32,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
 
   const members: Member[] = [];
   const joints: Joint[] = [];
+  const PANEL_SPEC = kb.panels;   // knowledge/panels.yaml：厚度/面密度/单价/固定方式/孔径
   let n = 0;
   let jn = 0;
   const add = (m: Omit<Member, 'id'>) => members.push({ id: `m-${++n}`, ...m });
@@ -50,7 +51,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     postAt.set(`${x},${z}`, `m-${n}`);
   }
 
-  // 梁层：底框 + 顶框 + 隔板层（工作台场景采用非均匀人体工学分配）
+  // 梁层：底框 + 顶框 + 隔板层（工作台场景优先保证主桌面绝对高度）
   const clampRatio = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   const shelfLevels: number[] = (() => {
     const count = spec.shelfCount;
@@ -58,17 +59,22 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     if (spec.scene !== 'workbench') {
       return Array.from({ length: count }, (_, i) => (H * (i + 1)) / (count + 1));
     }
-    const lowerRatio = clampRatio(spec.workbenchLowerZoneRatio ?? 0.62, 0.45, 0.82);
-    const endRatio = Math.max(lowerRatio + 0.08, 0.90);
-    if (count === 1) {
-      return [s / 2 + (H - s) * lowerRatio];
-    }
-    return Array.from({ length: count }, (_, i) => {
-      if (i === 0) return s / 2 + (H - s) * lowerRatio;
-      const t = i / (count - 1);
-      const ratio = lowerRatio + (endRatio - lowerRatio) * Math.pow(t, 0.85);
-      return s / 2 + (H - s) * clampRatio(ratio, lowerRatio, 0.94);
-    });
+    const panelKey = spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood';
+    const panelT = PANEL_SPEC[panelKey].thickness;
+    const deskTop = Math.min(800, Math.max(680, spec.workbenchDeskTopHeightMm ?? 740));
+    const deskLevel = Math.min(
+      H - s - 90,
+      Math.max(s + 60, deskTop - (s / 2 + panelT)),
+    );
+    if (count === 1) return [deskLevel];
+    const upperCount = count - 1;
+    const upperStart = deskLevel + 240;
+    const upperEnd = H - s - 90;
+    const uppers = Array.from({ length: upperCount }, (_, i) => {
+      const t = (i + 1) / (upperCount + 1);
+      return upperStart + (upperEnd - upperStart) * t;
+    }).map((y) => Math.min(H - s - 70, Math.max(deskLevel + 170, y)));
+    return [deskLevel, ...uppers];
   })();
   const levels: number[] = [s / 2, H - s / 2, ...shelfLevels];
 
@@ -97,7 +103,6 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   // 板材构件（9.2.3 修复：真实搭接几何 + Mount 固定关系，不再悬空）
   const panels: PanelItem[] = [];
   const mounts: MountItem[] = [];
-  const PANEL_SPEC = kb.panels;   // knowledge/panels.yaml：厚度/面密度/单价/固定方式/孔径
   let pn = 0;
   let mtn = 0;
   const addPanel = (
@@ -159,7 +164,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   addPanel(spec.topPanel, H, true);   // 顶梁上表面 = H
   addPanel(spec.bottomPanel, s, false);   // 底框梁上表面 = s（搭梁式同隔板）
   for (let i = 0; i < shelfLevels.length; i++) {
-    const t = shelfLevels.length <= 1 ? 1 : (i + 1) / shelfLevels.length;
+    const t = shelfLevels.length <= 1 ? 0 : (i + 1) / shelfLevels.length;
     const upperDepth = clampRatio(spec.workbenchUpperShelfDepthRatio ?? 0.58, 0.35, 0.95);
     const depthRatio = spec.scene === 'workbench' ? (1 - (1 - upperDepth) * t) : 1;
     addPanel(spec.shelfPanel, shelfLevels[i] + s / 2, false, {

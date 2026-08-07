@@ -35,8 +35,8 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   const assumptions = [...(ex._assumptions ?? [])];
   const questions: string[] = [];
   const riskFlags = [...(ex._riskFlags ?? [])];
-  const WORKBENCH_HEIGHT_MIN = 680;
-  const WORKBENCH_HEIGHT_MAX = 900;
+  const WORKBENCH_HEIGHT_MIN = 1100;
+  const WORKBENCH_HEIGHT_MAX = 1800;
 
   const dim = ex.dimensions ?? { width: null, depth: null, height: null };
   const width = dim.width ?? 800;
@@ -111,9 +111,14 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
 
   const shelfCount = ex.layers != null ? Math.max(0, Math.min(4, ex.layers - 1)) : 1;
   if (ex.layers == null) assumptions.push('层数未说明，按 1 层隔板假设');
+  const deskShelfCount = scene === 'workbench' ? Math.max(1, shelfCount) : shelfCount;
+  if (scene === 'workbench' && shelfCount === 0) {
+    assumptions.push('工作台语义至少保留 1 层桌面隔板，已自动补齐');
+  }
   const workbenchLowerZoneRatio = scene === 'workbench' ? 0.62 : undefined;
+  const workbenchDeskTopHeightMm = scene === 'workbench' ? 740 : undefined;
   const workbenchUpperShelfDepthRatio = scene === 'workbench' ? 0.58 : undefined;
-  if (scene === 'workbench' && shelfCount > 0) {
+  if (scene === 'workbench' && deskShelfCount > 0) {
     assumptions.push('工作台人体工学默认：下层净空更大、上层置物搁板更浅');
   }
 
@@ -157,13 +162,18 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     }
   }
   if (scene === 'workbench') {
-    const hadEnclosure = doorPanel !== 'none' || backPanel !== 'none';
+    if (shelfPanel === 'none') {
+      shelfPanel = 'wood';
+      assumptions.push('工作台语义默认补齐主桌面板：隔板材质未指定时按木板处理');
+    }
+    const hadEnclosure = doorPanel !== 'none' || backPanel !== 'none' || bottomPanel !== 'none';
     if (hadEnclosure) {
-      assumptions.push('工作台语义默认开放式：门板/全高侧背板已关闭（避免生成柜体形态）');
-      unsupported.push('工作台默认开放式封板（门板/全高侧背板）');
+      assumptions.push('工作台语义默认开放式：门板/全高侧背板/底板已关闭（避免生成柜体形态）');
+      unsupported.push('工作台默认开放式封板（门板/全高侧背板/底板）');
     }
     doorPanel = 'none';
     backPanel = 'none';
+    bottomPanel = 'none';
   }
   // productType 超纲 / 附件类需求降级
   if (ex.productType === 'other') {
@@ -185,8 +195,8 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   return {
     spec: {
       width: clamp(width, assumptions, '宽'), depth: clamp(depth, assumptions, '深'), height: clamp(height, assumptions, '高'),
-      sectionId, connectorId, shelfCount,
-      workbenchLowerZoneRatio, workbenchUpperShelfDepthRatio,
+      sectionId, connectorId, shelfCount: deskShelfCount,
+      workbenchLowerZoneRatio, workbenchDeskTopHeightMm, workbenchUpperShelfDepthRatio,
       loadKg, loadType, scene, highRisk, mobility, vibration,
       topPanel, shelfPanel, bottomPanel, doorPanel,
       backPanel, leftPanel: 'none', rightPanel: 'none',

@@ -21,7 +21,7 @@ interface ChatMsg {
 const FIELD_NAMES: Record<string, string> = {
   width: '总宽', depth: '总深', height: '总高', shelfCount: '隔板层数', loadKg: '载荷',
   loadType: '载荷分布', scene: '场景', highRisk: '高风险', mobility: '移动性',
-  workbenchLowerZoneRatio: '下层净空占比', workbenchUpperShelfDepthRatio: '上层浅搁板深度占比',
+  workbenchDeskTopHeightMm: '主桌面高度', workbenchUpperShelfDepthRatio: '上层浅搁板深度占比',
   sectionId: '截面', connectorId: '连接件', topPanel: '顶面板', shelfPanel: '隔板材质', bottomPanel: '底板', doorPanel: '门板',
 };
 
@@ -34,8 +34,8 @@ const FIELD_TO_PATH: Record<string, string> = {
 };
 
 const DRAFT_KEY = 'suigou_draft_v1';
-const WORKBENCH_HEIGHT_MIN = 680;
-const WORKBENCH_HEIGHT_MAX = 900;
+const WORKBENCH_HEIGHT_MIN = 1100;
+const WORKBENCH_HEIGHT_MAX = 1800;
 interface Draft {
   spec: FrameSpec;
   chat: ChatMsg[];
@@ -46,9 +46,12 @@ const normalizeWorkbenchSpec = (s: FrameSpec): FrameSpec => {
   const next = { ...s };
   if (next.scene === 'workbench') {
     next.height = Math.min(WORKBENCH_HEIGHT_MAX, Math.max(WORKBENCH_HEIGHT_MIN, next.height));
+    next.workbenchDeskTopHeightMm = next.workbenchDeskTopHeightMm ?? 740;
     next.workbenchLowerZoneRatio = next.workbenchLowerZoneRatio ?? 0.62;
     next.workbenchUpperShelfDepthRatio = next.workbenchUpperShelfDepthRatio ?? 0.58;
+    next.shelfCount = Math.max(1, next.shelfCount);
     next.doorPanel = 'none';
+    next.bottomPanel = 'none';
     next.backPanel = 'none';
     next.leftPanel = 'none';
     next.rightPanel = 'none';
@@ -83,6 +86,7 @@ export default function App() {
     mobility: 'fixed',
     topPanel: 'none',
     shelfPanel: 'none',
+    workbenchDeskTopHeightMm: 740,
     workbenchLowerZoneRatio: 0.62,
     workbenchUpperShelfDepthRatio: 0.58,
     bottomPanel: 'none',
@@ -132,6 +136,7 @@ export default function App() {
         width: spec.width, depth: spec.depth, height: spec.height,
         loadKg: spec.loadKg, loadType: spec.loadType, mobility: spec.mobility,
         layers: spec.shelfCount + 1, topPanel: spec.topPanel, shelfPanel: spec.shelfPanel,
+        workbenchDeskTopHeightMm: spec.workbenchDeskTopHeightMm,
         workbenchLowerZoneRatio: spec.workbenchLowerZoneRatio,
         workbenchUpperShelfDepthRatio: spec.workbenchUpperShelfDepthRatio,
       })}` : '';
@@ -298,6 +303,7 @@ export default function App() {
     setSpec((s) => {
       const next = normalizeWorkbenchSpec({ ...s, ...patch });
       if (next.scene === 'workbench') {
+        if (next.workbenchDeskTopHeightMm == null) next.workbenchDeskTopHeightMm = 740;
         if (next.workbenchLowerZoneRatio == null) next.workbenchLowerZoneRatio = 0.62;
         if (next.workbenchUpperShelfDepthRatio == null) next.workbenchUpperShelfDepthRatio = 0.58;
       }
@@ -632,14 +638,14 @@ export default function App() {
           <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 6, background: '#f6f9ff', border: '1px solid #d8e6ff' }}>
             <div style={{ fontSize: 12, color: '#3769b2', marginBottom: 4 }}>电脑桌语义（人体工学）</div>
             <label style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
-              下层净空占比 {Math.round((spec.workbenchLowerZoneRatio ?? 0.62) * 100)}%
+              主桌面高度 {spec.workbenchDeskTopHeightMm ?? 740} mm
               <input
                 type="range"
-                min={45}
-                max={82}
-                step={1}
-                value={Math.round((spec.workbenchLowerZoneRatio ?? 0.62) * 100)}
-                onChange={(e) => set({ workbenchLowerZoneRatio: Number(e.target.value) / 100 })}
+                min={680}
+                max={800}
+                step={10}
+                value={spec.workbenchDeskTopHeightMm ?? 740}
+                onChange={(e) => set({ workbenchDeskTopHeightMm: Number(e.target.value) })}
                 style={{ width: '100%' }}
               />
             </label>

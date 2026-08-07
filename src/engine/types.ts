@@ -11,6 +11,8 @@ export interface FrameSpec {
   shelfCount: number;
   /** 工作台语义：首层隔板高度占可用高度比例（下层人体工学净空优先） */
   workbenchLowerZoneRatio?: number;
+  /** 工作台语义：主桌面上表面高度（mm，坐姿操作区） */
+  workbenchDeskTopHeightMm?: number;
   /** 工作台语义：最上层搁板深度占桌面深度比例（上层默认浅一些） */
   workbenchUpperShelfDepthRatio?: number;
   /** 顶面设计载荷 kg */

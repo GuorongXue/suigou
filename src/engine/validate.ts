@@ -86,17 +86,23 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
 
   // ---- val-workbench 工作台形态语义：避免把电脑桌生成为高柜 ----
   if (spec.scene === 'workbench') {
-    if (spec.height < 680 || spec.height > 900) {
+    if (spec.height < 1100 || spec.height > 1800) {
       checks.push({
         level: 'warn', ruleId: 'val-workbench-height',
-        message: `工作台建议高度 680~900mm，当前 ${spec.height}mm 更接近柜体/货架语义；建议回到桌面高度区间`,
+        message: `工作台（含上层置物）建议总高 1100~1800mm，当前 ${spec.height}mm 偏离常用区间；请确认是否仍是电脑桌语义`,
       });
     }
-    const hasEnclosure = spec.doorPanel !== 'none' || spec.backPanel !== 'none' || spec.leftPanel !== 'none' || spec.rightPanel !== 'none';
+    if ((spec.workbenchDeskTopHeightMm ?? 740) < 680 || (spec.workbenchDeskTopHeightMm ?? 740) > 800) {
+      checks.push({
+        level: 'warn', ruleId: 'val-workbench-desk-top',
+        message: `主桌面高度建议 680~800mm，当前 ${(spec.workbenchDeskTopHeightMm ?? 740)}mm 可能影响坐姿与键鼠操作舒适度`,
+      });
+    }
+    const hasEnclosure = spec.bottomPanel !== 'none' || spec.doorPanel !== 'none' || spec.backPanel !== 'none' || spec.leftPanel !== 'none' || spec.rightPanel !== 'none';
     if (hasEnclosure) {
       checks.push({
         level: 'warn', ruleId: 'val-workbench-topology',
-        message: '当前为工作台场景但存在门板/全高侧背板，形态更接近柜体；若目标是电脑桌，建议保持开放式拓扑',
+        message: '当前为工作台场景但存在底板/门板/全高侧背板，形态更接近柜体；若目标是电脑桌，建议保持开放式拓扑',
       });
     }
   }
