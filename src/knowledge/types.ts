@@ -88,6 +88,29 @@ export interface FastenerDef {
   price: number;
 }
 
+/** 尺寸档位：真实物件的 min/std/max（knowledge/archetypes.yaml） */
+export interface DimBand {
+  min?: number;
+  std?: number;
+  max?: number;
+  hutchMin?: number;
+  hutchMax?: number;
+}
+
+/** 物件形态原型（真实样子的数据化） */
+export interface ArchetypeDef {
+  name: string;
+  deskTopHeightMm?: DimBand;
+  depthMm?: DimBand;
+  widthMm?: DimBand;
+  overallHeightMm?: DimBand;
+  upperShelfDepthRatio?: DimBand;
+  shelfPitchMm?: DimBand;
+  topology?: Record<string, string>;
+  note?: string;
+  [key: string]: unknown;
+}
+
 export interface KnowledgeBase {
   sections: SectionRecord[];
   connectors: ConnectorRecord[];
@@ -96,4 +119,5 @@ export interface KnowledgeBase {
   materials: Record<string, unknown>;
   panels: Record<string, PanelSpecDef>;
   fasteners: Record<string, FastenerDef>;
+  archetypes: Record<string, ArchetypeDef>;
 }

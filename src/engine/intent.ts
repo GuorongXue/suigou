@@ -35,8 +35,10 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   const assumptions = [...(ex._assumptions ?? [])];
   const questions: string[] = [];
   const riskFlags = [...(ex._riskFlags ?? [])];
-  const WORKBENCH_HEIGHT_MIN = 1100;
-  const WORKBENCH_HEIGHT_MAX = 1800;
+  // 真实物件档位来自 knowledge/archetypes.yaml（公开资料采集）
+  const desk = kb.archetypes['computer-desk'];
+  const WORKBENCH_HEIGHT_MIN = desk?.overallHeightMm?.hutchMin ?? 1100;
+  const WORKBENCH_HEIGHT_MAX = desk?.overallHeightMm?.hutchMax ?? 1800;
 
   const dim = ex.dimensions ?? { width: null, depth: null, height: null };
   const width = dim.width ?? 800;
@@ -116,8 +118,8 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     assumptions.push('工作台语义至少保留 1 层桌面隔板，已自动补齐');
   }
   const workbenchLowerZoneRatio = scene === 'workbench' ? 0.62 : undefined;
-  const workbenchDeskTopHeightMm = scene === 'workbench' ? 740 : undefined;
-  const workbenchUpperShelfDepthRatio = scene === 'workbench' ? 0.58 : undefined;
+  const workbenchDeskTopHeightMm = scene === 'workbench' ? (desk?.deskTopHeightMm?.std ?? 740) : undefined;
+  const workbenchUpperShelfDepthRatio = scene === 'workbench' ? (desk?.upperShelfDepthRatio?.std ?? 0.55) : undefined;
   if (scene === 'workbench' && deskShelfCount > 0) {
     assumptions.push('工作台人体工学默认：下层净空更大、上层置物搁板更浅');
   }

@@ -1,0 +1,67 @@
+# 物件形态原型库（archetypes）：来自公开资料的真实尺寸档位与拓扑特征
+# 用途：意图默认值 + 形态校验档位的单一数据源（代码不再硬编码尺寸档位）
+meta:
+  id: archetypes
+  source: 百度百科(电脑桌855818)/百度AI聚合搜索(2026-08 采集)：电脑桌尺寸、家用置物架、衣柜国标、鞋柜层高、鱼缸底柜承重
+  confidence: public
+  review: pending-expert
+  version: 0.1.0
+  updated: 2026-08-07
+
+archetypes:
+  computer-desk:
+    name: 电脑桌（含上层置物变体）
+    # 桌面上表面高度：标准75cm，通用区间72~76；身高矮取72、高取76
+    deskTopHeightMm: { min: 680, std: 740, max: 800 }
+    # 桌面深度：60cm 为入门舒适线（显示器+键鼠+理线），双屏 65~70；<55 压迫视线
+    depthMm: { min: 550, std: 650, max: 800 }
+    # 宽度：单人单屏 100~120cm；双屏/带主机 140~160cm+
+    widthMm: { min: 800, std: 1200, max: 1800 }
+    # 纯桌总高=桌面高；带上层置物架（hutch）变体总高常见 1.1~1.8m
+    overallHeightMm: { min: 680, hutchMin: 1100, hutchMax: 1800 }
+    # 上层搁板：显示器/置物辅层，深度为主桌面的 40%~70%，靠后放置
+    upperShelfDepthRatio: { min: 0.4, std: 0.55, max: 0.7 }
+    topology:
+      legroom: required        # 正面腿部净空必须开放
+      bottomPanel: forbidden   # 底板封死=货架/柜体语义
+      fullHeightSidePanels: forbidden
+      frontDoor: forbidden
+
+  storage-rack:
+    name: 家用置物架/货架
+    depthMm: { min: 250, std: 400, max: 600 }     # 书250-300 杂物350-450 重型40-60cm
+    shelfPitchMm: { min: 250, std: 320, max: 500 } # 固定层板约30cm；重型35-50可调
+    overallHeightMm: { min: 600, std: 1700, max: 2000 }
+    widthMm: { min: 400, std: 900, max: 1200 }     # 常见模数 40/50/60/80/100cm
+    note: 落地架>1.6m 建议上墙固定防倾倒；底层留 150-200mm 便于扫地机
+
+  wardrobe:
+    name: 衣柜（开放式/柜体）
+    depthMm: { min: 550, std: 600, max: 630 }      # <55 厚外套顶门；>60 卫生死角
+    overallHeightMm: { min: 2000, std: 2400, max: 2600 }
+    shortHangMm: { min: 900, std: 1000, max: 1200 } # 短衣区净高
+    longHangMm: { min: 1300, std: 1450, max: 1700 } # 长衣区净高（羽绒服/长裙取高值）
+    note: 挂衣杆离地 1600-1850；杆顶距上层板留 50-60mm 取放衣架
+
+  shoe-rack:
+    name: 鞋架/鞋柜
+    depthMm: { min: 300, std: 350, max: 450 }      # 350 净深可平放44码；含鞋盒≥380
+    shelfPitchMm: { min: 120, std: 160, max: 200 } # 平底120-150 运动150-180 高帮180-200
+    bootZoneMm: { min: 250, max: 500 }             # 短靴250-350 长靴400-500
+    bottomGapMm: { min: 150, std: 180, max: 200 }  # 底部留空放常穿鞋
+    overallHeightMm: { min: 850, std: 1000, max: 1200 }
+
+  aquarium-stand:
+    name: 鱼缸架/底柜
+    standHeightMm: { min: 700, std: 750, max: 900 } # 淡水70-75 海水(设备)80-90
+    overallWithTankMm: { min: 1200, max: 1400 }     # 站立平视缸中上部
+    topMarginMm: { length: 40, width: 25 }          # 柜面比缸底长+3~5cm 宽+2~3cm
+    loadFactorVsWater: 1.5                          # 标称承重≥实际总重1.5倍；家用≥200kg
+    note: 大缸(>1m)必须金属框架/多立柱+全支撑面；严禁点状支撑与普通家具替代
+
+  industrial-workbench:
+    name: 车间/维修工作台
+    workTopHeightMm: { min: 780, std: 800, max: 850 } # 站姿操作
+    depthMm: { min: 600, std: 750, max: 900 }
+    widthMm: { min: 1000, std: 1200, max: 1800 }
+    note: 允许下层板/抽屉/重横撑；与家用电脑桌语义区分

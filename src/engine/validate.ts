@@ -84,18 +84,30 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
     });
   }
 
-  // ---- val-workbench 工作台形态语义：避免把电脑桌生成为高柜 ----
+  // ---- val-workbench 工作台形态语义：档位来自 knowledge/archetypes.yaml computer-desk ----
   if (spec.scene === 'workbench') {
-    if (spec.height < 1100 || spec.height > 1800) {
+    const desk = kb.archetypes['computer-desk'];
+    const hMin = desk?.overallHeightMm?.hutchMin ?? 1100;
+    const hMax = desk?.overallHeightMm?.hutchMax ?? 1800;
+    if (spec.height < hMin || spec.height > hMax) {
       checks.push({
         level: 'warn', ruleId: 'val-workbench-height',
-        message: `工作台（含上层置物）建议总高 1100~1800mm，当前 ${spec.height}mm 偏离常用区间；请确认是否仍是电脑桌语义`,
+        message: `工作台（含上层置物）建议总高 ${hMin}~${hMax}mm，当前 ${spec.height}mm 偏离常用区间；请确认是否仍是电脑桌语义`,
       });
     }
-    if ((spec.workbenchDeskTopHeightMm ?? 740) < 680 || (spec.workbenchDeskTopHeightMm ?? 740) > 800) {
+    const dMin = desk?.deskTopHeightMm?.min ?? 680;
+    const dMax = desk?.deskTopHeightMm?.max ?? 800;
+    if ((spec.workbenchDeskTopHeightMm ?? 740) < dMin || (spec.workbenchDeskTopHeightMm ?? 740) > dMax) {
       checks.push({
         level: 'warn', ruleId: 'val-workbench-desk-top',
-        message: `主桌面高度建议 680~800mm，当前 ${(spec.workbenchDeskTopHeightMm ?? 740)}mm 可能影响坐姿与键鼠操作舒适度`,
+        message: `主桌面高度建议 ${dMin}~${dMax}mm，当前 ${(spec.workbenchDeskTopHeightMm ?? 740)}mm 可能影响坐姿与键鼠操作舒适度`,
+      });
+    }
+    const dpMin = desk?.depthMm?.min ?? 550;
+    if (spec.depth < dpMin) {
+      checks.push({
+        level: 'warn', ruleId: 'val-workbench-depth',
+        message: `桌面深度 ${spec.depth}mm < ${dpMin}mm：显示器距离过近伤眼、键盘无处安放（真实电脑桌深度≥550，舒适线600）`,
       });
     }
     const hasEnclosure = spec.bottomPanel !== 'none' || spec.doorPanel !== 'none' || spec.backPanel !== 'none' || spec.leftPanel !== 'none' || spec.rightPanel !== 'none';
