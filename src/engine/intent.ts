@@ -67,12 +67,29 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     questions.push('需要带脚轮可以移动吗？（脚轮会按 2.5 倍冲击载荷设计）');
   }
 
-  const scene = SCENE_MAP[ex.scene] ?? 'diy-furniture';
+  const scene: FrameSpec['scene'] = ex.productType === 'workbench'
+    ? 'workbench'
+    : (SCENE_MAP[ex.scene] ?? 'diy-furniture');
+  if (ex.productType === 'workbench' && SCENE_MAP[ex.scene] !== 'workbench') {
+    assumptions.push('产品类型为桌子（workbench），场景按电脑桌/工作台语义处理');
+  }
   if (scene === 'workbench') {
     const rawHeight = height;
-    height = Math.min(WORKBENCH_HEIGHT_MAX, Math.max(WORKBENCH_HEIGHT_MIN, height));
-    if (rawHeight !== height) {
-      assumptions.push(`工作台高度 ${rawHeight}mm 超出桌面语义区间 ${WORKBENCH_HEIGHT_MIN}~${WORKBENCH_HEIGHT_MAX}mm，已按桌面语义调整为 ${height}mm`);
+    if (dim.height == null) {
+      // 高度未说明：单层=纯桌面高；多层/上方置物=hutch 形态总高（archetypes）
+      const wantsHutch = (ex.layers ?? 1) >= 2;
+      height = wantsHutch ? Math.round(((WORKBENCH_HEIGHT_MIN + WORKBENCH_HEIGHT_MAX) / 2) / 10) * 10 : (desk?.deskTopHeightMm?.std ?? 740);
+      const i = assumptions.findIndex((a) => a.includes('高度未说明'));
+      if (i >= 0) assumptions.splice(i, 1);
+      assumptions.push(wantsHutch
+        ? `高度未说明：电脑桌带上层置物架，按常见总高 ${height}mm 假设（桌面 ${desk?.deskTopHeightMm?.std ?? 740} + 上层置物）`
+        : `高度未说明：纯桌面按标准桌高 ${height}mm 假设`);
+    } else if ((ex.layers ?? 1) >= 2 && height < WORKBENCH_HEIGHT_MIN) {
+      height = WORKBENCH_HEIGHT_MIN;
+      assumptions.push(`高度 ${rawHeight}mm 不够容纳桌面+上层置物，已按 hutch 最小总高 ${height}mm 调整`);
+    } else if (height > WORKBENCH_HEIGHT_MAX) {
+      height = WORKBENCH_HEIGHT_MAX;
+      assumptions.push(`工作台高度 ${rawHeight}mm 超出桌架语义区间，已调整为 ${height}mm`);
     }
   }
 
@@ -144,11 +161,22 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   for (const p of ex.panels ?? []) {
     if (p.material === 'none') continue;
     const mat = MAT_MAP[p.material];
-    if (p.position === 'top' && mat) {
-      topPanel = mat;
+    // 电脑桌语义：洞洞板是立面收纳件（背板位），不是桌面/隔板材质
+    if (scene === 'workbench' && p.material === 'pegboard') {
+      backPanel = 'pegboard';
+      assumptions.push('洞洞板：按立面收纳背板处理（电脑桌常见形态）');
+      continue;
+    }
+    // 电脑桌桌面/隔板材质未收录（海洋板等）→ 按木板处理而非降级丢弃
+    const effMat = (scene === 'workbench' && !mat && (p.position === 'top' || p.position === 'shelf')) ? 'wood' as const : mat;
+    if (scene === 'workbench' && !mat && effMat) {
+      assumptions.push(`${p.position === 'top' ? '桌面' : '隔板'}材质未收录，按木板（多层实木）处理`);
+    }
+    if (p.position === 'top' && effMat) {
+      topPanel = effMat;
       assumptions.push(`顶面板：${MAT_NAME[p.material]}（材料接口规则 mat-* 自动附安装方式）`);
-    } else if (p.position === 'shelf' && mat) {
-      shelfPanel = mat;
+    } else if (p.position === 'shelf' && effMat) {
+      shelfPanel = effMat;
       assumptions.push(`隔板：${MAT_NAME[p.material]}`);
     } else if (p.position === 'bottom' && mat) {
       bottomPanel = mat;
@@ -168,13 +196,14 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
       shelfPanel = 'wood';
       assumptions.push('工作台语义默认补齐主桌面板：隔板材质未指定时按木板处理');
     }
-    const hadEnclosure = doorPanel !== 'none' || backPanel !== 'none' || bottomPanel !== 'none';
+    // 开放式约束：门板/底板禁止；背板仅保留洞洞板（立面收纳）
+    const hadEnclosure = doorPanel !== 'none' || bottomPanel !== 'none' || (backPanel !== 'none' && backPanel !== 'pegboard');
     if (hadEnclosure) {
-      assumptions.push('工作台语义默认开放式：门板/全高侧背板/底板已关闭（避免生成柜体形态）');
-      unsupported.push('工作台默认开放式封板（门板/全高侧背板/底板）');
+      assumptions.push('工作台语义默认开放式：门板/实体背板/底板已关闭（避免生成柜体形态）');
+      unsupported.push('工作台默认开放式封板（门板/实体背板/底板）');
     }
     doorPanel = 'none';
-    backPanel = 'none';
+    if (backPanel !== 'pegboard') backPanel = 'none';
     bottomPanel = 'none';
   }
   // productType 超纲 / 附件类需求降级

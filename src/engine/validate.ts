@@ -110,7 +110,9 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
         message: `桌面深度 ${spec.depth}mm < ${dpMin}mm：显示器距离过近伤眼、键盘无处安放（真实电脑桌深度≥550，舒适线600）`,
       });
     }
-    const hasEnclosure = spec.bottomPanel !== 'none' || spec.doorPanel !== 'none' || spec.backPanel !== 'none' || spec.leftPanel !== 'none' || spec.rightPanel !== 'none';
+    const hasEnclosure = spec.bottomPanel !== 'none' || spec.doorPanel !== 'none'
+      || (spec.backPanel !== 'none' && spec.backPanel !== 'pegboard')
+      || spec.leftPanel !== 'none' || spec.rightPanel !== 'none';
     if (hasEnclosure) {
       checks.push({
         level: 'warn', ruleId: 'val-workbench-topology',

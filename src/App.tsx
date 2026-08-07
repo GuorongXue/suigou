@@ -52,7 +52,7 @@ const normalizeWorkbenchSpec = (s: FrameSpec): FrameSpec => {
     next.shelfCount = Math.max(1, next.shelfCount);
     next.doorPanel = 'none';
     next.bottomPanel = 'none';
-    next.backPanel = 'none';
+    if (next.backPanel !== 'pegboard') next.backPanel = 'none';   // 洞洞板立面收纳是电脑桌常见形态
     next.leftPanel = 'none';
     next.rightPanel = 'none';
   }
