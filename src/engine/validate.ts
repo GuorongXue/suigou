@@ -84,6 +84,23 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
     });
   }
 
+  // ---- val-workbench 工作台形态语义：避免把电脑桌生成为高柜 ----
+  if (spec.scene === 'workbench') {
+    if (spec.height < 680 || spec.height > 900) {
+      checks.push({
+        level: 'warn', ruleId: 'val-workbench-height',
+        message: `工作台建议高度 680~900mm，当前 ${spec.height}mm 更接近柜体/货架语义；建议回到桌面高度区间`,
+      });
+    }
+    const hasEnclosure = spec.doorPanel !== 'none' || spec.backPanel !== 'none' || spec.leftPanel !== 'none' || spec.rightPanel !== 'none';
+    if (hasEnclosure) {
+      checks.push({
+        level: 'warn', ruleId: 'val-workbench-topology',
+        message: '当前为工作台场景但存在门板/全高侧背板，形态更接近柜体；若目标是电脑桌，建议保持开放式拓扑',
+      });
+    }
+  }
+
   // ---- val-005 斜撑触发器（五触发，行家 verified）；已加斜撑/背板则通过 ----
   const hasBrace = spec.brace;
   // 围网是围护件非剪力板（16号评测：区分围护板与结构剪力板），不计入抗剪体系

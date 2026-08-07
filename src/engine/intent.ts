@@ -35,11 +35,13 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   const assumptions = [...(ex._assumptions ?? [])];
   const questions: string[] = [];
   const riskFlags = [...(ex._riskFlags ?? [])];
+  const WORKBENCH_HEIGHT_MIN = 680;
+  const WORKBENCH_HEIGHT_MAX = 900;
 
   const dim = ex.dimensions ?? { width: null, depth: null, height: null };
   const width = dim.width ?? 800;
   const depth = dim.depth ?? 400;
-  const height = dim.height ?? 750;
+  let height = dim.height ?? 750;
   if (dim.width == null) assumptions.push('宽度未说明，按 800mm 假设');
   if (dim.depth == null) assumptions.push('深度未说明，按 400mm 假设');
   if (dim.height == null) assumptions.push('高度未说明，按 750mm 假设');
@@ -64,6 +66,13 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   }
 
   const scene = SCENE_MAP[ex.scene] ?? 'diy-furniture';
+  if (scene === 'workbench') {
+    const rawHeight = height;
+    height = Math.min(WORKBENCH_HEIGHT_MAX, Math.max(WORKBENCH_HEIGHT_MIN, height));
+    if (rawHeight !== height) {
+      assumptions.push(`工作台高度 ${rawHeight}mm 超出桌面语义区间 ${WORKBENCH_HEIGHT_MIN}~${WORKBENCH_HEIGHT_MAX}mm，已按桌面语义调整为 ${height}mm`);
+    }
+  }
 
   // 选型引擎定截面（跨度=较大水平尺寸的净跨近似）
   const secSel = selectSection({
@@ -146,6 +155,15 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     } else {
       unsupported.push(`${POS_NAME[p.position] ?? p.position}（${MAT_NAME[p.material] ?? p.material}）`);
     }
+  }
+  if (scene === 'workbench') {
+    const hadEnclosure = doorPanel !== 'none' || backPanel !== 'none';
+    if (hadEnclosure) {
+      assumptions.push('工作台语义默认开放式：门板/全高侧背板已关闭（避免生成柜体形态）');
+      unsupported.push('工作台默认开放式封板（门板/全高侧背板）');
+    }
+    doorPanel = 'none';
+    backPanel = 'none';
   }
   // productType 超纲 / 附件类需求降级
   if (ex.productType === 'other') {

@@ -34,17 +34,27 @@ const FIELD_TO_PATH: Record<string, string> = {
 };
 
 const DRAFT_KEY = 'suigou_draft_v1';
+const WORKBENCH_HEIGHT_MIN = 680;
+const WORKBENCH_HEIGHT_MAX = 900;
 interface Draft {
   spec: FrameSpec;
   chat: ChatMsg[];
   manual: [string, string][];
   unsupported: string[];
 }
-const normalizeWorkbenchSpec = (s: FrameSpec): FrameSpec => ({
-  ...s,
-  workbenchLowerZoneRatio: s.workbenchLowerZoneRatio ?? (s.scene === 'workbench' ? 0.62 : undefined),
-  workbenchUpperShelfDepthRatio: s.workbenchUpperShelfDepthRatio ?? (s.scene === 'workbench' ? 0.58 : undefined),
-});
+const normalizeWorkbenchSpec = (s: FrameSpec): FrameSpec => {
+  const next = { ...s };
+  if (next.scene === 'workbench') {
+    next.height = Math.min(WORKBENCH_HEIGHT_MAX, Math.max(WORKBENCH_HEIGHT_MIN, next.height));
+    next.workbenchLowerZoneRatio = next.workbenchLowerZoneRatio ?? 0.62;
+    next.workbenchUpperShelfDepthRatio = next.workbenchUpperShelfDepthRatio ?? 0.58;
+    next.doorPanel = 'none';
+    next.backPanel = 'none';
+    next.leftPanel = 'none';
+    next.rightPanel = 'none';
+  }
+  return next;
+};
 const loadDraft = (): Draft | null => {
   try { return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null'); } catch { return null; }
 };
@@ -286,7 +296,7 @@ export default function App() {
 
   const set = (patch: Partial<FrameSpec>) => {
     setSpec((s) => {
-      const next = { ...s, ...patch };
+      const next = normalizeWorkbenchSpec({ ...s, ...patch });
       if (next.scene === 'workbench') {
         if (next.workbenchLowerZoneRatio == null) next.workbenchLowerZoneRatio = 0.62;
         if (next.workbenchUpperShelfDepthRatio == null) next.workbenchUpperShelfDepthRatio = 0.58;
