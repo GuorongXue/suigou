@@ -36,15 +36,18 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
   // ---- val-002 挠度校验：实际主承载面下方梁（取最长跨，载荷分到两根同向梁） ----
   const targetDeskTop = spec.workbenchDeskTopHeightMm ?? Math.min(spec.height, 740);
   const desktop = spec.scene === 'workbench'
-    ? model.panels.filter((p) => p.mode === 'shelf-overlap')
+    ? model.panels.filter((p) => p.mode === 'shelf-overlap' || p.mode === 'top-inset')
       .sort((a, b) => {
         const aTop = a.position[1] + a.boxSize[1] / 2;
         const bTop = b.position[1] + b.boxSize[1] / 2;
         return Math.abs(aTop - targetDeskTop) - Math.abs(bTop - targetDeskTop);
       })[0]
     : undefined;
+  // 凹嵌板与承载梁同层（梁托板）；搭梁板的承载梁在板下方
   const loadBeamY = desktop
-    ? desktop.position[1] - desktop.boxSize[1] / 2 - sec.size[0] / 2
+    ? (desktop.mode === 'top-inset'
+      ? spec.height - sec.size[0] / 2
+      : desktop.position[1] - desktop.boxSize[1] / 2 - sec.size[0] / 2)
     : spec.height - sec.size[0] / 2;
   const topBeams = members.filter((m) => m.role !== 'post' && Math.abs(m.position[1] - loadBeamY) < 1);
   const longest = topBeams.reduce((a, b) => (b.length > a.length ? b : a), topBeams[0]);

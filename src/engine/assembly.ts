@@ -76,7 +76,7 @@ export function buildAssemblySteps(model: FrameModel, kb: KnowledgeBase): Assemb
 
   const pm = (modes: string[]) => model.mounts.filter((m) =>
     m.targetType === 'panel' && modes.includes(panelById.get(m.targetId)?.mode ?? ''));
-  const flat = pm(['top-overlay', 'shelf-overlap']);
+  const flat = pm(['top-overlay', 'top-inset', 'shelf-overlap']);
   if (flat.length) {
     add('水平板材（顶板/隔板/底板）', partOf(flat.map((m) => m.targetId)), aggFast(flat),
       ['内六角扳手 5mm'], '板孔对准梁中心槽，T型螺母入槽固定；软材质用胶垫承托+压条，禁止硬压');

@@ -37,8 +37,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   if (W <= 0 || D <= 0 || H <= 0) {
     throw new Error('宽、深、高必须大于 0');
   }
-  if (spec.scene === 'workbench' && D < 550) {
-    throw new Error('电脑桌深度至少需要 550mm，推荐 600~700mm');
+  if (spec.scene === 'workbench' && D < 500) {
+    throw new Error('电脑桌/工作桌深度至少需要 500mm（显示器桌推荐 600~700）');
   }
   const isPureDesk = spec.scene === 'workbench' && H <= 800;
   if (spec.scene === 'workbench' && !isPureDesk && H < 1100) {
@@ -50,9 +50,13 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
 
   const members: Member[] = [];
   const joints: Joint[] = [];
+  const panels: PanelItem[] = [];
+  const mounts: MountItem[] = [];
   const PANEL_SPEC = kb.panels;   // knowledge/panels.yaml：厚度/面密度/单价/固定方式/孔径
   let n = 0;
   let jn = 0;
+  let pn = 0;
+  let mtn = 0;
   const add = (m: Omit<Member, 'id'>) => members.push({ id: `m-${++n}`, ...m });
   const addJoint = (j: Omit<Joint, 'id' | 'connectorId'>) =>
     joints.push({ id: `j-${++jn}`, connectorId: conn.id, ...j });
@@ -71,8 +75,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const panelT = PANEL_SPEC[panelKey].thickness;
     const deskTop = isPureDesk ? H : Math.min(800, Math.max(680, spec.workbenchDeskTopHeightMm ?? 740));
     const deskLevel = Math.min(
-      isPureDesk ? H - (s / 2 + panelT) : H - s - 90,
-      Math.max(s + 60, deskTop - (s / 2 + panelT)),
+      isPureDesk ? H - s / 2 : H - s - 90,
+      Math.max(s + 60, isPureDesk ? H - s / 2 : deskTop - (s / 2 + panelT)),
     );
     if (isPureDesk) return [deskLevel];
     if (count === 1) return [deskLevel];
@@ -110,11 +114,11 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   const zUpperFront = -D / 2 + upperOuterDepth - s / 2;
 
   if (spec.scene === 'workbench' && isPureDesk) {
-    const deskPostTop = shelfLevels[0] + s / 2;
-    addPost(xLeft, zBack, 0, deskPostTop);
-    addPost(xRight, zBack, 0, deskPostTop);
-    addPost(xLeft, zFront, 0, deskPostTop);
-    addPost(xRight, zFront, 0, deskPostTop);
+    // 案例实证拓扑（随构/21 极简桌）：腿全高=桌面顶，板凹嵌顶框内
+    addPost(xLeft, zBack, 0, H);
+    addPost(xRight, zBack, 0, H);
+    addPost(xLeft, zFront, 0, H);
+    addPost(xRight, zFront, 0, H);
   } else if (spec.scene === 'workbench') {
     const deskY = shelfLevels[0];
     addPost(xLeft, zBack, 0, H);
@@ -156,7 +160,27 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   };
 
   if (spec.scene === 'workbench' && isPureDesk) {
-    addRectLayer(shelfLevels[0], D);
+    addRectLayer(H - s / 2, D);
+    // 底部长边双横撑（案例：离地约120，短边方向开放保腿部进出）
+    const footY = Math.min(120, H / 4);
+    for (const z of [zBack, zFront]) {
+      add({ role: 'beam-x', sectionId: sec.id, length: beamX, position: [0, footY, z], axis: 'x' });
+      const beamId = `m-${n}`;
+      for (const outward of [1, -1] as const) {
+        addJoint({ position: [outward * (W / 2 - s), footY, z], beamAxis: 'x', outward, ySide: 1,
+          beamMemberId: beamId, postMemberId: postAt.get(`${outward * (W / 2 - s / 2)},${z}`)! });
+      }
+    }
+    // 跨度>1200 顶框加中横梁（案例：1302 跨中点加撑防桌板下挠）
+    if (W > 1200) {
+      add({ role: 'beam-z', sectionId: sec.id, length: D - 2 * s, position: [0, H - s / 2, 0], axis: 'z' });
+      mounts.push({
+        id: `mt-${++mtn}`, targetType: 'member', targetId: `m-${n}`,
+        method: 't-nut-screw', note: '顶框中横梁：角码两端固定于长梁内侧（跨度>1200 防桌板下挠）',
+        fasteners: [{ sku: 'corner-bracket-30-body', qty: 2 }, { sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l16', qty: 4 }],
+        points: [[0, H - s / 2, -D / 2 + s], [0, H - s / 2, D / 2 - s]],
+      });
+    }
   } else if (spec.scene === 'workbench') {
     // 桌下正面完全开放：底部仅保留后横撑，不做前梁和两侧落地围框。
     add({ role: 'beam-x', sectionId: sec.id, length: beamX, position: [0, s / 2, zBack], axis: 'x' });
@@ -174,10 +198,6 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   }
 
   // 板材构件（9.2.3 修复：真实搭接几何 + Mount 固定关系，不再悬空）
-  const panels: PanelItem[] = [];
-  const mounts: MountItem[] = [];
-  let pn = 0;
-  let mtn = 0;
   // 板材固定档位分派（安装工艺谱系：随构/21）：方式→紧固件 BOM
   const supportSku = s >= 30 ? 'shelf-support-30' : 'shelf-support-20';
   const mountFasteners = (mount: string): { sku: string; qty: number }[] => {
@@ -247,13 +267,41 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     ? { depthRatio: upperDepthRatio, align: 'back' }
     : undefined);
   addPanel(spec.bottomPanel, s, false);   // 底框梁上表面 = s（搭梁式同隔板）
-  for (let i = 0; i < shelfLevels.length; i++) {
-    const depthRatio = spec.scene === 'workbench' && i > 0 ? upperDepthRatio : 1;
-    const material = isPureDesk && i === 0 && spec.topPanel !== 'none' ? spec.topPanel : spec.shelfPanel;
-    addPanel(material, shelfLevels[i] + s / 2, false, {
-      depthRatio,
-      align: spec.scene === 'workbench' ? 'back' : 'center',
+  if (isPureDesk) {
+    // 纯桌桌面凹嵌顶框内（案例：板顶=腿顶，平面直角连接件固定）
+    const material = spec.topPanel !== 'none' ? spec.topPanel : (spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood');
+    const ps = PANEL_SPEC[material];
+    const gap = 1;
+    const pw = W - 2 * s - 2 * gap;
+    const pd = D - 2 * s - 2 * gap;
+    const panelId = `pn-${++pn}`;
+    panels.push({
+      id: panelId, material,
+      size: [pw, pd, ps.thickness],
+      boxSize: [pw, ps.thickness, pd],
+      position: [0, H - ps.thickness / 2, 0],
+      mode: 'top-inset',
+      mountNote: `桌面板(凹嵌顶框内)：板顶与型材齐平；平面直角连接件下方固定`,
+      holes: [],
     });
+    mounts.push({
+      id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId,
+      method: 'corner-flat',
+      note: '平面直角连接件×4 下方托板并锁入梁槽（案例实证固定方式）',
+      fasteners: [{ sku: 'flat-corner-plate', qty: 4 }, { sku: 'screw-m4-10-pan', qty: 8 }, { sku: 't-nut-m4', qty: 8 }],
+      points: [
+        [-W / 2 + s, H - ps.thickness, -D / 2 + s], [W / 2 - s, H - ps.thickness, -D / 2 + s],
+        [-W / 2 + s, H - ps.thickness, D / 2 - s], [W / 2 - s, H - ps.thickness, D / 2 - s],
+      ],
+    });
+  } else {
+    for (let i = 0; i < shelfLevels.length; i++) {
+      const depthRatio = spec.scene === 'workbench' && i > 0 ? upperDepthRatio : 1;
+      addPanel(spec.shelfPanel, shelfLevels[i] + s / 2, false, {
+        depthRatio,
+        align: spec.scene === 'workbench' ? 'back' : 'center',
+      });
+    }
   }
 
   // 侧围板（背/左/右）：贴在框架外侧面，兼作抗侧向体系（val-lateral 解药）

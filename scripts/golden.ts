@@ -118,16 +118,35 @@ console.log('== 3. 生成冒烟 + 强制不变量 ==');
     for (const height of [740, 800]) {
       const pure = generateFrame({ ...spec, height, shelfCount: 1, mobility: 'fixed', backPanel: 'none', topPanel: 'wood' }, kb);
       if (pure.members.filter((member) => member.role === 'post').length !== 4) fail('纯电脑桌应只有4根桌腿');
-      const desktops = pure.panels.filter((panel) => panel.mode === 'shelf-overlap');
-      if (desktops.length !== 1) fail('纯电脑桌应只有1块主桌面');
+      if (pure.members.some((member) => member.role === 'post' && member.length !== height)) fail('纯桌腿应全高（腿顶=桌面顶，案例实证）');
+      const desktops = pure.panels.filter((panel) => panel.mode === 'top-inset');
+      if (desktops.length !== 1) fail('纯电脑桌应有且仅有1块凹嵌桌面');
       const topY = desktops[0] ? desktops[0].position[1] + desktops[0].boxSize[1] / 2 : Number.NaN;
       if (Math.abs(topY - height) > 0.01) fail(`纯电脑桌桌面顶高 ${topY} ≠ 请求总高 ${height}`);
-      if (pure.members.some((member) => member.position[1] > 800)) fail('纯电脑桌不应生成上架构件');
+      const stretchers = pure.members.filter((m) => m.role === 'beam-x' && m.position[1] < 200);
+      if (stretchers.length !== 2) fail(`纯桌应有底部长边双撑，实际 ${stretchers.length}`);
       if (!pure.checks.some((check) => check.ruleId === 'val-002')) fail('纯电脑桌缺少主桌面挠度校验');
     }
-    if (!failures) ok('纯电脑桌 740/800mm 拓扑通过');
+    ok('纯电脑桌 740/800mm 拓扑通过');
   } catch (e) {
     fail(`纯电脑桌生成异常: ${(e as Error).message}`);
+  }
+
+  // 黄金锚点②（随构/21 极简桌）：1342×545×740，BOM 实证 1302×4 / 505×短梁 / 740×4 腿 + 中横梁
+  try {
+    const desk = generateFrame({
+      ...spec, width: 1342, depth: 545, height: 740, shelfCount: 1,
+      mobility: 'fixed', backPanel: 'none', topPanel: 'wood', sectionId: 'eu-2020', connectorId: 'internal-slot-20', brace: false,
+    }, kb);
+    const lens = new Map<number, number>();
+    for (const m of desk.members) lens.set(m.length, (lens.get(m.length) ?? 0) + 1);
+    if (lens.get(740) !== 4) fail(`极简桌腿应 740×4，实际 ${lens.get(740) ?? 0}`);
+    if (lens.get(1302) !== 4) fail(`极简桌长梁应 1302×4（顶框2+底撑2），实际 ${lens.get(1302) ?? 0}`);
+    if ((lens.get(505) ?? 0) < 3) fail(`极简桌短梁应≥3（顶框2+中横梁1），实际 ${lens.get(505) ?? 0}`);
+    if (!desk.panels.some((p) => p.mode === 'top-inset')) fail('极简桌桌面应凹嵌');
+    ok('黄金锚点② 极简桌 1342×545×740 BOM 对齐');
+  } catch (e) {
+    fail(`极简桌锚点异常: ${(e as Error).message}`);
   }
 }
 
