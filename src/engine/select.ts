@@ -4,8 +4,62 @@
  */
 
 const SERIES_ORDER = ['eu-2020', 'eu-3030', 'eu-4040-s8'];
+const SECTION_SIZE: Record<string, number> = { 'eu-2020': 20, 'eu-3030': 30, 'eu-4040-s8': 40 };
 const upgradeSeries = (id: string) =>
   SERIES_ORDER[Math.min(SERIES_ORDER.indexOf(id) + 1, SERIES_ORDER.length - 1)];
+
+/**
+ * 截面选型（固定点）：梁长 = max(宽,深) − 2×截面尺寸。截面尺寸越大净跨越小，
+ * 选型与净跨互相依赖。从小型材开始，逐一校验"若用该型材，其真实净跨能否承受"，
+ * 取首个满足者（最小适用截面）。
+ * 避免 intent.ts 固定减 60（假设 3030）在 2020/4040 下的偏差。
+ */
+export function selectSectionFixedPoint(inp: {
+  width: number;
+  depth: number;
+  loadKg: number;
+  loadType?: 'distributed' | 'concentrated';
+  highRisk?: boolean;
+  vibration?: boolean;
+  precision?: boolean;
+}): SelectResult {
+  const { width, depth, loadKg, loadType, highRisk, vibration, precision } = inp;
+
+  if (vibration || precision) {
+    const use = 'eu-4040-s8';
+    if (highRisk) {
+      return { use, ruleIds: ['sel-003'], rationale: '4040 刚度更大挠度更小；高风险场景已是最高截面' };
+    }
+    return { use, ruleIds: ['sel-003'], rationale: '4040 刚度更大挠度更小' };
+  }
+
+  const maxWD = Math.max(width, depth);
+  const conc = loadType === 'concentrated';
+
+  for (const id of SERIES_ORDER) {
+    const span = maxWD - 2 * SECTION_SIZE[id];
+    if (span <= 0) continue;
+    const r = selectSection({ span, loadKg, loadType, highRisk: false, vibration: false, precision: false });
+    if (SERIES_ORDER.indexOf(r.use) <= SERIES_ORDER.indexOf(id)) {
+      let use = id;
+      let rationale = r.use === id ? r.rationale
+        : `${id} 可承受其真实净跨约 ${Math.round(span)}mm（${loadKg}kg ${conc ? '集中' : '均布'}）`;
+      const ruleIds = r.use === id ? [...r.ruleIds] : [];
+      if (highRisk) {
+        const upgraded = upgradeSeries(use);
+        if (upgraded !== use) {
+          use = upgraded;
+          ruleIds.push('sel-004');
+          rationale += '；高风险场景升一级';
+        }
+      }
+      return { use, ruleIds, rationale };
+    }
+  }
+
+  const use = 'eu-4040-s8';
+  return { use, ruleIds: ['sel-003'], rationale: '4040 刚度更大挠度更小' };
+}
 
 export interface SectionSelectInput {
   span: number;

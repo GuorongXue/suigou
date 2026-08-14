@@ -1,7 +1,7 @@
 import type { KnowledgeBase } from '../knowledge/types';
 import type { FrameSpec } from './types';
 import type { Extraction } from './extract';
-import { selectSection, selectConnector } from './select';
+import { selectSectionFixedPoint, selectConnector } from './select';
 
 /** 抽取结果 → FrameSpec 映射结果 */
 export interface IntentResult {
@@ -127,9 +127,10 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     }
   }
 
-  // 选型引擎定截面（跨度=较大水平尺寸的净跨近似）
-  const secSel = selectSection({
-    span: Math.max(width, depth) - 60,
+  // 选型引擎定截面（固定点：梁长=总尺寸−2×截面尺寸，截面越大净跨越小，迭代至收敛）
+  const secSel = selectSectionFixedPoint({
+    width,
+    depth,
     loadKg,
     loadType,
     highRisk,

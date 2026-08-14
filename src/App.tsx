@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { loadKnowledgeBase } from './knowledge/loader';
 import { generateFrame } from './engine/generate';
-import { selectSection } from './engine/select';
+import { selectSectionFixedPoint } from './engine/select';
 import { runGolden } from './engine/golden';
 import { extractIntent, getApiKey, setApiKey } from './engine/extract';
 import { intentToSpec, type IntentResult } from './engine/intent';
@@ -264,11 +264,12 @@ export default function App() {
       .flatMap((c) => c.memberIds!))];
   }, [result]);
 
-  // 选型建议：按当前跨度/载荷正向推荐截面（sel 规则）
+  // 选型建议（固定点）：与 AI 链路(intent.ts)同一函数，保证推荐与选型一致
   const recommendation = useMemo(() => {
-    const secSize = kb.sections.find((s) => s.section.id === spec.sectionId)?.section.size[0] ?? 30;
-    const span = Math.max(spec.width, spec.depth) - 2 * secSize;
-    const r = selectSection({ span, loadKg: spec.loadKg, loadType: spec.loadType, highRisk: spec.highRisk });
+    const r = selectSectionFixedPoint({
+      width: spec.width, depth: spec.depth, loadKg: spec.loadKg,
+      loadType: spec.loadType, highRisk: spec.highRisk,
+    });
     return r.use !== spec.sectionId ? r : null;
   }, [spec, kb]);
 
