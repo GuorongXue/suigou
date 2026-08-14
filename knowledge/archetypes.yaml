@@ -56,7 +56,8 @@ archetypes:
     standHeightMm: { min: 700, std: 750, max: 900 } # 淡水70-75 海水(设备)80-90
     overallWithTankMm: { min: 1200, max: 1400 }     # 站立平视缸中上部
     topMarginMm: { length: 40, width: 25 }          # 柜面比缸底长+3~5cm 宽+2~3cm
-    loadFactorVsWater: 1.5                          # 标称承重≥实际总重1.5倍；家用≥200kg
+    loadFactorVsWater: 1.5                          # 标称承重≥满水总重×1.5（含缸体/底砂/造景安全系数）
+    minHouseholdKg: 200                             # 家用鱼缸通常总重≥200kg（经验最低值，非系数）
     note: 大缸(>1m)必须金属框架/多立柱+全支撑面；严禁点状支撑与普通家具替代
 
   industrial-workbench:

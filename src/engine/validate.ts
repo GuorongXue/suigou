@@ -171,9 +171,10 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
   if (spec.archetype === 'aquarium-stand') {
     const aq = kb.archetypes['aquarium-stand'];
     const factor = (aq?.loadFactorVsWater as number | undefined) ?? 1.5;
+    const minKg = (aq?.minHouseholdKg as number | undefined) ?? 200;
     checks.push({
       level: 'warn', ruleId: 'val-aquarium-load',
-      message: `鱼缸架承重必须≥满水总重×${factor}（含缸体/底砂/造景）；当前设计载荷 ${spec.loadKg}kg，请确认已按满水状态核算，禁止点状支撑`,
+      message: `鱼缸架承重必须≥满水总重×${factor}（含缸体/底砂/造景）；家用通常≥${minKg}kg，当前设计载荷 ${spec.loadKg}kg，请确认已按满水状态核算，禁止点状支撑`,
     });
     const hMin = (aq?.standHeightMm as { min?: number } | undefined)?.min ?? 700;
     const hMax = (aq?.standHeightMm as { max?: number } | undefined)?.max ?? 900;
