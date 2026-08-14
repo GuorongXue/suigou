@@ -548,7 +548,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const inward = -j.outward;   // 从梁端指向梁内部
     const at = (d: number): [number, number, number] =>
       j.beamAxis === 'x' ? [jx + inward * d, jy, jz] : [jx, jy, jz + inward * d];
-    for (const op of conn.machining as Record<string, number | string>[]) {
+    for (const op of conn.machining) {
       const id = `mc-${++mn}`;
       switch (op.type) {
         case 'through-hole': {   // 锚式：梁上距端 G=19-T+2 处打通孔（源:工艺页公式）

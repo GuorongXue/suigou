@@ -50,6 +50,13 @@ export interface SectionRecord {
   section: Section;
 }
 
+/** 连接件加工特征（knowledge/connectors/*.yaml machining[]） */
+export type ConnectorMachiningOp =
+  | { type: 'through-hole'; diameter: number; onMember?: string; offsetFromEnd?: string; note?: string }
+  | { type: 'end-tap'; thread: string; depth: number; pitch?: number; onMember?: string; note?: string }
+  | { type: 'counterbore'; d: number; D: number; depth: number; onMember?: string; note?: string }
+  | { type: 'wrench-hole'; diameter: number; onMember?: string; note?: string };
+
 export interface Connector {
   id: string;
   name: string;
@@ -62,7 +69,7 @@ export interface Connector {
   removable: boolean;
   lengthOffset: number;
   attach: Record<string, unknown>;
-  machining: Record<string, unknown>[];
+  machining: ConnectorMachiningOp[];
   bom: { sku: string; qty: number; priceUntaxed?: number }[];
 }
 
