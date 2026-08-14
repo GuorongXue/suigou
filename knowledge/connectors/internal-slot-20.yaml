@@ -1,0 +1,24 @@
+# 内置角槽 2020：真实案例实证的 2020 系列主承重连接件（工具收纳柜 670×400×815 用量×30）
+meta:
+  id: internal-slot-20
+  source: 用户实拍案例库（随构/21 工具收纳柜 BOM）
+  confidence: verified
+  review: pending-expert
+  version: 0.1.0
+  updated: 2026-08-14
+connector:
+  id: internal-slot-20
+  name: 内置角槽 2020
+  category: internal
+  visibility: hidden
+  compatible: { slotWidths: [6], series: [eu-2020] }
+  strengthClass: 3
+  loadRole: primary
+  note: 2020 系列主力连接方案（真实抽屉车整柜用它承重）；槽内隐藏、免打孔
+  removable: true
+  lengthOffset: 0
+  attach: { facesRequired: 2, orientation: perpendicular }
+  machining: []
+  bom:
+    - { sku: internal-slot-20, qty: 1 }
+    - { sku: screw-m4-8-pan, qty: 2 }

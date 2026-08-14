@@ -2,16 +2,16 @@
 # 用途：意图默认值 + 形态校验档位的单一数据源（代码不再硬编码尺寸档位）
 meta:
   id: archetypes
-  source: 百度百科(电脑桌855818)/百度AI聚合搜索(2026-08 采集)：电脑桌尺寸、家用置物架、衣柜国标、鞋柜层高、鱼缸底柜承重
-  confidence: public
+  source: 百度百科(电脑桌855818)/百度AI聚合搜索(2026-08 采集)：电脑桌尺寸、家用置物架、衣柜国标、鞋柜层高、鱼缸底柜承重；2026-08-14 补用户实拍案例库（随构/21，三个带完整BOM的锚点案例）
+  confidence: public+verified-cases
   review: pending-expert
-  version: 0.1.0
-  updated: 2026-08-07
+  version: 0.2.0
+  updated: 2026-08-14
 
 archetypes:
   computer-desk:
     name: 电脑桌（含上层置物变体）
-    # 桌面上表面高度：标准75cm，通用区间72~76；身高矮取72、高取76
+    # 桌面上表面高度：标准75cm，通用区间72~76；740 腿高有实拍案例 BOM 实证（极简桌 740×4）
     deskTopHeightMm: { min: 680, std: 740, max: 800 }
     # 桌面深度：60cm 为入门舒适线（显示器+键鼠+理线），双屏 65~70；<55 压迫视线
     depthMm: { min: 550, std: 650, max: 800 }
@@ -65,3 +65,17 @@ archetypes:
     depthMm: { min: 600, std: 750, max: 900 }
     widthMm: { min: 1000, std: 1200, max: 1800 }
     note: 允许下层板/抽屉/重横撑；与家用电脑桌语义区分
+
+  drawer-tower:
+    name: 抽屉塔（周转箱/成品抽屉收纳柜）
+    # 实拍案例双实证：四层740/三层575（节距165）；三抽屉柜490/3（节距163）
+    drawerPitchMm: { min: 160, std: 165, max: 230 }   # 标准箱148高→165节距；高箱230→~240节距
+    frameOverheadMm: { std: 80 }                       # 框架高 = 层数×节距 + 顶部结构区
+    widthMm: { min: 350, std: 400, max: 700 }
+    depthMm: { min: 400, std: 405, max: 450 }          # 周转箱 40cm 长边沿深度方向
+    overallHeightMm: { min: 490, std: 740, max: 1100 }
+    topology:
+      drawers: front                                   # 正面即抽屉，无门
+      sidePegboard: common                             # 侧面洞洞板（自打孔海洋板）高频
+      mobility: caster-or-leveling                     # 福马轮或调平地脚
+    note: 抽屉=周转箱+底托+三折轨道（工具场景）或成品抽屉+反弹轨道（家具场景）；轨道固定立柱侧槽

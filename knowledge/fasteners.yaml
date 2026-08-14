@@ -23,3 +23,25 @@ fasteners:
   magnetic-catch:      { name: 磁吸门扰,             price: 2.00 }
   handle-96:           { name: 拉手 孔距96mm,        price: 5.00 }
   handle-adhesive:     { name: 粘贴式把手(玻璃/亚克力), price: 3.00 }
+  # ---- 真实案例库补充（随构/21，来自实拍产品 BOM，价格为市场量级估价）----
+  foma-caster-gd40f:   { name: 福马轮 GD-40F(调平+移动 高70), price: 25.00 }
+  leveling-foot-m8:    { name: 调平地脚 M8×D40×50,    price: 3.00 }
+  extend-nut-m8-40:    { name: 不锈钢加长螺母柱 M8×16×40, price: 2.50 }
+  drawer-slide-350:    { name: 三折抽屉轨道 35cm/副,  price: 12.00 }
+  rebound-slide-350:   { name: 反弹抽屉轨道 350/副(按压无拉手), price: 18.00 }
+  turnover-box-148:    { name: 工业风周转箱 40×30×14.8, price: 15.00 }
+  turnover-box-230:    { name: 工业风周转箱 40×30×23,  price: 20.00 }
+  shelf-support-20:    { name: 层板托 2020(平嵌隐形),  price: 1.50 }
+  shelf-support-30:    { name: 层板托 3030(平嵌隐形),  price: 2.00 }
+  flat-corner-plate:   { name: 平面直角连接件(板材固定薄L片), price: 1.00 }
+  vertical-bracket-20: { name: 垂直角码 2020(外挂面板), price: 1.20 }
+  three-way-cube-30:   { name: 三通端面连接件本体 30系列, price: 4.50 }
+  internal-slot-20:    { name: 内置角槽本体 2020,      price: 1.00 }
+  end-cap-20:          { name: 端面盖板 2020,          price: 0.80 }
+  end-cap-30:          { name: 端面盖板 3030,          price: 1.00 }
+  screw-m4-8-pan:      { name: 内六角半圆头螺丝 M4×8, price: 0.08 }
+  screw-m4-10-pan:     { name: 内六角半圆头螺丝 M4×10, price: 0.08 }
+  selftap-m4-10:       { name: 自攻螺丝 M4×10,        price: 0.05 }
+  selftap-m4-15:       { name: 自攻钉 M4×15,          price: 0.05 }
+  washer-4-10:         { name: 垫片 内4外10,           price: 0.03 }
+  t-nut-m4:            { name: T型螺母 M4,             price: 0.12 }

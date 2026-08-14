@@ -1,0 +1,25 @@
+# 三通端面连接件 3030：真实案例实证（三抽屉柜 8 角全部用三通，中梁用角码）
+meta:
+  id: three-way-30
+  source: 用户实拍案例库（随构/21 木制收纳柜 BOM ×8 + 安装工艺谱系图）
+  confidence: verified
+  review: pending-expert
+  version: 0.1.0
+  updated: 2026-08-14
+connector:
+  id: three-way-30
+  name: 三通端面连接件 30系列
+  category: corner-cube
+  visibility: exposed
+  compatible: { slotWidths: [8], series: [eu-3030] }
+  strengthClass: 3
+  loadRole: primary
+  note: 立方三孔角件，同时接三向端面；3030 框架角部主力（角部美观整洁，中梁配角码）
+  removable: true
+  lengthOffset: 0
+  attach: { facesRequired: 3, orientation: corner }
+  machining:
+    - { type: end-tap, thread: M8, depth: 20, onMember: beam, note: 梁端面攻丝接三通(源:案例BOM) }
+  bom:
+    - { sku: three-way-cube-30, qty: 1 }
+    - { sku: edla-s1-m8-l40, qty: 3 }
