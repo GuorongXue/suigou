@@ -35,6 +35,8 @@ export interface FrameSpec {
   topPanel: PanelMaterial;
   shelfPanel: PanelMaterial;
   bottomPanel: PanelMaterial;
+  /** 顶板模式：overlay=全覆盖齐平框外缘（默认）/ recessed=凹陷嵌于框内坐落在框梁上 */
+  topPanelMode?: 'overlay' | 'recessed';
   /** 侧围板（背/左/右）：兼作抗侧向体系（val-lateral） */
   backPanel: PanelMaterial;
   leftPanel: PanelMaterial;
@@ -157,7 +159,7 @@ export interface PanelItem {
   boxSize: [number, number, number];
   position: [number, number, number];
   /** 覆盖模式 */
-  mode: 'top-overlay' | 'top-inset' | 'shelf-overlap' | 'back-overlay' | 'side-overlay' | 'door-front';
+  mode: 'top-overlay' | 'top-recessed' | 'top-inset' | 'shelf-overlap' | 'back-overlay' | 'side-overlay' | 'door-front';
   mountNote: string;
   /** 固定孔（板局部坐标，原点=板角，沿长×宽）；胶垫压条固定的软材质为空 */
   holes: { x: number; y: number; diameter: number }[];

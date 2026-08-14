@@ -224,5 +224,38 @@ console.log(failures ? `\n== 5. 中柱拓扑（跳过） ==` : '== 5. 中柱拓�
   if (!failures) ok(`中柱拓扑通过：${posts.length} 立柱（含 ${centerPosts.length} 中柱）· ${beamX.length} 横梁 · 状态 ${dual.status}`);
 }
 
+console.log(failures ? `\n== 6. 顶板凹陷模式（跳过） ==` : '== 6. 顶板凹陷模式 ==');
+{
+  // recessed 顶板：嵌于框内，尺寸 (W−2s)×(D−2s)，坐落在顶框梁上（不悬挑）
+  const recessed = generateFrame({
+    width: 800, depth: 400, height: 1200, scene: 'diy-furniture', shelfCount: 1,
+    sectionId: 'eu-3030', connectorId: 'corner-bracket-30', topPanelMode: 'recessed',
+    topPanel: 'wood', shelfPanel: 'wood', bottomPanel: 'wood',
+    loadKg: 20, loadType: 'distributed', highRisk: false, mobility: 'fixed',
+    backPanel: 'none', leftPanel: 'none', rightPanel: 'none', brace: false,
+  }, kb);
+  const topPanels = recessed.panels.filter((p) => p.mode === 'top-recessed');
+  if (topPanels.length !== 1) fail(`凹陷顶板应恰好 1 块，实际 ${topPanels.length}`);
+  const tp = topPanels[0];
+  const expectedW = 800 - 2 * 30;   // W − 2s = 740
+  const expectedD = 400 - 2 * 30;   // D − 2s = 340
+  if (tp.size[0] !== expectedW) fail(`凹陷顶板宽应为 ${expectedW}，实际 ${tp.size[0]}`);
+  if (tp.size[1] !== expectedD) fail(`凹陷顶板深应为 ${expectedD}，实际 ${tp.size[1]}`);
+  // 凹陷顶板坐落在顶框梁上（底面 y = H = 1200，与 overlay 同高，仅尺寸不同）
+  const bottomY = tp.position[1] - tp.size[2] / 2;
+  if (Math.abs(bottomY - 1200) > 0.01) fail(`凹陷顶板底面应落在 1200（梁顶面），实际 ${bottomY}`);
+  // 对比 overlay 模式：overlay 顶板应宽 800（齐外缘）
+  const overlay = generateFrame({
+    width: 800, depth: 400, height: 1200, scene: 'diy-furniture', shelfCount: 1,
+    sectionId: 'eu-3030', connectorId: 'corner-bracket-30', topPanelMode: 'overlay',
+    topPanel: 'wood', shelfPanel: 'wood', bottomPanel: 'wood',
+    loadKg: 20, loadType: 'distributed', highRisk: false, mobility: 'fixed',
+    backPanel: 'none', leftPanel: 'none', rightPanel: 'none', brace: false,
+  }, kb);
+  const overlayTop = overlay.panels.filter((p) => p.mode === 'top-overlay');
+  if (overlayTop.length !== 1 || overlayTop[0].size[0] !== 800) fail('overlay 顶板应宽 800（齐外缘）');
+  if (!failures) ok(`顶板凹陷模式通过：recessed ${tp.size[0]}×${tp.size[1]} vs overlay ${overlayTop[0].size[0]}×${overlayTop[0].size[1]}`);
+}
+
 console.log(failures ? `\n✖ 失败 ${failures} 项` : '\n✓ 全部通过');
 process.exit(failures ? 1 : 0);

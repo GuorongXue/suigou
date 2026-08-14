@@ -270,13 +270,14 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   ) => {
     if (material === 'none') return;
     const ps = PANEL_SPEC[material];
-    // 顶面板：覆盖整框（W×D 齐平）；隔板：四边各搭 15mm 在梁上表面（真实支撑接触）
+    // 顶面板：overlay=覆盖整框（W×D 齐平框外缘）；recessed=凹陷嵌框内（W−2s×D−2s 坐落在框梁上）；隔板：四边各搭 15mm 在梁上表面
     const overlap = 15;
-    const fullPd = isTop ? D : D - 2 * s + 2 * overlap;
-    const pw = isTop ? W : W - 2 * s + 2 * overlap;
+    const recessed = isTop && spec.topPanelMode === 'recessed';
     const ratio = clampRatio(opts?.depthRatio ?? 1, 0.35, 1);
-    const pd = isTop && spec.scene !== 'workbench'
-      ? D
+    const fullPd = isTop && !recessed ? D : D - 2 * s + 2 * overlap;
+    const pw = isTop && !recessed ? W : (recessed ? W - 2 * s : W - 2 * s + 2 * overlap);
+    const pd = recessed ? D - 2 * s
+      : isTop && spec.scene !== 'workbench' ? D
       : Math.min(fullPd, Math.max(Math.round(fullPd * ratio), Math.round(overlap + 120)));
     const zShift = (() => {
       const free = Math.max(0, fullPd - pd);
@@ -297,8 +298,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       size: [pw, pd, ps.thickness],
       boxSize: [pw, ps.thickness, pd],
       position: [0, beamTopY + ps.thickness / 2, zShift],   // 底面落在梁上表面
-      mode: isTop ? 'top-overlay' : 'shelf-overlap',
-      mountNote: (isTop ? '顶部置物板：' : '隔板(搭梁式)：') + ps.mountNote
+      mode: recessed ? 'top-recessed' : isTop ? 'top-overlay' : 'shelf-overlap',
+      mountNote: (recessed ? '顶部置物板(凹陷嵌框内)：' : isTop ? '顶部置物板：' : '隔板(搭梁式)：') + ps.mountNote
         + (pd < fullPd ? `；浅搁板深度 ${Math.round((pd / fullPd) * 100)}%` : ''),
       holes,
     });

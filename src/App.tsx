@@ -708,6 +708,16 @@ export default function App() {
           ))}
         </div>
 
+        {spec.scene !== 'workbench' && spec.topPanel !== 'none' && (
+          <label style={{ display: 'block', marginBottom: 8 }}>
+            顶板模式
+            <select value={spec.topPanelMode ?? 'overlay'} onChange={(e) => set({ topPanelMode: e.target.value as FrameSpec['topPanelMode'] })} style={{ width: '100%', marginTop: 4 }}>
+              <option value="overlay">全覆盖(齐外缘)</option>
+              <option value="recessed">凹陷嵌框内</option>
+            </select>
+          </label>
+        )}
+
         <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
           {([['背板', 'backPanel'], ['左侧板', 'leftPanel'], ['右侧板', 'rightPanel']] as const).map(([label, key]) => (
             <label key={key} style={{ flex: 1, fontSize: 12 }}>
