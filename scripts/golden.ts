@@ -197,5 +197,32 @@ console.log(failures ? `\n== 4. archetype 意图回归（跳过） ==` : '== 4. 
   if (!failures) ok('storage-rack / aquarium-stand / wardrobe 档位与校验通过');
 }
 
+console.log(failures ? `\n== 5. 中柱拓扑（跳过） ==` : '== 5. 中柱拓扑 ==');
+{
+  // 工具柜双列分区：670×400×815，2020 系列，中柱将内腔分为左右双列（随构/21 案例拓扑骨架）
+  const dual = generateFrame({
+    width: 670, depth: 400, height: 815, scene: 'diy-furniture', shelfCount: 2,
+    sectionId: 'eu-2020', connectorId: 'internal-slot-20', centerColumn: true,
+    loadKg: 15, loadType: 'distributed', highRisk: false, mobility: 'leveling-feet',
+    topPanel: 'wood', shelfPanel: 'wood', bottomPanel: 'wood', backPanel: 'none',
+    leftPanel: 'none', rightPanel: 'none', brace: false,
+  }, kb);
+  const posts = dual.members.filter((m) => m.role === 'post');
+  const centerPosts = posts.filter((p) => p.position[0] === 0);   // 中柱 x=0
+  if (centerPosts.length !== 2) fail(`中柱应为 2 根（前后各一），实际 ${centerPosts.length}`);
+  if (posts.length !== 6) fail(`中柱柜总立柱应为 6（4 角+2 中），实际 ${posts.length}`);
+  // 横梁在中柱处断开：每层 4 根 beam-x（左半×前后 + 右半×前后）；层数=底框+2隔板+顶框=4
+  const beamX = dual.members.filter((m) => m.role === 'beam-x');
+  const layerCount = 4;              // 底框 + 2 隔板层 + 顶框
+  const expectedBeamX = 4 * layerCount;
+  if (beamX.length !== expectedBeamX) fail(`中柱柜横梁应为 ${expectedBeamX}，实际 ${beamX.length}`);
+  // 梁长验证：长梁半段 = W/2 − 3s/2 = 335 − 30 = 305
+  const halfBeamLen = 305;
+  if (!beamX.some((b) => b.length === halfBeamLen)) fail(`中柱柜半段梁长应有 ${halfBeamLen}mm`);
+  // 中柱柜无 invalid 错误
+  if (dual.status === 'invalid') fail(`中柱柜 invalid: ${dual.checks.filter((c) => c.level === 'error').map((c) => c.ruleId).join(',')}`);
+  if (!failures) ok(`中柱拓扑通过：${posts.length} 立柱（含 ${centerPosts.length} 中柱）· ${beamX.length} 横梁 · 状态 ${dual.status}`);
+}
+
 console.log(failures ? `\n✖ 失败 ${failures} 项` : '\n✓ 全部通过');
 process.exit(failures ? 1 : 0);

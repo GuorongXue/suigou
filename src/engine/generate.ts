@@ -131,6 +131,11 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     for (const [x, z] of [[xLeft, zBack], [xRight, zBack], [xLeft, zFront], [xRight, zFront]]) {
       addPost(x, z, 0, H);
     }
+    // 中柱（工具柜/分区柜）：中心 x=0 前后各一根全高立柱，将内腔分为左右双列
+    if (spec.centerColumn) {
+      addPost(0, zBack, 0, H);
+      addPost(0, zFront, 0, H);
+    }
   }
 
   const addRectLayer = (y: number, outerDepth: number, centerZ = 0) => {
@@ -139,12 +144,35 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const layerBack = centerZ - outerDepth / 2 + s / 2;
     const layerFront = centerZ + outerDepth / 2 - s / 2;
     for (const z of [layerBack, layerFront]) {
-      add({ role: 'beam-x', sectionId: sec.id, length: beamX, position: [0, y, z], axis: 'x' });
-      const beamId = `m-${n}`;
-      for (const outward of [1, -1] as const) {
-        const postId = postAt.get(`${outward * (W / 2 - s / 2)},${z}`)!;
-        addJoint({ position: [outward * (W / 2 - s), y, z], beamAxis: 'x', outward, ySide,
-          beamMemberId: beamId, postMemberId: postId });
+      if (spec.centerColumn) {
+        // 中柱：横梁分为左右两段，各连接角柱与中柱（立柱位置由 W/s 决定，与连接件 lengthOffset 无关）
+        const halfBeamX = W / 2 - 3 * s / 2 + 2 * conn.lengthOffset;
+        // 左半段：左角柱 → 中柱
+        add({ role: 'beam-x', sectionId: sec.id, length: halfBeamX, position: [-W / 4 + s / 4, y, z], axis: 'x' });
+        const leftBeamId = `m-${n}`;
+        for (const outward of [1, -1] as const) {
+          const postId = postAt.get(outward === -1 ? `${xLeft},${z}` : `0,${z}`)!;
+          const jointX = outward === -1 ? -(W / 2 - s) : -s / 2;
+          addJoint({ position: [jointX, y, z], beamAxis: 'x', outward, ySide,
+            beamMemberId: leftBeamId, postMemberId: postId });
+        }
+        // 右半段：中柱 → 右角柱
+        add({ role: 'beam-x', sectionId: sec.id, length: halfBeamX, position: [W / 4 - s / 4, y, z], axis: 'x' });
+        const rightBeamId = `m-${n}`;
+        for (const outward of [1, -1] as const) {
+          const postId = postAt.get(outward === 1 ? `${xRight},${z}` : `0,${z}`)!;
+          const jointX = outward === 1 ? (W / 2 - s) : s / 2;
+          addJoint({ position: [jointX, y, z], beamAxis: 'x', outward, ySide,
+            beamMemberId: rightBeamId, postMemberId: postId });
+        }
+      } else {
+        add({ role: 'beam-x', sectionId: sec.id, length: beamX, position: [0, y, z], axis: 'x' });
+        const beamId = `m-${n}`;
+        for (const outward of [1, -1] as const) {
+          const postId = postAt.get(`${outward * (W / 2 - s / 2)},${z}`)!;
+          addJoint({ position: [outward * (W / 2 - s), y, z], beamAxis: 'x', outward, ySide,
+            beamMemberId: beamId, postMemberId: postId });
+        }
       }
     }
     for (const x of [xLeft, xRight]) {

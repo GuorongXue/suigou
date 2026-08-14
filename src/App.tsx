@@ -769,6 +769,8 @@ export default function App() {
           </label>
           <label><input type="checkbox" checked={spec.brace}
             onChange={(e) => set({ brace: e.target.checked })} /> 背面斜撑</label>
+          <label><input type="checkbox" checked={spec.centerColumn ?? false}
+            onChange={(e) => set({ centerColumn: e.target.checked })} /> 中柱(双列分区)</label>
           <label><input type="checkbox" checked={spec.vibration ?? false}
             onChange={(e) => set({ vibration: e.target.checked })} /> 设备振动(3D打印/CNC)</label>
           <label><input type="checkbox" checked={spec.ledStrip ?? false}

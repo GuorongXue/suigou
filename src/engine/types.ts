@@ -41,6 +41,8 @@ export interface FrameSpec {
   rightPanel: PanelMaterial;
   /** 背面对角斜撑（val-005 解药） */
   brace: boolean;
+  /** 中柱：在框架中心(x=0)加前后两根立柱，将内腔分为左右双列（工具柜/分区柜异构拓扑） */
+  centerColumn?: boolean;
   /** LED 灯条：顶框前梁下槽内嵌（mat-004） */
   ledStrip?: boolean;
   /** 正面单开门（槽装合页+磁吸+把手） */
