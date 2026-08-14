@@ -620,21 +620,23 @@ export default function App() {
           </div>
         )}
 
+        {/* 快速尺寸：数字输入 + 滑杆合一，减少垂直空间 */}
         {([
           ['总宽 W', 'width', 200, 3000],
           ['总深 D', 'depth', 200, 3000],
           ['总高 H', 'height', 200, 3000],
         ] as const).map(([label, key, min, max]) => (
-          <label key={key} style={{ display: 'block', marginBottom: 8 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {label}
+          <div key={key} style={{ marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+              <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 500, flex: 1 }}>{label}</span>
               <input type="number" value={spec[key]} min={min} max={max} step={10}
                 onChange={(e) => { const v = Number(e.target.value); if (v >= min && v <= max) set({ [key]: v } as Partial<FrameSpec>); }}
-                style={{ width: 72, padding: '1px 4px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 12 }} /> mm
-            </span>
+                style={{ width: 64, padding: '2px 6px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 12, textAlign: 'right' }} />
+              <span style={{ fontSize: 11, color: '#9ca3af' }}>mm</span>
+            </div>
             <input type="range" min={min} max={max} step={10} value={spec[key]}
-              onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<FrameSpec>)} style={{ width: '100%' }} />
-          </label>
+              onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<FrameSpec>)} style={{ width: '100%', height: 4 }} />
+          </div>
         ))}
 
         <label style={{ display: 'block', marginBottom: 8 }}>
