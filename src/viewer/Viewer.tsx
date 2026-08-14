@@ -187,49 +187,7 @@ function wireMeshTextures(size = 512) {
   return { color, bump };
 }
 
-function woodTextures(size = 512): TexSet {
-  const seed = (v: number) => { const x = Math.sin(v * 127.1) * 43758.5453; return x - Math.floor(x); };
-  const color = tex(`wood-c-${size}`, size, (ctx, s) => {
-    // 无缝底色：周期性颜色变化（左右边缘一致，避免接缝）
-    for (let x = 0; x < s; x++) {
-      const t = Math.sin(x / s * Math.PI * 2 * 3) * 0.5 + 0.5;  // 3 个周期，sin 保证边缘连续
-      const r = 140 + t * 60 | 0, g = 100 + t * 45 | 0, b = 55 + t * 30 | 0;
-      ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fillRect(x, 0, 1, s);
-    }
-    // 生长轮：明暗条带（沿 Y 方向，与纤维垂直）
-    for (let i = 0; i < 8; i++) {
-      const y = (i / 8) * s + seed(i * 7) * s * 0.03;
-      ctx.strokeStyle = i % 2 === 0 ? 'rgba(100,70,35,0.10)' : 'rgba(190,155,105,0.06)';
-      ctx.lineWidth = s * 0.04; ctx.beginPath(); ctx.moveTo(0, y);
-      for (let x = 0; x <= s; x += 20) ctx.lineTo(x, y + Math.sin(x * 0.008 + i) * s * 0.01);
-      ctx.stroke();
-    }
-    // 木纤维：大量细长、平行、沿 X 方向（sin 周期保证左右无缝）
-    for (let i = 0; i < 100; i++) {
-      const y = seed(i * 31) * s, alpha = 0.03 + seed(i * 17) * 0.1;
-      const shade = 50 + seed(i * 53) * 70 | 0;
-      ctx.strokeStyle = `rgba(${shade + 30},${shade},${shade - 15},${alpha})`;
-      ctx.lineWidth = 0.3 + seed(i * 11) * 1.2;
-      ctx.beginPath(); ctx.moveTo(0, y);
-      const phase = seed(i * 7) * Math.PI * 2, amp = 0.8 + seed(i * 3) * 3;
-      for (let x = 0; x <= s; x += 3) ctx.lineTo(x, y + Math.sin(x / s * Math.PI * 2 + phase) * amp);
-      ctx.stroke();
-    }
-  });
-  const bump = tex(`wood-b-${size}`, size, (ctx, s) => {
-    ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, s, s);
-    for (let i = 0; i < 100; i++) {
-      const y = seed(i * 31) * s;
-      ctx.strokeStyle = `rgba(40,40,40,${0.08 + seed(i * 17) * 0.12})`;
-      ctx.lineWidth = 0.4 + seed(i * 11) * 1.2;
-      ctx.beginPath(); ctx.moveTo(0, y);
-      const phase = seed(i * 7) * Math.PI * 2, amp = 0.8 + seed(i * 3) * 3;
-      for (let x = 0; x <= s; x += 3) ctx.lineTo(x, y + Math.sin(x / s * Math.PI * 2 + phase) * amp);
-      ctx.stroke();
-    }
-  });
-  return { color, bump };
-}
+// wood 用纯色（无纹理）——假木纹比无纹理难看，质感靠材质参数体现
 
 /** 纹理集统一接口 */
 interface TexSet { color: THREE.CanvasTexture; bump: THREE.CanvasTexture; alpha?: THREE.CanvasTexture }
@@ -281,9 +239,9 @@ const PANEL_BASE: Record<string, () => THREE.MeshStandardMaterial> = {
   acrylic: () => new THREE.MeshStandardMaterial({ color: 0xf2f6f8, roughness: 0.15, metalness: 0.05, transparent: true, opacity: 0.45 }),
   'wire-mesh': () => new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.6, metalness: 0.5, transparent: true, opacity: 0.35 }),
 };
-/** 纹理集查找表（与 PANEL_BASE 一一对应） */
+/** 纹理集查找表（wood 用纯色无纹理，仅 pegboard/wire-mesh 需要纹理） */
 const PANEL_TEX: Record<string, () => TexSet> = {
-  wood: woodTextures, pegboard: pegboardTextures, 'wire-mesh': wireMeshTextures,
+  pegboard: pegboardTextures, 'wire-mesh': wireMeshTextures,
 };
 
 export function Viewer({ items, joints, machining, panels, accessories, mountPoints, dims, drawing, bubbles, viewRequest, focusY, onSelect, selection, warnMemberIds, profileColor }: ViewerProps) {
