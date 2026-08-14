@@ -523,33 +523,46 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh' }}>
-      {/* 顶栏：品牌 + 方案状态摘要 + 全局动作（16号评测 2.3） */}
-      <header style={{ height: 46, display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', background: '#fff', borderBottom: '1px solid #e2e5ea', fontSize: 13, flexShrink: 0 }}>
-        <b style={{ fontSize: 16 }}>随构</b>
-        <span style={{ color: '#aaa', fontSize: 12 }}>一句话出方案</span>
-        {model && (
-          <>
-            <span style={{
-              fontSize: 11, padding: '3px 10px', borderRadius: 10,
-              background: model.status === 'valid' ? '#f0fff4' : model.status === 'needs-confirmation' ? '#fffbeb' : '#fdf0ee',
-              color: model.status === 'valid' ? '#2f855a' : model.status === 'needs-confirmation' ? '#b7791f' : '#c0392b',
-            }}>
-              {model.status === 'valid' ? '✓ 可制造' : model.status === 'needs-confirmation' ? `⚠ ${warnCount} 项警告` : `✖ ${errCount} 项错误`}
-            </span>
-            <span style={{ color: '#666' }}>
-              构件 {model.totals.memberCount} 根
-              {model.totals.weightKg != null && ` · 约 ${model.totals.weightKg.toFixed(1)} kg`}
-              {model.totals.priceCny != null && ` · 合计约 ¥${model.totals.priceCny.toFixed(0)}`}
-            </span>
-          </>
-        )}
+      {/* 顶栏：品牌 + 预设模板 + 状态 + 动作 */}
+      <header style={{ height: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', background: '#fff', borderBottom: '1px solid #e2e5ea', fontSize: 12, flexShrink: 0 }}>
+        <b style={{ fontSize: 15, color: '#1a1a2e' }}>随构</b>
+        <span style={{ color: '#9ca3af', fontSize: 11, marginRight: 4 }}>参数化铝材设计</span>
+        {/* 预设模板：一键加载常见方案 */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          {([
+            ['💻 电脑桌', { scene: 'workbench', width: 1200, depth: 600, height: 740, shelfCount: 1 }],
+            ['📦 置物架', { scene: 'diy-furniture', width: 800, depth: 400, height: 1500, shelfCount: 3 }],
+            ['🗄️ 工具柜', { scene: 'diy-furniture', width: 670, depth: 400, height: 815, drawerCount: 3, drawerKind: 'turnover-box' }],
+            ['🐟 鱼缸架', { scene: 'diy-furniture', width: 1000, depth: 400, height: 750, shelfCount: 2, highRisk: true }],
+          ] as const).map(([label, preset]) => (
+            <button key={label} onClick={() => set(preset as Partial<FrameSpec>)} style={{
+              padding: '3px 8px', border: '1px solid #e2e5ea', borderRadius: 12, background: '#f8f9fa',
+              cursor: 'pointer', fontSize: 11, color: '#555', whiteSpace: 'nowrap',
+            }}>{label}</button>
+          ))}
+        </div>
         <div style={{ flex: 1 }} />
-        {(chat.length > 0 || manualChanges.size > 0) && (
-          <button onClick={resetDraft} style={{ fontSize: 12, padding: '5px 14px', border: '1px solid #c9d2e0', borderRadius: 6, background: '#fff', color: '#666', cursor: 'pointer' }}>新方案</button>
+        {model && (
+          <span style={{
+            fontSize: 11, padding: '3px 10px', borderRadius: 10,
+            background: model.status === 'valid' ? '#f0fff4' : model.status === 'needs-confirmation' ? '#fffbeb' : '#fdf0ee',
+            color: model.status === 'valid' ? '#2f855a' : model.status === 'needs-confirmation' ? '#b7791f' : '#c0392b',
+            fontWeight: 600,
+          }}>
+            {model.status === 'valid' ? '✓ 可制造' : model.status === 'needs-confirmation' ? `⚠ ${warnCount} 警告` : `✖ ${errCount} 错误`}
+          </span>
         )}
-        <button onClick={exportCutList} disabled={!model || model.status === 'invalid'} style={{ fontSize: 12, padding: '5px 14px', border: '1px solid #1e6fff', borderRadius: 6, background: '#fff', color: !model || model.status === 'invalid' ? '#aaa' : '#1e6fff', borderColor: !model || model.status === 'invalid' ? '#ccc' : '#1e6fff', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>导出切割清单</button>
-        <button onClick={exportAssembly} disabled={!model || model.status === 'invalid'} style={{ fontSize: 12, padding: '5px 14px', border: '1px solid #1e6fff', borderRadius: 6, background: '#fff', color: !model || model.status === 'invalid' ? '#aaa' : '#1e6fff', borderColor: !model || model.status === 'invalid' ? '#ccc' : '#1e6fff', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>导出装配说明</button>
-        <button onClick={exportBom} disabled={!model || model.status === 'invalid'} style={{ fontSize: 12, padding: '5px 14px', border: 'none', borderRadius: 6, background: !model || model.status === 'invalid' ? '#ccc' : '#1e6fff', color: '#fff', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>导出 BOM</button>
+        {model && (
+          <span style={{ color: '#888', fontSize: 11 }}>
+            {model.totals.memberCount} 根 · {model.totals.weightKg != null && `${model.totals.weightKg.toFixed(1)} kg`} · ¥{model.totals.priceCny?.toFixed(0) ?? '?'}
+          </span>
+        )}
+        {(chat.length > 0 || manualChanges.size > 0) && (
+          <button onClick={resetDraft} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: '#666', cursor: 'pointer' }}>新方案</button>
+        )}
+        <button onClick={exportCutList} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: !model || model.status === 'invalid' ? '#ccc' : '#555', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>切割</button>
+        <button onClick={exportAssembly} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: !model || model.status === 'invalid' ? '#ccc' : '#555', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>装配</button>
+        <button onClick={exportBom} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: 'none', borderRadius: 5, background: !model || model.status === 'invalid' ? '#e5e7eb' : '#1e6fff', color: !model || model.status === 'invalid' ? '#9ca3af' : '#fff', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer', fontWeight: 600 }}>BOM</button>
       </header>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
