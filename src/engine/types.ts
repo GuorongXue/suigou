@@ -15,6 +15,10 @@ export interface FrameSpec {
   workbenchDeskTopHeightMm?: number;
   /** 工作台语义：最上层搁板深度占桌面深度比例（上层默认浅一些） */
   workbenchUpperShelfDepthRatio?: number;
+  /** 抽屉层数（非 workbench 场景；拓扑=顶底框+每层双深向轨道梁，随构/21 三抽屉柜实证） */
+  drawerCount?: number;
+  /** 抽屉方案：周转箱+三折轨道（工具场景）/ 成品抽屉+反弹轨道（家具场景，无拉手） */
+  drawerKind?: 'turnover-box' | 'ready-made';
   /** 顶面设计载荷 kg */
   loadKg: number;
   loadType: 'distributed' | 'concentrated';
@@ -164,7 +168,7 @@ export interface MountItem {
   id: string;
   targetType: 'panel' | 'accessory' | 'member';
   targetId: string;
-  method: 't-nut-screw' | 'gasket-clamp' | 'shelf-support' | 'corner-flat' | 'caster-stem' | 'foot-stem' | 'slot-embed' | 'hinge';
+  method: 't-nut-screw' | 'gasket-clamp' | 'shelf-support' | 'corner-flat' | 'caster-stem' | 'foot-stem' | 'drawer-slide' | 'slot-embed' | 'hinge';
   note: string;
   fasteners: { sku: string; qty: number }[];
   /** 固定点（装配图/结构视图数据源） */
@@ -174,12 +178,14 @@ export interface MountItem {
 /** 附件：脚轮/LED灯条等（进模型/重量/价格/BOM） */
 export interface AccessoryItem {
   id: string;
-  kind: 'caster' | 'led-strip' | 'leveling-foot';
+  kind: 'caster' | 'led-strip' | 'leveling-foot' | 'drawer-box';
   sku: string;
   position: [number, number, number];
   weightKg: number;
   /** 长条类附件的长度（LED 灯条） */
   lengthMm?: number;
+  /** 盒体类附件渲染尺寸（抽屉盒）：[X, Y, Z] */
+  boxSize?: [number, number, number];
 }
 
 /** 板材下料清单行（按件号聚合） */

@@ -31,6 +31,7 @@ fasteners:
   rebound-slide-350:   { name: 反弹抽屉轨道 350/副(按压无拉手), price: 18.00 }
   turnover-box-148:    { name: 工业风周转箱 40×30×14.8, price: 15.00 }
   turnover-box-230:    { name: 工业风周转箱 40×30×23,  price: 20.00 }
+  drawer-box-ready:    { name: 成品抽屉盒(木面板),      price: 35.00 }
   shelf-support-20:    { name: 层板托 2020(平嵌隐形),  price: 1.50 }
   shelf-support-30:    { name: 层板托 3030(平嵌隐形),  price: 2.00 }
   flat-corner-plate:   { name: 平面直角连接件(板材固定薄L片), price: 1.00 }

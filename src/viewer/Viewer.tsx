@@ -53,6 +53,8 @@ export interface RenderAccessory {
   position: [number, number, number];
   /** 长条类附件长度（LED 灯条） */
   lengthMm?: number;
+  /** 盒体类附件尺寸（抽屉盒） */
+  boxSize?: [number, number, number];
 }
 
 export interface RenderMountPoint {
@@ -464,6 +466,18 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
           new THREE.MeshStandardMaterial({ color: 0xfff6d8, emissive: 0xffe08a, emissiveIntensity: 1.4 }));
         bar.position.set(...a.position);
         ctx.group.add(bar);
+        continue;
+      }
+      if (a.kind === 'drawer-box') {   // 抽屉盒：箱体+前面板
+        const [bw, bh, bd] = a.boxSize ?? [200, 140, 300];
+        const body = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd),
+          new THREE.MeshStandardMaterial({ color: 0xcfc4ae, roughness: 0.8 }));
+        body.position.set(...a.position);
+        ctx.group.add(body);
+        const face = new THREE.Mesh(new THREE.BoxGeometry(bw + 16, bh + 10, 12),
+          new THREE.MeshStandardMaterial({ color: 0x9a7b56, roughness: 0.6 }));
+        face.position.set(a.position[0], a.position[1], a.position[2] + bd / 2 + 7);
+        ctx.group.add(face);
         continue;
       }
       if (a.kind === 'leveling-foot') {   // 调平地脚：圆盘垫+丝杆

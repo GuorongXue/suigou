@@ -148,6 +148,26 @@ console.log('== 3. 生成冒烟 + 强制不变量 ==');
   } catch (e) {
     fail(`极简桌锚点异常: ${(e as Error).message}`);
   }
+
+  // 黄金锚点③（随构/21 三抽屉柜）：350×400×490，BOM 实证 490×4 / 340×10 / 290×4
+  try {
+    const tower = generateFrame({
+      ...spec, width: 350, depth: 400, height: 490, scene: 'diy-furniture',
+      shelfCount: 0, drawerCount: 3, drawerKind: 'ready-made',
+      mobility: 'leveling-feet', backPanel: 'none', topPanel: 'wood',
+      sectionId: 'eu-3030', connectorId: 'three-way-30', brace: false,
+    }, kb);
+    const lens = new Map<number, number>();
+    for (const m of tower.members) lens.set(m.length, (lens.get(m.length) ?? 0) + 1);
+    if (lens.get(490) !== 4) fail(`三抽屉柜立柱应 490×4，实际 ${lens.get(490) ?? 0}`);
+    if (lens.get(340) !== 10) fail(`三抽屉柜深向梁应 340×10（顶2+底2+轨道6），实际 ${lens.get(340) ?? 0}`);
+    if (lens.get(290) !== 4) fail(`三抽屉柜宽向梁应 290×4，实际 ${lens.get(290) ?? 0}`);
+    if (tower.accessories.filter((a) => a.kind === 'drawer-box').length !== 3) fail('三抽屉柜应有3个抽屉盒');
+    if (tower.accessories.filter((a) => a.kind === 'leveling-foot').length !== 4) fail('三抽屉柜应有4个调平地脚');
+    ok('黄金锚点③ 三抽屉柜 350×400×490 BOM 对齐');
+  } catch (e) {
+    fail(`三抽屉柜锚点异常: ${(e as Error).message}`);
+  }
 }
 
 console.log(failures ? `\n== 4. archetype 意图回归（跳过） ==` : '== 4. archetype 意图回归 ==');

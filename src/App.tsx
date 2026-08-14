@@ -232,12 +232,12 @@ export default function App() {
 
   const accessories: RenderAccessory[] = useMemo(() => {
     if (!result.model) return [];
-    return result.model.accessories.map((a) => ({ kind: a.kind, position: a.position, lengthMm: a.lengthMm }));
+    return result.model.accessories.map((a) => ({ kind: a.kind, position: a.position, lengthMm: a.lengthMm, boxSize: a.boxSize }));
   }, [result]);
 
   const mountPoints: RenderMountPoint[] = useMemo(() => {
     if (!result.model) return [];
-    const methodName: Record<string, string> = { 't-nut-screw': 'T型螺母+螺栓', 'gasket-clamp': '胶垫+压条', 'shelf-support': '层板托平嵌', 'corner-flat': '平面直角件', 'caster-stem': '丝杆拧入', 'foot-stem': '地脚拧入' };
+    const methodName: Record<string, string> = { 't-nut-screw': 'T型螺母+螺栓', 'gasket-clamp': '胶垫+压条', 'shelf-support': '层板托平嵌', 'corner-flat': '平面直角件', 'caster-stem': '丝杆拧入', 'foot-stem': '地脚拧入', 'drawer-slide': '抽屉轨道' };
     return result.model.mounts.flatMap((m, i) => m.points.map((p) => ({
       position: p,
       label: `M${i + 1}`,
@@ -479,7 +479,7 @@ export default function App() {
     const bomAgg = new Map<string, number>();
     for (const b of conn.bom) bomAgg.set(b.sku, (bomAgg.get(b.sku) ?? 0) + b.qty * model.joints.length);
     // 装配层紧固件（板材固定）聚合；脚轮/LED 本体走附件行避免重复
-    for (const mt of model.mounts.filter((m) => m.method !== 'caster-stem' && m.method !== 'foot-stem' && m.method !== 'slot-embed')) {
+    for (const mt of model.mounts.filter((m) => m.method !== 'caster-stem' && m.method !== 'foot-stem' && m.method !== 'drawer-slide' && m.method !== 'slot-embed')) {
       for (const f of mt.fasteners) bomAgg.set(f.sku, (bomAgg.get(f.sku) ?? 0) + f.qty);
     }
     for (const [sku, qty] of bomAgg) rows.push(['配件', sku, qty, (kb.fasteners[sku] ? (kb.fasteners[sku].price * qty).toFixed(2) : '待补')]);
@@ -636,6 +636,25 @@ export default function App() {
           <input type="range" min={0} max={4} step={1} value={spec.shelfCount}
             onChange={(e) => set({ shelfCount: Number(e.target.value) })} style={{ width: '100%' }} />
         </label>
+
+        {spec.scene !== 'workbench' && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'flex-end' }}>
+            <label style={{ flex: 1 }}>
+              抽屉层数 {spec.drawerCount ?? 0}
+              <input type="range" min={0} max={5} step={1} value={spec.drawerCount ?? 0}
+                onChange={(e) => set({ drawerCount: Number(e.target.value) })} style={{ width: '100%' }} />
+            </label>
+            {(spec.drawerCount ?? 0) > 0 && (
+              <label style={{ flex: 1, fontSize: 12 }}>
+                抽屉方案
+                <select value={spec.drawerKind ?? 'ready-made'} onChange={(e) => set({ drawerKind: e.target.value as FrameSpec['drawerKind'] })} style={{ width: '100%', marginTop: 4 }}>
+                  <option value="ready-made">成品抽屉+反弹轨(无拉手)</option>
+                  <option value="turnover-box">周转箱+三折轨(工具)</option>
+                </select>
+              </label>
+            )}
+          </div>
+        )}
 
         {spec.scene === 'workbench' && spec.shelfCount > 0 && (
           <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 6, background: '#f6f9ff', border: '1px solid #d8e6ff' }}>

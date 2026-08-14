@@ -197,6 +197,32 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     for (const y of levels) addRectLayer(y, D);
   }
 
+  // 抽屉塔（随构/21 三抽屉柜实证）：顶底框 + 每层双深向轨道梁 + 抽屉盒
+  const drawerCount = Math.floor(spec.drawerCount ?? 0);
+  if (spec.drawerCount != null && !Number.isFinite(spec.drawerCount)) {
+    throw new Error('抽屉层数必须是有限数值');
+  }
+  const drawerBoxes: { y: number; pitch: number }[] = [];
+  if (drawerCount > 0 && spec.scene !== 'workbench') {
+    const pitch = (H - 2 * s) / drawerCount;
+    if (pitch < 120) {
+      throw new Error(`总高 ${H}mm 装不下 ${drawerCount} 层抽屉（节距 ${Math.round(pitch)} < 120mm；案例档位 160~230）`);
+    }
+    for (let i = 0; i < drawerCount; i++) {
+      const y = s + i * pitch + 20;   // 轨道梁在每层底部上方（案例：角码固定于柱）
+      for (const x of [xLeft, xRight]) {
+        add({ role: 'beam-z', sectionId: sec.id, length: beamZ, position: [x, y, 0], axis: 'z' });
+        mounts.push({
+          id: `mt-${++mtn}`, targetType: 'member', targetId: `m-${n}`,
+          method: 't-nut-screw', note: `抽屉轨道梁：角码两端固定于前后柱（案例实证 角码×2/梁）`,
+          fasteners: [{ sku: 'corner-bracket-30-body', qty: 2 }, { sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l16', qty: 4 }],
+          points: [[x, y, zBack], [x, y, zFront]],
+        });
+      }
+      drawerBoxes.push({ y, pitch });
+    }
+  }
+
   // 板材构件（9.2.3 修复：真实搭接几何 + Mount 固定关系，不再悬空）
   // 板材固定档位分派（安装工艺谱系：随构/21）：方式→紧固件 BOM
   const supportSku = s >= 30 ? 'shelf-support-30' : 'shelf-support-20';
@@ -471,6 +497,34 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     }
   }
 
+  // 抽屉盒附件：周转箱+三折轨道（工具）或 成品抽屉+反弹轨道（家具，无拉手）
+  if (drawerBoxes.length) {
+    const kind = spec.drawerKind ?? 'ready-made';
+    const boxSku = kind === 'turnover-box' ? 'turnover-box-148' : 'drawer-box-ready';
+    const slideSku = kind === 'turnover-box' ? 'drawer-slide-350' : 'rebound-slide-350';
+    let dn = 0;
+    for (const { y, pitch } of drawerBoxes) {
+      const accId = `ad-${++dn}`;
+      const bw = W - 2 * s - 30;   // 两侧轨道各留 ~15
+      const bh = Math.min(pitch - 25, kind === 'turnover-box' ? 155 : pitch - 25);
+      const bd = D - 2 * s;
+      accessories.push({
+        id: accId, kind: 'drawer-box', sku: boxSku,
+        position: [0, y + 10 + bh / 2, 0], weightKg: kind === 'turnover-box' ? 1.2 : 3.0,
+        boxSize: [bw, bh, bd],
+      });
+      mounts.push({
+        id: `mt-${++mtn}`, targetType: 'accessory', targetId: accId,
+        method: 'drawer-slide',
+        note: kind === 'turnover-box'
+          ? '周转箱+底托放三折轨道上（轨道 M4 半圆头螺丝入梁槽）'
+          : '成品抽屉盒装反弹轨道（按压开启无拉手，轨道 M4 半圆头螺丝入梁槽）',
+        fasteners: [{ sku: boxSku, qty: 1 }, { sku: slideSku, qty: 1 }, { sku: 'screw-m4-10-pan', qty: 8 }, { sku: 't-nut-m4', qty: 8 }],
+        points: [[-W / 2 + s, y, 0], [W / 2 - s, y, 0]],
+      });
+    }
+  }
+
   // LED 灯条：顶框前梁下槽内嵌（mat-004），电源线沿立柱槽走线
   if (spec.ledStrip) {
     const ledY = H - s;
@@ -629,7 +683,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   const panelsCost = r2(panelList.reduce((sum, p) => sum + p.priceCny * p.qty, 0));
   const connectorsCost = r2(joints.length * conn.bom.reduce((sum, b) => sum + (b.priceUntaxed ?? fprice(b.sku)) * b.qty, 0));
   // 脚轮/LED 的 mount 紧固件即附件本体，归入附件项避免重计
-  const fastenersCost = r2(mounts.filter((mt) => mt.method !== 'caster-stem' && mt.method !== 'foot-stem' && mt.method !== 'slot-embed')
+  const fastenersCost = r2(mounts.filter((mt) => mt.method !== 'caster-stem' && mt.method !== 'foot-stem' && mt.method !== 'drawer-slide' && mt.method !== 'slot-embed')
     .reduce((sum, mt) => sum + mt.fasteners.reduce((a, f) => a + fprice(f.sku) * f.qty, 0), 0));
   const machiningCost = r2(machining.reduce((sum, mc) => sum + (mprice[mc.type] ?? 0), 0)
     + members.filter((m) => m.role === 'brace').length * 2 * (mprice['miter-cut'] ?? 0));

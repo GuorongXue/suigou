@@ -91,6 +91,11 @@ export function buildAssemblySteps(model: FrameModel, kb: KnowledgeBase): Assemb
     add('门板', partOf(door.map((m) => m.targetId)), aggFast(door),
       ['内六角扳手 5mm', '十字螺丝刀'], door[0].note + '；先装合页侧，调平后装磁吸与把手');
   }
+  const drawers = model.mounts.filter((m) => m.method === 'drawer-slide');
+  if (drawers.length) {
+    add('抽屉与轨道', [`抽屉×${drawers.length}`], aggFast(drawers), ['十字螺丝刀', '内六角扳手 3mm'],
+      drawers[0].note + '；先装轨道外轨于梁槽，抽屉带内轨推入；逐层试拉顺畅后锁紧');
+  }
   const casters = model.mounts.filter((m) => m.method === 'caster-stem');
   if (casters.length) {
     add('脚轮', [`丝杆脚轮×${casters.length}`], aggFast(casters), ['扳手 13mm(可选)'],

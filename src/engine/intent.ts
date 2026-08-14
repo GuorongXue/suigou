@@ -191,8 +191,14 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   let bottomPanel: FrameSpec['topPanel'] = 'none';
   let doorPanel: FrameSpec['topPanel'] = 'none';
   let backPanel: FrameSpec['topPanel'] = 'none';
+  let drawerCount = 0;
   for (const p of ex.panels ?? []) {
     if (p.material === 'none') continue;
+    // 抽屉不再降级（随构/21 案例拓扑已支持）：每条 drawer 记录计入层数
+    if (p.position === 'drawer' && scene !== 'workbench') {
+      drawerCount += 1;
+      continue;
+    }
     const mat = MAT_MAP[p.material];
     // 电脑桌语义：洞洞板是立面收纳件（背板位），不是桌面/隔板材质
     if (scene === 'workbench' && p.material === 'pegboard') {
@@ -243,6 +249,9 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     if (backPanel !== 'pegboard') backPanel = 'none';
     bottomPanel = 'none';
   }
+  if (drawerCount > 0) {
+    assumptions.push(`抽屉×${drawerCount}：成品抽屉盒+反弹轨道方案（无拉手，案例实证拓扑）`);
+  }
   // productType 超纲 / 附件类需求降级
   if (ex.productType === 'other') {
     unsupported.push('非框架类主体结构');
@@ -269,6 +278,8 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
       loadKg, loadType, scene, highRisk, mobility, vibration,
       topPanel, shelfPanel, bottomPanel, doorPanel,
       backPanel, leftPanel: 'none', rightPanel: 'none',
+      drawerCount: drawerCount > 0 ? Math.min(5, drawerCount) : undefined,
+      drawerKind: drawerCount > 0 ? 'ready-made' : undefined,
       brace: false,
     },
     assumptions,
