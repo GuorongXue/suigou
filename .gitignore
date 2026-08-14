@@ -1,6 +1,7 @@
 node_modules/
 dist/
 archive/
+图片/
 *.local
 *.tsbuildinfo
 
