@@ -311,6 +311,11 @@ export default function App() {
         if (next.workbenchLowerZoneRatio == null) next.workbenchLowerZoneRatio = 0.62;
         if (next.workbenchUpperShelfDepthRatio == null) next.workbenchUpperShelfDepthRatio = 0.55;
       }
+      // 一致性不变量：无抽屉时清除层数+方案（与 intent.ts 对齐，避免 drawerKind 残留）
+      if (next.drawerCount != null && next.drawerCount <= 0) {
+        next.drawerCount = undefined;
+        next.drawerKind = undefined;
+      }
       return next;
     });
     // 对话开始后的手动调整要记账，下一轮注入模型上下文（单一事实源）
@@ -729,7 +734,7 @@ export default function App() {
 
         <label style={{ display: 'block', marginBottom: 8 }}>
           顶面载荷 {spec.loadKg} kg
-          <input type="range" min={0} max={200} step={5} value={spec.loadKg}
+          <input type="range" min={5} max={200} step={5} value={spec.loadKg}
             onChange={(e) => set({ loadKg: Number(e.target.value) })} style={{ width: '100%' }} />
         </label>
 
