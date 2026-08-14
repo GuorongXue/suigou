@@ -193,6 +193,7 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   let bottomPanel: FrameSpec['topPanel'] = 'none';
   let doorPanel: FrameSpec['topPanel'] = 'none';
   let backPanel: FrameSpec['topPanel'] = 'none';
+  let leftPanel: FrameSpec['topPanel'] = 'none';
   let drawerCount = 0;
   for (const p of ex.panels ?? []) {
     if (p.material === 'none') continue;
@@ -226,8 +227,14 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
       doorPanel = mat;
       assumptions.push(`门板：${MAT_NAME[p.material]}（正面单开，槽装合页+磁吸+把手）`);
     } else if (p.position === 'side' && mat) {
-      backPanel = mat;
-      assumptions.push(`侧/背板：${MAT_NAME[p.material]}（按背板处理，兼作抗侧向体系）`);
+      // 洞洞板：侧挂语义（工具墙/工具柜常见形态），挂于左立面；其余材料按背板处理
+      if (p.material === 'pegboard') {
+        leftPanel = mat;
+        assumptions.push('洞洞板：侧挂于左立面（工具墙收纳语义，案例高频）');
+      } else {
+        backPanel = mat;
+        assumptions.push(`侧/背板：${MAT_NAME[p.material]}（按背板处理，兼作抗侧向体系）`);
+      }
     } else {
       unsupported.push(`${POS_NAME[p.position] ?? p.position}（${MAT_NAME[p.material] ?? p.material}）`);
     }
@@ -279,7 +286,7 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
       workbenchLowerZoneRatio, workbenchDeskTopHeightMm, workbenchUpperShelfDepthRatio,
       loadKg, loadType, scene, highRisk, mobility, vibration,
       topPanel, shelfPanel, bottomPanel, doorPanel,
-      backPanel, leftPanel: 'none', rightPanel: 'none',
+      backPanel, leftPanel, rightPanel: 'none',
       drawerCount: drawerCount > 0 ? Math.min(5, drawerCount) : undefined,
       drawerKind: drawerCount > 0 ? 'ready-made' : undefined,
       brace: false,

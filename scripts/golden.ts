@@ -257,5 +257,30 @@ console.log(failures ? `\n== 6. 顶板凹陷模式（跳过） ==` : '== 6. 顶�
   if (!failures) ok(`顶板凹陷模式通过：recessed ${tp.size[0]}×${tp.size[1]} vs overlay ${overlayTop[0].size[0]}×${overlayTop[0].size[1]}`);
 }
 
+console.log(failures ? `\n== 7. 洞洞板侧挂语义（跳过） ==` : '== 7. 洞洞板侧挂语义 ==');
+{
+  // 洞洞板 + position=side → 应挂于左立面（leftPanel），而非背板
+  const { intentToSpec } = await import('../src/engine/intent');
+  const base = {
+    productType: 'cabinet', dimensions: { width: 800, depth: 400, height: 1200, unit: 'mm' },
+    load: { totalKg: 20, type: 'distributed' as const, description: '' }, scene: 'diy-furniture',
+    mobility: 'fixed' as const, stiffnessNeed: 'normal', environment: { humid: null, outdoor: null, vibration: null },
+    panels: [{ material: 'pegboard', position: 'side' }], appearance: { color: null, hiddenConnectorsPreferred: null },
+    budgetSensitivity: 'unknown', layers: 2, _missing: [], _assumptions: [], _riskFlags: [],
+  };
+  const pegSide = intentToSpec(base, kb);
+  if (pegSide.spec.leftPanel !== 'pegboard') fail(`洞洞板侧挂应为 leftPanel=pegboard，实际 ${pegSide.spec.leftPanel}`);
+  if (pegSide.spec.backPanel === 'pegboard') fail('洞洞板侧挂不应同时设为背板');
+  // 对比：非洞洞板材料 + side → 仍按背板处理
+  const woodSide = intentToSpec({ ...base, panels: [{ material: 'wood', position: 'side' }] }, kb);
+  if (woodSide.spec.backPanel !== 'wood') fail(`木板+side 应仍为背板，实际 ${woodSide.spec.backPanel}`);
+  if (woodSide.spec.leftPanel === 'wood') fail('木板+side 不应挂侧立面');
+  // 生成验证：左立面应有侧挂板
+  const model = generateFrame(pegSide.spec, kb);
+  const sidePanels = model.panels.filter((p) => p.mode === 'side-overlay' && p.position[0] < 0);
+  if (sidePanels.length !== 1) fail(`应生成 1 块左侧挂板，实际 ${sidePanels.length}`);
+  if (!failures) ok(`洞洞板侧挂通过：pegboard+side → leftPanel ✓；wood+side → backPanel ✓`);
+}
+
 console.log(failures ? `\n✖ 失败 ${failures} 项` : '\n✓ 全部通过');
 process.exit(failures ? 1 : 0);
