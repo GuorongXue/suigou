@@ -237,7 +237,7 @@ export default function App() {
 
   const mountPoints: RenderMountPoint[] = useMemo(() => {
     if (!result.model) return [];
-    const methodName: Record<string, string> = { 't-nut-screw': 'T型螺母+螺栓', 'gasket-clamp': '胶垫+压条', 'shelf-support': '层板托平嵌', 'corner-flat': '平面直角件', 'caster-stem': '丝杆拧入' };
+    const methodName: Record<string, string> = { 't-nut-screw': 'T型螺母+螺栓', 'gasket-clamp': '胶垫+压条', 'shelf-support': '层板托平嵌', 'corner-flat': '平面直角件', 'caster-stem': '丝杆拧入', 'foot-stem': '地脚拧入' };
     return result.model.mounts.flatMap((m, i) => m.points.map((p) => ({
       position: p,
       label: `M${i + 1}`,
@@ -479,7 +479,7 @@ export default function App() {
     const bomAgg = new Map<string, number>();
     for (const b of conn.bom) bomAgg.set(b.sku, (bomAgg.get(b.sku) ?? 0) + b.qty * model.joints.length);
     // 装配层紧固件（板材固定）聚合；脚轮/LED 本体走附件行避免重复
-    for (const mt of model.mounts.filter((m) => m.method !== 'caster-stem' && m.method !== 'slot-embed')) {
+    for (const mt of model.mounts.filter((m) => m.method !== 'caster-stem' && m.method !== 'foot-stem' && m.method !== 'slot-embed')) {
       for (const f of mt.fasteners) bomAgg.set(f.sku, (bomAgg.get(f.sku) ?? 0) + f.qty);
     }
     for (const [sku, qty] of bomAgg) rows.push(['配件', sku, qty, (kb.fasteners[sku] ? (kb.fasteners[sku].price * qty).toFixed(2) : '待补')]);
@@ -735,8 +735,13 @@ export default function App() {
         <div style={{ display: 'flex', gap: 14, marginBottom: 8, flexWrap: 'wrap' }}>
           <label><input type="checkbox" checked={spec.highRisk}
             onChange={(e) => set({ highRisk: e.target.checked })} /> 高风险(水族/儿童/头顶)</label>
-          <label><input type="checkbox" checked={spec.mobility === 'caster'}
-            onChange={(e) => set({ mobility: e.target.checked ? 'caster' : 'fixed' })} /> 带脚轮</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>底部
+            <select value={spec.mobility} onChange={(e) => set({ mobility: e.target.value as FrameSpec['mobility'] })} style={{ fontSize: 12 }}>
+              <option value="fixed">直接落地</option>
+              <option value="leveling-feet">调平地脚</option>
+              <option value="caster">脚轮</option>
+            </select>
+          </label>
           <label><input type="checkbox" checked={spec.brace}
             onChange={(e) => set({ brace: e.target.checked })} /> 背面斜撑</label>
           <label><input type="checkbox" checked={spec.vibration ?? false}

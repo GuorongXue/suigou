@@ -391,6 +391,22 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
 
   // 脚轮附件（9.2.4 修复：进模型/BOM/重量；丝杆脚轮 → 柱底端面攻牙加工）
   const accessories: AccessoryItem[] = [];
+  // 调平地脚（真实案例高频：三抽屉柜/展示柜）：落地柱底端 M8 拧入
+  if (spec.mobility === 'leveling-feet') {
+    let fn = 0;
+    for (const [key, postId] of postAt) {
+      if (!groundPostIds.has(postId)) continue;
+      const [x, z] = key.split(',').map(Number);
+      const accId = `af-${++fn}`;
+      accessories.push({ id: accId, kind: 'leveling-foot', sku: 'leveling-foot-m8', position: [x, -25, z], weightKg: 0.1 });
+      mounts.push({
+        id: `mt-${++mtn}`, targetType: 'accessory', targetId: accId,
+        method: 'foot-stem', note: `调平地脚拧入立柱(${postId})底端面 M8 攻牙`,
+        fasteners: [{ sku: 'leveling-foot-m8', qty: 1 }],
+        points: [[x, 0, z]],
+      });
+    }
+  }
   if (spec.mobility === 'caster') {
     let an = 0;
     for (const [key, postId] of postAt) {
@@ -474,13 +490,14 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   }
 
   // 件号系统：长度+完整加工特征签名（含局部位置/加工面/方向，防镜像件误合并，9.2.5）
-  // 脚轮丝杆 → 立柱底端面 M8 攻牙加工（装配关系派生加工特征）
-  if (spec.mobility === 'caster') {
+  // 脚轮/地脚丝杆 → 立柱底端面 M8 攻牙加工（装配关系派生加工特征）
+  if (spec.mobility === 'caster' || spec.mobility === 'leveling-feet') {
+    const tag = spec.mobility === 'caster' ? '脚轮' : '调平地脚';
     for (const [key, postId] of postAt) {
       if (!groundPostIds.has(postId)) continue;
       const [x, z] = key.split(',').map(Number);
       machining.push({
-        id: `mc-${++mn}`, jointId: '-', memberId: postId, type: 'end-tap', spec: 'M8×20(脚轮)',
+        id: `mc-${++mn}`, jointId: '-', memberId: postId, type: 'end-tap', spec: `M8×20(${tag})`,
         position: [x, 10, z], axis: 'y', diameter: 8, length: 20, discs: [] });
     }
   }
@@ -564,7 +581,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   const panelsCost = r2(panelList.reduce((sum, p) => sum + p.priceCny * p.qty, 0));
   const connectorsCost = r2(joints.length * conn.bom.reduce((sum, b) => sum + (b.priceUntaxed ?? fprice(b.sku)) * b.qty, 0));
   // 脚轮/LED 的 mount 紧固件即附件本体，归入附件项避免重计
-  const fastenersCost = r2(mounts.filter((mt) => mt.method !== 'caster-stem' && mt.method !== 'slot-embed')
+  const fastenersCost = r2(mounts.filter((mt) => mt.method !== 'caster-stem' && mt.method !== 'foot-stem' && mt.method !== 'slot-embed')
     .reduce((sum, mt) => sum + mt.fasteners.reduce((a, f) => a + fprice(f.sku) * f.qty, 0), 0));
   const machiningCost = r2(machining.reduce((sum, mc) => sum + (mprice[mc.type] ?? 0), 0)
     + members.filter((m) => m.role === 'brace').length * 2 * (mprice['miter-cut'] ?? 0));

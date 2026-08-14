@@ -96,6 +96,11 @@ export function buildAssemblySteps(model: FrameModel, kb: KnowledgeBase): Assemb
     add('脚轮', [`丝杆脚轮×${casters.length}`], aggFast(casters), ['扳手 13mm(可选)'],
       '整体翻转，丝杆拧入立柱底端面 M8 攻牙至根部；落地后测试锁定');
   }
+  const feet = model.mounts.filter((m) => m.method === 'foot-stem');
+  if (feet.length) {
+    add('调平地脚', [`调平地脚×${feet.length}`], aggFast(feet), ['扳手 13mm(可选)'],
+      '整体翻转，地脚拧入立柱底端面 M8 攻牙；落地后旋调各脚消除晃动');
+  }
   const led = model.mounts.filter((m) => m.method === 'slot-embed');
   if (led.length) {
     add('LED 灯条', ['LED 灯条+电源'], aggFast(led), [],

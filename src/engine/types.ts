@@ -24,7 +24,7 @@ export interface FrameSpec {
   scene: 'diy-furniture' | 'industrial-rack' | 'workbench' | 'precision';
   /** 高风险场景（水族/儿童/头顶）→ val-003 安全系数 2.0 */
   highRisk: boolean;
-  mobility: 'fixed' | 'caster';
+  mobility: 'fixed' | 'leveling-feet' | 'caster';
   /** 设备振动工况（3D打印机/CNC 等）→ val-005 斜撑触发 */
   vibration?: boolean;
   /** 板材：顶面、隔板层、底框各一种材质 */
@@ -164,7 +164,7 @@ export interface MountItem {
   id: string;
   targetType: 'panel' | 'accessory' | 'member';
   targetId: string;
-  method: 't-nut-screw' | 'gasket-clamp' | 'shelf-support' | 'corner-flat' | 'caster-stem' | 'slot-embed' | 'hinge';
+  method: 't-nut-screw' | 'gasket-clamp' | 'shelf-support' | 'corner-flat' | 'caster-stem' | 'foot-stem' | 'slot-embed' | 'hinge';
   note: string;
   fasteners: { sku: string; qty: number }[];
   /** 固定点（装配图/结构视图数据源） */
@@ -174,7 +174,7 @@ export interface MountItem {
 /** 附件：脚轮/LED灯条等（进模型/重量/价格/BOM） */
 export interface AccessoryItem {
   id: string;
-  kind: 'caster' | 'led-strip';
+  kind: 'caster' | 'led-strip' | 'leveling-foot';
   sku: string;
   position: [number, number, number];
   weightKg: number;

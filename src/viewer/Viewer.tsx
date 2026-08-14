@@ -466,6 +466,15 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
         ctx.group.add(bar);
         continue;
       }
+      if (a.kind === 'leveling-foot') {   // 调平地脚：圆盘垫+丝杆
+        const pad = new THREE.Mesh(new THREE.CylinderGeometry(20, 24, 12, 16), wheelMat);
+        pad.position.set(a.position[0], a.position[1] - 12, a.position[2]);
+        ctx.group.add(pad);
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 30, 12), forkMat);
+        stem.position.set(a.position[0], a.position[1] + 10, a.position[2]);
+        ctx.group.add(stem);
+        continue;
+      }
       const wheel = new THREE.Mesh(new THREE.CylinderGeometry(25, 25, 20, 20), wheelMat);
       wheel.rotation.x = Math.PI / 2;
       wheel.position.set(a.position[0], a.position[1], a.position[2]);
@@ -495,10 +504,10 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       }
     }
 
-    // 地面贴轮底：带脚轮时框架被垫高，网格/轴线下移到轮子着地平面（轮半径25）
-    const casters = accessories.filter((a) => a.kind === 'caster');
-    const groundY = casters.length
-      ? Math.min(...casters.map((a) => a.position[1])) - 25 : 0;
+    // 地面贴底：脚轮/地脚垫高时，网格/轴线下移到着地平面
+    const grounded = accessories.filter((a) => a.kind === 'caster' || a.kind === 'leveling-foot');
+    const groundY = grounded.length
+      ? Math.min(...grounded.map((a) => a.position[1] - (a.kind === 'caster' ? 25 : 18))) : 0;
     ctx.decor.forEach((o) => { o.position.y = groundY; });
 
     ctx.controls.target.set(0, focusY, 0);
