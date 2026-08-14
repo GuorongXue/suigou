@@ -51,7 +51,7 @@ const normalizeWorkbenchSpec = (s: FrameSpec): FrameSpec => {
       : Math.min(WORKBENCH_HEIGHT_MAX, Math.max(WORKBENCH_HEIGHT_MIN, next.height));
     next.workbenchDeskTopHeightMm = next.workbenchDeskTopHeightMm ?? 740;
     next.workbenchLowerZoneRatio = next.workbenchLowerZoneRatio ?? 0.62;
-    next.workbenchUpperShelfDepthRatio = next.workbenchUpperShelfDepthRatio ?? 0.58;
+    next.workbenchUpperShelfDepthRatio = next.workbenchUpperShelfDepthRatio ?? 0.55;
     next.shelfCount = Math.max(1, next.shelfCount);
     next.doorPanel = 'none';
     next.bottomPanel = 'none';
@@ -91,7 +91,7 @@ export default function App() {
     shelfPanel: 'none',
     workbenchDeskTopHeightMm: 740,
     workbenchLowerZoneRatio: 0.62,
-    workbenchUpperShelfDepthRatio: 0.58,
+    workbenchUpperShelfDepthRatio: 0.55,
     bottomPanel: 'none',
     backPanel: 'none',
     leftPanel: 'none',
@@ -308,7 +308,7 @@ export default function App() {
       if (next.scene === 'workbench') {
         if (next.workbenchDeskTopHeightMm == null) next.workbenchDeskTopHeightMm = 740;
         if (next.workbenchLowerZoneRatio == null) next.workbenchLowerZoneRatio = 0.62;
-        if (next.workbenchUpperShelfDepthRatio == null) next.workbenchUpperShelfDepthRatio = 0.58;
+        if (next.workbenchUpperShelfDepthRatio == null) next.workbenchUpperShelfDepthRatio = 0.55;
       }
       return next;
     });
@@ -672,13 +672,13 @@ export default function App() {
               />
             </label>
             <label style={{ display: 'block', fontSize: 12 }}>
-              上层浅搁板深度占比 {Math.round((spec.workbenchUpperShelfDepthRatio ?? 0.58) * 100)}%
+              上层浅搁板深度占比 {Math.round((spec.workbenchUpperShelfDepthRatio ?? 0.55) * 100)}%
               <input
                 type="range"
                 min={35}
                 max={95}
                 step={1}
-                value={Math.round((spec.workbenchUpperShelfDepthRatio ?? 0.58) * 100)}
+                value={Math.round((spec.workbenchUpperShelfDepthRatio ?? 0.55) * 100)}
                 onChange={(e) => set({ workbenchUpperShelfDepthRatio: Number(e.target.value) / 100 })}
                 style={{ width: '100%' }}
               />
