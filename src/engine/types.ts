@@ -164,7 +164,7 @@ export interface MountItem {
   id: string;
   targetType: 'panel' | 'accessory' | 'member';
   targetId: string;
-  method: 't-nut-screw' | 'gasket-clamp' | 'caster-stem' | 'slot-embed' | 'hinge';
+  method: 't-nut-screw' | 'gasket-clamp' | 'shelf-support' | 'corner-flat' | 'caster-stem' | 'slot-embed' | 'hinge';
   note: string;
   fasteners: { sku: string; qty: number }[];
   /** 固定点（装配图/结构视图数据源） */

@@ -77,7 +77,7 @@ export interface PanelSpecDef {
   thickness: number;
   kgPerM2: number;
   pricePerM2: number;
-  mount: 't-nut-screw' | 'gasket-clamp';
+  mount: 't-nut-screw' | 'gasket-clamp' | 'shelf-support' | 'corner-flat';
   holeDiameter: number;
   mountNote: string;
 }

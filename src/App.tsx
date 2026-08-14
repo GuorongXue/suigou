@@ -237,7 +237,7 @@ export default function App() {
 
   const mountPoints: RenderMountPoint[] = useMemo(() => {
     if (!result.model) return [];
-    const methodName: Record<string, string> = { 't-nut-screw': 'T型螺母+螺栓', 'gasket-clamp': '胶垫+压条', 'caster-stem': '丝杆拧入' };
+    const methodName: Record<string, string> = { 't-nut-screw': 'T型螺母+螺栓', 'gasket-clamp': '胶垫+压条', 'shelf-support': '层板托平嵌', 'corner-flat': '平面直角件', 'caster-stem': '丝杆拧入' };
     return result.model.mounts.flatMap((m, i) => m.points.map((p) => ({
       position: p,
       label: `M${i + 1}`,

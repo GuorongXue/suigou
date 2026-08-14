@@ -1,10 +1,11 @@
-# 板材库 v0.1：厚度/面密度/单价（嘉立创+市场量级估价，inferred 待实价核对）
+# 板材库 v0.2：厚度/面密度/单价；固定方式按板厚分档（随构/21 安装工艺谱系）
+# 档位：≤6mm→corner-flat(面板角槽/平面直角件)；10~12mm→shelf-support(层板托平嵌隐形)；≥15mm→t-nut-screw(螺栓四角)；脆性板→gasket-clamp
 meta:
   id: panels
-  source: market-estimate
-  confidence: inferred
+  source: market-estimate + 随构/21 安装工艺实拍谱系
+  confidence: inferred+verified-mounts
   review: pending
-  version: 0.1.0
+  version: 0.2.0
 panels:
   wood:
     name: 多层实木板
@@ -14,6 +15,14 @@ panels:
     mount: t-nut-screw
     holeDiameter: 7        # M6 螺栓过孔
     mountNote: T型螺母+螺钉四角固定，长孔浮动留胀缩(mat-wood)
+  wood-12:
+    name: 多层实木板 12mm(平嵌层板)
+    thickness: 12
+    kgPerM2: 7.5
+    pricePerM2: 70
+    mount: shelf-support
+    holeDiameter: 0        # 层板托免打孔（自攻仅入托件）
+    mountNote: 层板托平嵌隐形固定，受力面大可后装（安装工艺谱系 12mm 档）
   glass:
     name: 钢化玻璃
     thickness: 8
@@ -31,13 +40,13 @@ panels:
     holeDiameter: 0
     mountNote: 胶垫承托+压条，留热胀间隙(mat-acrylic)
   pegboard:
-    name: 洞洞板
+    name: 洞洞板(自打孔海洋板)
     thickness: 5
     kgPerM2: 5
     pricePerM2: 60
-    mount: t-nut-screw
-    holeDiameter: 7
-    mountNote: 洞洞板螺栓固定四角(mat-wood同源)
+    mount: corner-flat
+    holeDiameter: 5        # 宜家孔制式 Φ5
+    mountNote: 平面直角件/垂直角码外挂固定（╤6mm 薄板档）；孔距50边距10宜家制式
   wire-mesh:
     name: 围网(钢丝网片)
     thickness: 2

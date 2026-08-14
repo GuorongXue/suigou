@@ -178,6 +178,16 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   const mounts: MountItem[] = [];
   let pn = 0;
   let mtn = 0;
+  // 板材固定档位分派（安装工艺谱系：随构/21）：方式→紧固件 BOM
+  const supportSku = s >= 30 ? 'shelf-support-30' : 'shelf-support-20';
+  const mountFasteners = (mount: string): { sku: string; qty: number }[] => {
+    switch (mount) {
+      case 'gasket-clamp': return [{ sku: 'epdm-gasket-pad', qty: 4 }, { sku: 'clamp-strip-200', qty: 4 }];
+      case 'shelf-support': return [{ sku: supportSku, qty: 4 }, { sku: 'selftap-m4-10', qty: 8 }];
+      case 'corner-flat': return [{ sku: 'flat-corner-plate', qty: 4 }, { sku: 'screw-m4-10-pan', qty: 8 }, { sku: 't-nut-m4', qty: 8 }];
+      default: return [{ sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l16', qty: 4 }];
+    }
+  };
   const addPanel = (
     material: PanelMaterial,
     beamTopY: number,
@@ -204,7 +214,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const panelId = `pn-${++pn}`;
     // 固定孔（板局部坐标）：顶板孔心落梁中心线距边 s/2；隔板落搭接区中心距边 overlap/2
     const inset = isTop ? s / 2 : overlap / 2;
-    const holes = ps.mount === 't-nut-screw'
+    const holes = ps.mount === 't-nut-screw' || ps.mount === 'corner-flat'
       ? [[inset, inset], [pw - inset, inset], [inset, pd - inset], [pw - inset, pd - inset]]
         .map(([x, y]) => ({ x, y, diameter: ps.holeDiameter }))
       : [];
@@ -225,14 +235,11 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       [-px, beamTopY, zShift - pz], [px, beamTopY, zShift - pz],
       [-px, beamTopY, zShift + pz], [px, beamTopY, zShift + pz],
     ];
-    const soft = ps.mount === 'gasket-clamp';
     mounts.push({
       id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId,
-      method: soft ? 'gasket-clamp' : 't-nut-screw',
+      method: ps.mount,
       note: ps.mountNote,
-      fasteners: soft
-        ? [{ sku: 'epdm-gasket-pad', qty: 4 }, { sku: 'clamp-strip-200', qty: 4 }]
-        : [{ sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l16', qty: 4 }],
+      fasteners: mountFasteners(ps.mount),
       points,
     });
   };
@@ -266,7 +273,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       : [side === 'left' ? -W / 2 - ps.thickness / 2 : W / 2 + ps.thickness / 2, H / 2, 0];
     if (partialWorkbenchBack) boxSize[1] = ph;
     // 固定孔（板局部坐标，沿板宽×板高）：孔心落柱中心线，横向距边 s/2，纵向距上下边 s
-    const holes = ps.mount === 't-nut-screw'
+    const holes = ps.mount === 't-nut-screw' || ps.mount === 'corner-flat'
       ? [[s / 2, s], [pw - s / 2, s], [s / 2, ph - s], [pw - s / 2, ph - s]]
         .map(([x, y]) => ({ x, y, diameter: ps.holeDiameter }))
       : [];
@@ -284,14 +291,14 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         const x = side === 'left' ? -W / 2 : W / 2;
         return [[x, s, -D / 2 + s / 2], [x, s, D / 2 - s / 2], [x, H - s, -D / 2 + s / 2], [x, H - s, D / 2 - s / 2]] as [number, number, number][];
       })();
-    const soft = ps.mount === 'gasket-clamp';
+    // 外挂薄板用垂直角码（真实案例：4mm 海洋板侧挂），其余按档位分派
     mounts.push({
       id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId,
-      method: soft ? 'gasket-clamp' : 't-nut-screw',
+      method: ps.mount,
       note: '侧围板四角固定于立柱外侧槽',
-      fasteners: soft
-        ? [{ sku: 'epdm-gasket-pad', qty: 4 }, { sku: 'clamp-strip-200', qty: 4 }]
-        : [{ sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l16', qty: 4 }],
+      fasteners: ps.mount === 'corner-flat'
+        ? [{ sku: 'vertical-bracket-20', qty: 4 }, { sku: 'screw-m4-10-pan', qty: 8 }, { sku: 't-nut-m4', qty: 8 }]
+        : mountFasteners(ps.mount),
       points,
     });
   };
