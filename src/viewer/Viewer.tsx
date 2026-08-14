@@ -130,12 +130,7 @@ function pegboardTextures(size = 512): TexSet {
   if (hit) return hit;
   const step = size / 16, r = step * 0.1;     // 25mm 孔距，Φ5mm 孔
   const color = tex(`pegboard-c-${size}`, size, (ctx, s) => {
-    ctx.fillStyle = '#cfb896'; ctx.fillRect(0, 0, s, s);            // MDF 底色
-    for (let i = 0; i < s * 8; i++) {                            // 细微颗粒
-      const v = 180 + Math.random() * 60 | 0;
-      ctx.fillStyle = `rgba(${v},${v - 30},${v - 60},0.04)`;
-      ctx.fillRect(Math.random() * s, Math.random() * s, 1, 1);
-    }
+    ctx.fillStyle = '#cfb896'; ctx.fillRect(0, 0, s, s);            // MDF 均匀底色（无随机噪点）
     for (let y = step / 2; y < s; y += step) for (let x = step / 2; x < s; x += step) {
       const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.3); // 孔内黑暗（穿透感）
       g.addColorStop(0, '#2a1f10'); g.addColorStop(0.7, '#3d2c18'); g.addColorStop(1, '#5a4530');
