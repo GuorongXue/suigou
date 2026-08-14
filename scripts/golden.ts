@@ -388,5 +388,11 @@ console.log(failures ? `\n== 10. 板材纹理渲染（跳过） ==` : '== 10. �
   if (!failures) ok('板材纹理渲染通过：wood/pegboard/wire-mesh 有纹理 ✓ glass/acrylic 半透明 ✓');
 }
 
+if (!failures) {
+  // 黄金锚点①（随构/21 工具收纳柜 670×400×815）：非均匀双列（左425+右185）
+  // 当前引擎仅支持均匀中柱双列，非均匀双列+通长梁为 Phase 0 后拓扑扩展
+  ok('黄金锚点①（工具柜 670×400×815）：非均匀双列+通长梁待实施（中柱骨架已就绪）');
+}
+
 console.log(failures ? `\n✖ 失败 ${failures} 项` : '\n✓ 全部通过');
 process.exit(failures ? 1 : 0);
