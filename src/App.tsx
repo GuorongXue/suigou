@@ -553,21 +553,16 @@ export default function App() {
       </header>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-      {/* 左栏展开标签（始终可见） */}
-      <button onClick={() => setLeftOpen((o) => !o)} title={leftOpen ? '收起参数' : '展开参数'} style={{
-        width: leftOpen ? 24 : 36, background: leftOpen ? '#f7f8fa' : '#e8edf4', cursor: 'pointer',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: leftOpen ? 0 : 4,
-        flexShrink: 0, border: 'none', borderRight: '1px solid #dde1e8', transition: 'width 0.15s',
-      }}>
-        {leftOpen ? <span style={{ fontSize: 12, color: '#888' }}>⟨</span> : (
-          <>
-            <span style={{ fontSize: 14, color: '#3769b2' }}>⟩</span>
-            <span style={{ writingMode: 'vertical-rl', fontSize: 10, color: '#3769b2', letterSpacing: 1 }}>参数</span>
-          </>
-        )}
-      </button>
       {leftOpen && (
-      <aside style={{ width: 340, padding: 14, background: '#fff', borderRight: '1px solid #e2e5ea', overflowY: 'auto', fontSize: 13, lineHeight: 1.7, flexShrink: 0 }}>
+      <aside style={{ width: 340, display: 'flex', flexDirection: 'column', background: '#fff', borderRight: '1px solid #e2e5ea', flexShrink: 0 }}>
+        {/* 左栏顶部收起按钮 — 始终在栏内可见 */}
+        <button onClick={() => setLeftOpen(false)} title="收起参数面板" style={{
+          padding: '8px 12px', border: 'none', borderBottom: '1px solid #eef0f3', background: '#f7f8fa',
+          cursor: 'pointer', fontSize: 12, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <span>⟨</span><span>收起</span>
+        </button>
+        <div style={{ padding: 14, overflowY: 'auto', fontSize: 13, lineHeight: 1.7 }}>
 
         {/* 意图输入（M4） */}
         {!hasKey ? (
@@ -882,6 +877,7 @@ export default function App() {
             <button onClick={() => set({ sectionId: recommendation.use })} style={{ marginLeft: 6, border: '1px solid #2b6cb0', background: '#fff', color: '#2b6cb0', borderRadius: 4, padding: '1px 8px', cursor: 'pointer', fontSize: 12 }}>应用</button>
           </div>
         )}
+        </div>{/* 结束左栏内层滚动区 */}
       </aside>
       )}
 
@@ -998,21 +994,15 @@ export default function App() {
         })()}
       </main>
 
-      {/* 右栏展开标签（始终可见） */}
-      <button onClick={() => setRightOpen((o) => !o)} title={rightOpen ? '收起结果' : '展开结果'} style={{
-        width: rightOpen ? 24 : 36, background: rightOpen ? '#f7f8fa' : '#e8edf4', cursor: 'pointer',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: rightOpen ? 0 : 4,
-        flexShrink: 0, border: 'none', borderLeft: '1px solid #dde1e8', transition: 'width 0.15s',
-      }}>
-        {rightOpen ? <span style={{ fontSize: 12, color: '#888' }}>⟩</span> : (
-          <>
-            <span style={{ fontSize: 14, color: '#3769b2' }}>⟨</span>
-            <span style={{ writingMode: 'vertical-rl', fontSize: 10, color: '#3769b2', letterSpacing: 1 }}>结果</span>
-          </>
-        )}
-      </button>
       {rightOpen && (
-      <aside style={{ width: 340, padding: 14, background: '#fff', borderLeft: '1px solid #e2e5ea', overflowY: 'auto', fontSize: 13, lineHeight: 1.7, flexShrink: 0 }}>
+      <aside style={{ width: 340, display: 'flex', flexDirection: 'column', background: '#fff', borderLeft: '1px solid #e2e5ea', flexShrink: 0 }}>
+        <button onClick={() => setRightOpen(false)} title="收起结果面板" style={{
+          padding: '8px 12px', border: 'none', borderBottom: '1px solid #eef0f3', background: '#f7f8fa',
+          cursor: 'pointer', fontSize: 12, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <span>⟩</span><span>收起</span>
+        </button>
+        <div style={{ padding: 14, overflowY: 'auto', fontSize: 13, lineHeight: 1.7 }}>
         {model ? (
           <>
             {model.warnings.map((w) => (
@@ -1186,7 +1176,26 @@ export default function App() {
             <div key={g.id} style={{ color: '#c0392b' }}>✖ {g.id} actual: {g.actual}</div>
           ))}
         </details>
+        </div>{/* 结束右栏内层滚动区 */}
       </aside>
+      )}
+      {!rightOpen && (
+        <button onClick={() => setRightOpen(true)} title="展开结果面板" style={{
+          width: 40, background: '#e8edf4', cursor: 'pointer', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, border: 'none', borderLeft: '1px solid #dde1e8',
+        }}>
+          <span style={{ fontSize: 16, color: '#3769b2' }}>⟨</span>
+          <span style={{ writingMode: 'vertical-rl', fontSize: 10, color: '#3769b2', letterSpacing: 1 }}>结果</span>
+        </button>
+      )}
+      {!leftOpen && (
+        <button onClick={() => setLeftOpen(true)} title="展开参数面板" style={{
+          width: 40, background: '#e8edf4', cursor: 'pointer', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, border: 'none', borderRight: '1px solid #dde1e8',
+        }}>
+          <span style={{ fontSize: 16, color: '#3769b2' }}>⟩</span>
+          <span style={{ writingMode: 'vertical-rl', fontSize: 10, color: '#3769b2', letterSpacing: 1 }}>参数</span>
+        </button>
       )}
       </div>
     </div>
