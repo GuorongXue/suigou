@@ -108,12 +108,111 @@ const WARN_COLOR = 0xe8833a;
 /** 型材颜色调色板（阳极氧化/哑光/香槟） */
 const PROFILE_COLORS: Record<string, number> = { silver: 0xc4c9cf, black: 0x2a2d3a, gold: 0xc9a84c };
 
+/** 程序化纹理缓存（避免每帧重绘 canvas） */
+const TEX_CACHE = new Map<string, THREE.CanvasTexture>();
+function tex(key: string, size: number, draw: (ctx: CanvasRenderingContext2D, s: number) => void) {
+  const cached = TEX_CACHE.get(key);
+  if (cached) return cached;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d')!;
+  draw(ctx, size);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  TEX_CACHE.set(key, t);
+  return t;
+}
+
+/** 洞洞板：宜家孔阵 Φ5 孔距 50 边距 10，凹凸贴图表现孔立体感 */
+function pegboardTextures(size = 256) {
+  const color = tex(`pegboard-c-${size}`, size, (ctx, s) => {
+    ctx.fillStyle = '#c9a06a'; ctx.fillRect(0, 0, s, s);
+    const step = s / 5, off = s / 10;   // 50mm→5 格，边距 10mm
+    for (let y = off; y < s; y += step) for (let x = off; x < s; x += step) {
+      ctx.beginPath(); ctx.arc(x, y, s * 0.045, 0, Math.PI * 2);  // Φ5 孔
+      ctx.fillStyle = '#5a4530'; ctx.fill();                       // 孔内深色
+      ctx.lineWidth = s * 0.012; ctx.strokeStyle = '#7a6040'; ctx.stroke(); // 孔口高光边
+    }
+  });
+  const bump = tex(`pegboard-b-${size}`, size, (ctx, s) => {
+    ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, s, s);            // 平面=中灰
+    const step = s / 5, off = s / 10;
+    for (let y = off; y < s; y += step) for (let x = off; x < s; x += step) {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, s * 0.06); // 孔=凹陷（黑）
+      g.addColorStop(0, '#202020'); g.addColorStop(1, '#808080');
+      ctx.beginPath(); ctx.arc(x, y, s * 0.05, 0, Math.PI * 2);
+      ctx.fillStyle = g; ctx.fill();
+    }
+  });
+  return { color, bump };
+}
+
+/** 围网：钢丝网格十字交叉纹路 */
+function wireMeshTextures(size = 256) {
+  const color = tex(`wire-c-${size}`, size, (ctx, s) => {
+    ctx.fillStyle = '#3a3f45'; ctx.fillRect(0, 0, s, s);            // 网孔=深色
+    ctx.strokeStyle = '#9aa3ad'; ctx.lineWidth = s * 0.02;
+    const step = s / 8;
+    for (let i = 0; i <= s; i += step) {                            // 纵横钢丝
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, s); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(s, i); ctx.stroke();
+    }
+  });
+  const bump = tex(`wire-b-${size}`, size, (ctx, s) => {
+    ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, s, s);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = s * 0.025;        // 钢丝凸起=白
+    const step = s / 8;
+    for (let i = 0; i <= s; i += step) {
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, s); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(s, i); ctx.stroke();
+    }
+  });
+  return { color, bump };
+}
+
+/** 木纹：水平纤维 + 年轮结 */
+function woodTextures(size = 256) {
+  const color = tex(`wood-c-${size}`, size, (ctx, s) => {
+    ctx.fillStyle = '#b08d57'; ctx.fillRect(0, 0, s, s);
+    for (let i = 0; i < 40; i++) {
+      const y = Math.random() * s, alpha = 0.05 + Math.random() * 0.1;
+      ctx.strokeStyle = `rgba(90,60,30,${alpha})`; ctx.lineWidth = 0.5 + Math.random() * 2;
+      ctx.beginPath(); ctx.moveTo(0, y);
+      for (let x = 0; x <= s; x += 10) ctx.lineTo(x, y + Math.sin(x * 0.05 + i) * 1.5);
+      ctx.stroke();
+    }
+    // 木结
+    for (let i = 0; i < 3; i++) {
+      const cx = Math.random() * s, cy = Math.random() * s, r = 8 + Math.random() * 15;
+      for (let rr = r; rr > 2; rr -= 2) {
+        ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(80,50,25,${0.08 * (r - rr) / r})`; ctx.stroke();
+      }
+    }
+  });
+  const bump = tex(`wood-b-${size}`, size, (ctx, s) => {
+    ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, s, s);
+    for (let i = 0; i < 40; i++) {
+      const y = Math.random() * s;
+      ctx.strokeStyle = `rgba(60,60,60,${0.15 + Math.random() * 0.2})`; ctx.lineWidth = 1 + Math.random() * 2;
+      ctx.beginPath(); ctx.moveTo(0, y);
+      for (let x = 0; x <= s; x += 10) ctx.lineTo(x, y + Math.sin(x * 0.05 + i) * 1.5);
+      ctx.stroke();
+    }
+  });
+  return { color, bump };
+}
+
+/** 用程序化纹理（map + bumpMap）装饰材质 */
+function withTextures(mat: THREE.MeshStandardMaterial, tex: { color: THREE.CanvasTexture; bump: THREE.CanvasTexture }, bumpScale: number) {
+  mat.map = tex.color; mat.bumpMap = tex.bump; mat.bumpScale = bumpScale; return mat;
+}
 const PANEL_MATERIALS: Record<string, () => THREE.MeshStandardMaterial> = {
-  wood: () => new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.8, metalness: 0.05 }),
-  pegboard: () => new THREE.MeshStandardMaterial({ color: 0xc9a06a, roughness: 0.75, metalness: 0.05 }),
+  wood: () => withTextures(new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.8, metalness: 0.05 }), woodTextures(), 6),
+  pegboard: () => withTextures(new THREE.MeshStandardMaterial({ color: 0xc9a06a, roughness: 0.75, metalness: 0.05 }), pegboardTextures(), 8),
   glass: () => new THREE.MeshStandardMaterial({ color: 0xa8cfe0, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.35 }),
   acrylic: () => new THREE.MeshStandardMaterial({ color: 0xf2f6f8, roughness: 0.15, metalness: 0.05, transparent: true, opacity: 0.45 }),
-  'wire-mesh': () => new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.6, metalness: 0.5, transparent: true, opacity: 0.3 }),
+  'wire-mesh': () => withTextures(new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.6, metalness: 0.5, transparent: true, opacity: 0.35 }), wireMeshTextures(), 4),
 };
 
 export function Viewer({ items, joints, machining, panels, accessories, mountPoints, dims, drawing, bubbles, viewRequest, focusY, onSelect, selection, warnMemberIds, profileColor }: ViewerProps) {

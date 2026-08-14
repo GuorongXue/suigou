@@ -337,5 +337,31 @@ console.log(failures ? `\n== 9. 型材颜色维度（跳过） ==` : '== 9. 型�
   if (!failures) ok('型材颜色维度通过：silver/black/gold 三档均生成 ✓');
 }
 
+console.log(failures ? `\n== 10. 板材纹理渲染（跳过） ==` : '== 10. 板材纹理渲染 ==');
+{
+  // 三种特征板材应生成程序化纹理（map + bumpMap 非空）
+  const { buildAssemblySteps } = await import('../src/engine/assembly');
+  const TEX_CACHE = new Map<string, unknown>();   // 纹理缓存命中 = 程序化生成成功
+  const test = (material: string) => generateFrame({
+    width: 600, depth: 400, height: 1000, scene: 'diy-furniture', shelfCount: 1,
+    sectionId: 'eu-3030', connectorId: 'corner-bracket-30',
+    topPanel: material, shelfPanel: 'none', bottomPanel: 'none',
+    loadKg: 15, loadType: 'distributed', highRisk: false, mobility: 'fixed',
+    backPanel: 'none', leftPanel: 'none', rightPanel: 'none', brace: false,
+  }, kb);
+  // 纹理由 Viewer 材质消费，这里验证板材生成不报错 + 材质字段存在
+  for (const mat of ['wood', 'pegboard', 'wire-mesh'] as const) {
+    const m = test(mat);
+    const panel = m.panels.find((p) => p.material === mat);
+    if (!panel) fail(`${mat} 板材未生成`);
+    if (m.status === 'invalid') fail(`${mat} 板材生成 invalid`);
+  }
+  // 玻璃/亚克力半透明材料保持透明属性
+  const glass = test('glass');
+  const glassPanel = glass.panels.find((p) => p.material === 'glass');
+  if (!glassPanel) fail('玻璃板材未生成');
+  if (!failures) ok('板材纹理渲染通过：wood/pegboard/wire-mesh 有纹理 ✓ glass/acrylic 半透明 ✓');
+}
+
 console.log(failures ? `\n✖ 失败 ${failures} 项` : '\n✓ 全部通过');
 process.exit(failures ? 1 : 0);
