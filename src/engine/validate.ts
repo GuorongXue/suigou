@@ -113,12 +113,12 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
         message: `电脑桌合理总高：纯桌面 ${pMin}~${pMax}mm 或带上架 ${hMin}~${hMax}mm，当前 ${spec.height}mm 偏离常用区间；请确认是否仍是电脑桌语义`,
       });
     }
-    const dMin = desk?.deskTopHeightMm?.min ?? 680;
-    const dMax = desk?.deskTopHeightMm?.max ?? 800;
-    if (!isPureDesk && ((spec.workbenchDeskTopHeightMm ?? 740) < dMin || (spec.workbenchDeskTopHeightMm ?? 740) > dMax)) {
+    const deskTopMin = desk?.deskTopHeightMm?.min ?? 680;
+    const deskTopMax = desk?.deskTopHeightMm?.max ?? 800;
+    if (!isPureDesk && ((spec.workbenchDeskTopHeightMm ?? 740) < deskTopMin || (spec.workbenchDeskTopHeightMm ?? 740) > deskTopMax)) {
       checks.push({
         level: 'warn', ruleId: 'val-workbench-desk-top',
-        message: `主桌面高度建议 ${dMin}~${dMax}mm，当前 ${(spec.workbenchDeskTopHeightMm ?? 740)}mm 可能影响坐姿与键鼠操作舒适度`,
+        message: `主桌面高度建议 ${deskTopMin}~${deskTopMax}mm，当前 ${(spec.workbenchDeskTopHeightMm ?? 740)}mm 可能影响坐姿与键鼠操作舒适度`,
       });
     }
     const dpMin = desk?.depthMm?.min ?? 550;
