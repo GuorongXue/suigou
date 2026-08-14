@@ -123,46 +123,56 @@ function tex(key: string, size: number, draw: (ctx: CanvasRenderingContext2D, s:
   return t;
 }
 
-/** 洞洞板：宜家孔阵 Φ5 孔距 50 边距 10，凹凸贴图表现孔立体感 */
-function pegboardTextures(size = 256) {
+/** 洞洞板：真实规格 Φ5mm 孔、25mm 孔距（中心距），MDF 棕色。
+ *  512px 画布上 16×16=256 孔（真实板一张有数千孔）。孔贯穿板材→孔内黑暗。 */
+function pegboardTextures(size = 512) {
   const color = tex(`pegboard-c-${size}`, size, (ctx, s) => {
-    ctx.fillStyle = '#c9a06a'; ctx.fillRect(0, 0, s, s);
-    const step = s / 5, off = s / 10;   // 50mm→5 格，边距 10mm
-    for (let y = off; y < s; y += step) for (let x = off; x < s; x += step) {
-      ctx.beginPath(); ctx.arc(x, y, s * 0.045, 0, Math.PI * 2);  // Φ5 孔
-      ctx.fillStyle = '#5a4530'; ctx.fill();                       // 孔内深色
-      ctx.lineWidth = s * 0.012; ctx.strokeStyle = '#7a6040'; ctx.stroke(); // 孔口高光边
+    // MDF 底色 + 细微颗粒噪声
+    ctx.fillStyle = '#cfb896'; ctx.fillRect(0, 0, s, s);
+    for (let i = 0; i < s * 8; i++) {
+      const v = 180 + Math.random() * 60 | 0;
+      ctx.fillStyle = `rgba(${v},${v - 30},${v - 60},0.04)`;
+      ctx.fillRect(Math.random() * s, Math.random() * s, 1, 1);
+    }
+    // 孔阵：25mm 孔距，Φ5mm 孔
+    const step = s / 16, r = step * 0.1;
+    for (let y = step / 2; y < s; y += step) for (let x = step / 2; x < s; x += step) {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.3);
+      g.addColorStop(0, '#2a1f10'); g.addColorStop(0.7, '#3d2c18'); g.addColorStop(1, '#5a4530');
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+      ctx.lineWidth = r * 0.35; ctx.strokeStyle = '#ddc9a3'; ctx.stroke(); // 孔口挤压凸起边
     }
   });
   const bump = tex(`pegboard-b-${size}`, size, (ctx, s) => {
     ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, s, s);            // 平面=中灰
-    const step = s / 5, off = s / 10;
-    for (let y = off; y < s; y += step) for (let x = off; x < s; x += step) {
-      const g = ctx.createRadialGradient(x, y, 0, x, y, s * 0.06); // 孔=凹陷（黑）
-      g.addColorStop(0, '#202020'); g.addColorStop(1, '#808080');
-      ctx.beginPath(); ctx.arc(x, y, s * 0.05, 0, Math.PI * 2);
-      ctx.fillStyle = g; ctx.fill();
+    const step = s / 16, r = step * 0.1;
+    for (let y = step / 2; y < s; y += step) for (let x = step / 2; x < s; x += step) {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.5); // 孔=凹陷
+      g.addColorStop(0, '#000000'); g.addColorStop(0.8, '#303030'); g.addColorStop(1, '#808080');
+      ctx.beginPath(); ctx.arc(x, y, r * 1.3, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
     }
   });
   return { color, bump };
 }
 
-/** 围网：钢丝网格十字交叉纹路 */
-function wireMeshTextures(size = 256) {
+/** 围网：镀锌钢丝网格，细密规则方格，金属光泽。钢丝≈2mm，网孔≈25mm。 */
+function wireMeshTextures(size = 512) {
   const color = tex(`wire-c-${size}`, size, (ctx, s) => {
-    ctx.fillStyle = '#3a3f45'; ctx.fillRect(0, 0, s, s);            // 网孔=深色
-    ctx.strokeStyle = '#9aa3ad'; ctx.lineWidth = s * 0.02;
-    const step = s / 8;
-    for (let i = 0; i <= s; i += step) {                            // 纵横钢丝
-      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, s); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(s, i); ctx.stroke();
+    ctx.fillStyle = '#1a1c20'; ctx.fillRect(0, 0, s, s);            // 网孔=黑暗
+    const step = s / 16, lw = step * 0.12;                        // 钢丝≈2mm
+    for (let i = 0; i <= s; i += step) {
+      const g = ctx.createLinearGradient(0, i - lw, 0, i + lw);   // 圆柱体光泽
+      g.addColorStop(0, '#5a6068'); g.addColorStop(0.5, '#c8d0d8'); g.addColorStop(1, '#5a6068');
+      ctx.strokeStyle = g; ctx.lineWidth = lw;
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, s); ctx.stroke(); // 经线
+      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(s, i); ctx.stroke(); // 纬线
     }
   });
   const bump = tex(`wire-b-${size}`, size, (ctx, s) => {
-    ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, s, s);
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = s * 0.025;        // 钢丝凸起=白
-    const step = s / 8;
+    ctx.fillStyle = '#202020'; ctx.fillRect(0, 0, s, s);            // 网孔=深凹
+    const step = s / 16, lw = step * 0.12;
     for (let i = 0; i <= s; i += step) {
+      ctx.strokeStyle = '#d0d0d0'; ctx.lineWidth = lw;            // 钢丝=凸起
       ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, s); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(s, i); ctx.stroke();
     }
@@ -170,33 +180,52 @@ function wireMeshTextures(size = 256) {
   return { color, bump };
 }
 
-/** 木纹：水平纤维 + 年轮结 */
-function woodTextures(size = 256) {
+/** 木纹：真实木纤维——长程平行流动线条（沿纤维方向），生长轮导致的
+ *  明暗条带，偶发木结。颜色从浅黄到深褐渐变。 */
+function woodTextures(size = 512) {
+  const seed = (v: number) => { const x = Math.sin(v * 127.1) * 43758.5453; return x - Math.floor(x); };
   const color = tex(`wood-c-${size}`, size, (ctx, s) => {
-    ctx.fillStyle = '#b08d57'; ctx.fillRect(0, 0, s, s);
-    for (let i = 0; i < 40; i++) {
-      const y = Math.random() * s, alpha = 0.05 + Math.random() * 0.1;
-      ctx.strokeStyle = `rgba(90,60,30,${alpha})`; ctx.lineWidth = 0.5 + Math.random() * 2;
-      ctx.beginPath(); ctx.moveTo(0, y);
-      for (let x = 0; x <= s; x += 10) ctx.lineTo(x, y + Math.sin(x * 0.05 + i) * 1.5);
+    // 基底：木色渐变（浅色边材→深色心材）
+    const base = ctx.createLinearGradient(0, 0, s, 0);
+    base.addColorStop(0, '#c9a87c'); base.addColorStop(0.5, '#b08d57'); base.addColorStop(1, '#9a7548');
+    ctx.fillStyle = base; ctx.fillRect(0, 0, s, s);
+    // 生长轮：明暗相间的宽条带（年轮）
+    for (let i = 0; i < 6; i++) {
+      const y = (i / 6) * s + seed(i * 7) * s * 0.04;
+      ctx.strokeStyle = i % 2 === 0 ? 'rgba(120,85,45,0.12)' : 'rgba(200,170,120,0.08)';
+      ctx.lineWidth = s * 0.06; ctx.beginPath(); ctx.moveTo(0, y);
+      for (let x = 0; x <= s; x += 20) ctx.lineTo(x, y + Math.sin(x * 0.01 + i) * s * 0.015);
       ctx.stroke();
     }
-    // 木结
-    for (let i = 0; i < 3; i++) {
-      const cx = Math.random() * s, cy = Math.random() * s, r = 8 + Math.random() * 15;
-      for (let rr = r; rr > 2; rr -= 2) {
-        ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(80,50,25,${0.08 * (r - rr) / r})`; ctx.stroke();
+    // 木纤维：大量细长、平行、沿 X 方向流动的线条
+    for (let i = 0; i < 80; i++) {
+      const y = seed(i * 31) * s, alpha = 0.04 + seed(i * 17) * 0.12;
+      const shade = 60 + seed(i * 53) * 80 | 0;
+      ctx.strokeStyle = `rgba(${shade + 30},${shade},${shade - 20},${alpha})`;
+      ctx.lineWidth = 0.3 + seed(i * 11) * 1.5;
+      ctx.beginPath(); ctx.moveTo(0, y);
+      const phase = seed(i * 7) * Math.PI * 2, amp = 1 + seed(i * 3) * 4, freq = 0.003 + seed(i * 9) * 0.006;
+      for (let x = 0; x <= s; x += 4) ctx.lineTo(x, y + Math.sin(x * freq + phase) * amp);
+      ctx.stroke();
+    }
+    // 木结（偶发）：同心椭圆环
+    for (let k = 0; k < 2; k++) {
+      const cx = seed(k * 97) * s, cy = seed(k * 61) * s, r = s * (0.03 + seed(k * 41) * 0.04);
+      for (let rr = r; rr > 1; rr -= 1.5) {
+        ctx.beginPath(); ctx.ellipse(cx, cy, rr, rr * 0.7, seed(k) * 0.3, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(70,45,20,${0.15 * (rr / r)})`; ctx.lineWidth = 0.8; ctx.stroke();
       }
     }
   });
   const bump = tex(`wood-b-${size}`, size, (ctx, s) => {
     ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, s, s);
-    for (let i = 0; i < 40; i++) {
-      const y = Math.random() * s;
-      ctx.strokeStyle = `rgba(60,60,60,${0.15 + Math.random() * 0.2})`; ctx.lineWidth = 1 + Math.random() * 2;
+    for (let i = 0; i < 80; i++) {
+      const y = seed(i * 31) * s;
+      ctx.strokeStyle = `rgba(40,40,40,${0.1 + seed(i * 17) * 0.15})`;
+      ctx.lineWidth = 0.5 + seed(i * 11) * 1.5;
       ctx.beginPath(); ctx.moveTo(0, y);
-      for (let x = 0; x <= s; x += 10) ctx.lineTo(x, y + Math.sin(x * 0.05 + i) * 1.5);
+      const phase = seed(i * 7) * Math.PI * 2, amp = 1 + seed(i * 3) * 4, freq = 0.003 + seed(i * 9) * 0.006;
+      for (let x = 0; x <= s; x += 4) ctx.lineTo(x, y + Math.sin(x * freq + phase) * amp);
       ctx.stroke();
     }
   });
