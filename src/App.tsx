@@ -553,16 +553,19 @@ export default function App() {
       </header>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-      {!leftOpen && (
-        <button onClick={() => setLeftOpen(true)} title="展开参数面板" style={{
-          width: 36, background: '#f0f2f5', cursor: 'pointer',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-          flexShrink: 0, border: 'none', borderRight: '1px solid #dde1e8',
-        }}>
-          <span style={{ fontSize: 16, color: '#6b7280' }}>⟩</span>
-          <span style={{ writingMode: 'vertical-rl', fontSize: 11, color: '#6b7280', letterSpacing: 2 }}>参数</span>
-        </button>
-      )}
+      {/* 左栏展开标签（始终可见） */}
+      <button onClick={() => setLeftOpen((o) => !o)} title={leftOpen ? '收起参数' : '展开参数'} style={{
+        width: leftOpen ? 24 : 36, background: leftOpen ? '#f7f8fa' : '#e8edf4', cursor: 'pointer',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: leftOpen ? 0 : 4,
+        flexShrink: 0, border: 'none', borderRight: '1px solid #dde1e8', transition: 'width 0.15s',
+      }}>
+        {leftOpen ? <span style={{ fontSize: 12, color: '#888' }}>⟨</span> : (
+          <>
+            <span style={{ fontSize: 14, color: '#3769b2' }}>⟩</span>
+            <span style={{ writingMode: 'vertical-rl', fontSize: 10, color: '#3769b2', letterSpacing: 1 }}>参数</span>
+          </>
+        )}
+      </button>
       {leftOpen && (
       <aside style={{ width: 340, padding: 14, background: '#fff', borderRight: '1px solid #e2e5ea', overflowY: 'auto', fontSize: 13, lineHeight: 1.7, flexShrink: 0 }}>
 
@@ -881,11 +884,6 @@ export default function App() {
         )}
       </aside>
       )}
-      {leftOpen && (
-        <button onClick={() => setLeftOpen(false)} title="收起参数面板" style={{
-          width: 24, border: 'none', borderRight: '1px solid #e2e5ea', background: '#f7f8fa', cursor: 'pointer', color: '#888', fontSize: 12, flexShrink: 0, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>⟨</button>
-      )}
 
       <main style={{ flex: 1, position: 'relative' }}>
         <Viewer
@@ -1000,22 +998,19 @@ export default function App() {
         })()}
       </main>
 
-      {/* 右栏：方案结果——为什么可靠、要买什么（16号评测 2.3） */}
-      {!rightOpen && (
-        <button onClick={() => setRightOpen(true)} title="展开结果面板" style={{
-          width: 36, background: '#f0f2f5', cursor: 'pointer',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-          flexShrink: 0, border: 'none', borderLeft: '1px solid #dde1e8',
-        }}>
-          <span style={{ fontSize: 16, color: '#6b7280' }}>⟨</span>
-          <span style={{ writingMode: 'vertical-rl', fontSize: 11, color: '#6b7280', letterSpacing: 2 }}>结果</span>
-        </button>
-      )}
-      {rightOpen && (
-        <button onClick={() => setRightOpen(false)} title="收起结果面板" style={{
-          width: 24, border: 'none', borderLeft: '1px solid #e2e5ea', background: '#f7f8fa', cursor: 'pointer', color: '#888', fontSize: 12, flexShrink: 0, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>⟩</button>
-      )}
+      {/* 右栏展开标签（始终可见） */}
+      <button onClick={() => setRightOpen((o) => !o)} title={rightOpen ? '收起结果' : '展开结果'} style={{
+        width: rightOpen ? 24 : 36, background: rightOpen ? '#f7f8fa' : '#e8edf4', cursor: 'pointer',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: rightOpen ? 0 : 4,
+        flexShrink: 0, border: 'none', borderLeft: '1px solid #dde1e8', transition: 'width 0.15s',
+      }}>
+        {rightOpen ? <span style={{ fontSize: 12, color: '#888' }}>⟩</span> : (
+          <>
+            <span style={{ fontSize: 14, color: '#3769b2' }}>⟨</span>
+            <span style={{ writingMode: 'vertical-rl', fontSize: 10, color: '#3769b2', letterSpacing: 1 }}>结果</span>
+          </>
+        )}
+      </button>
       {rightOpen && (
       <aside style={{ width: 340, padding: 14, background: '#fff', borderLeft: '1px solid #e2e5ea', overflowY: 'auto', fontSize: 13, lineHeight: 1.7, flexShrink: 0 }}>
         {model ? (
