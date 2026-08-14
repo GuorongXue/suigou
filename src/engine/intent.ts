@@ -163,16 +163,13 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     }
   }
 
-  const shelfCount = ex.layers != null ? Math.max(0, Math.min(4, ex.layers - 1)) : 1;
-  if (ex.layers == null) assumptions.push('层数未说明，按 1 层隔板假设');
-  const deskShelfCount = scene === 'workbench' ? Math.max(1, shelfCount) : shelfCount;
-  if (scene === 'workbench' && shelfCount === 0) {
+  if (scene === 'workbench') {
     assumptions.push('工作台语义至少保留 1 层桌面隔板，已自动补齐');
   }
   const workbenchLowerZoneRatio = scene === 'workbench' ? 0.62 : undefined;
   const workbenchDeskTopHeightMm = scene === 'workbench' ? (desk?.deskTopHeightMm?.std ?? 740) : undefined;
   const workbenchUpperShelfDepthRatio = scene === 'workbench' ? (desk?.upperShelfDepthRatio?.std ?? 0.55) : undefined;
-  if (scene === 'workbench' && deskShelfCount > 0) {
+  if (scene === 'workbench') {
     assumptions.push('工作台人体工学默认：下层净空更大、上层置物搁板更浅');
   }
 
@@ -261,6 +258,17 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   if (drawerCount > 0) {
     assumptions.push(`抽屉×${drawerCount}：成品抽屉盒+反弹轨道方案（无拉手，案例实证拓扑）`);
   }
+  // 数量词联动：有 drawer→抽屉塔（shelfCount=0）；cabinet 无 drawer 但 layers>1→layers 作抽屉数
+  let drawerCountFinal = drawerCount;
+  const isCabinet = ex.productType === 'cabinet' || ex.productType === 'enclosure';
+  if (drawerCount === 0 && (ex.layers ?? 0) > 1 && scene !== 'workbench' && isCabinet) {
+    drawerCountFinal = Math.min(5, ex.layers ?? 0);
+    assumptions.push(`层数 ${ex.layers} 按抽屉塔处理（${drawerCountFinal} 层抽屉）`);
+  }
+  const shelfCount = drawerCountFinal > 0 ? 0
+    : (ex.layers != null ? Math.max(0, Math.min(4, ex.layers - 1)) : 1);
+  if (ex.layers == null && drawerCountFinal === 0) assumptions.push('层数未说明，按 1 层隔板假设');
+  const deskShelfCount = scene === 'workbench' ? Math.max(1, shelfCount) : shelfCount;
   // productType 超纲 / 附件类需求降级
   if (ex.productType === 'other') {
     unsupported.push('非框架类主体结构');
@@ -287,8 +295,8 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
       loadKg, loadType, scene, highRisk, mobility, vibration,
       topPanel, shelfPanel, bottomPanel, doorPanel,
       backPanel, leftPanel, rightPanel: 'none',
-      drawerCount: drawerCount > 0 ? Math.min(5, drawerCount) : undefined,
-      drawerKind: drawerCount > 0 ? 'ready-made' : undefined,
+      drawerCount: drawerCountFinal > 0 ? Math.min(5, drawerCountFinal) : undefined,
+      drawerKind: drawerCountFinal > 0 ? 'ready-made' : undefined,
       brace: false,
     },
     assumptions,

@@ -282,7 +282,32 @@ console.log(failures ? `\n== 7. 洞洞板侧挂语义（跳过） ==` : '== 7. �
   if (!failures) ok(`洞洞板侧挂通过：pegboard+side → leftPanel ✓；wood+side → backPanel ✓`);
 }
 
-console.log(failures ? `\n== 8. 装配预装约束（跳过） ==` : '== 8. 装配预装约束 ==');
+console.log(failures ? `\n== 8. 数量词与抽屉联动（跳过） ==` : '== 8. 数量词与抽屉联动 ==');
+{
+  const { intentToSpec } = await import('../src/engine/intent');
+  const base = {
+    productType: 'cabinet', dimensions: { width: 600, depth: 400, height: 1500, unit: 'mm' },
+    load: { totalKg: 20, type: 'distributed' as const, description: '' }, scene: 'diy-furniture',
+    mobility: 'fixed' as const, stiffnessNeed: 'normal', environment: { humid: null, outdoor: null, vibration: null },
+    panels: [], appearance: { color: null, hiddenConnectorsPreferred: null },
+    budgetSensitivity: 'unknown', layers: 5, _missing: [], _assumptions: [], _riskFlags: [],
+  };
+  // "5层抽屉柜"无 drawer 条目但 layers=5 → 应转为 drawerCount=5
+  const fiveDrawers = intentToSpec(base, kb);
+  if (fiveDrawers.spec.drawerCount !== 5) fail(`5层抽屉柜 drawerCount 应为 5，实际 ${fiveDrawers.spec.drawerCount}`);
+  if (fiveDrawers.spec.shelfCount !== 0) fail(`抽屉塔 shelfCount 应为 0，实际 ${fiveDrawers.spec.shelfCount}`);
+  // 有 drawer 条目→按 drawer 计数，shelfCount=0
+  const explicitDrawer = intentToSpec({ ...base, panels: [{ material: 'wood', position: 'drawer' }], layers: 3 }, kb);
+  if (explicitDrawer.spec.drawerCount !== 1) fail(`显式 drawer 条目应计数 1，实际 ${explicitDrawer.spec.drawerCount}`);
+  if (explicitDrawer.spec.shelfCount !== 0) fail(`有 drawer 时 shelfCount 应为 0，实际 ${explicitDrawer.spec.shelfCount}`);
+  // 单层置物架→shelfCount 按 layers-1
+  const shelf = intentToSpec({ ...base, productType: 'shelf', layers: 3, panels: [] }, kb);
+  if (shelf.spec.shelfCount !== 2) fail(`3层置物架 shelfCount 应为 2，实际 ${shelf.spec.shelfCount}`);
+  if (shelf.spec.drawerCount != null) fail('置物架不应有抽屉');
+  if (!failures) ok(`数量词联动通过：5层→5抽屉 ✓；显式drawer→1抽屉+0搁板 ✓；3层架→2搁板 ✓`);
+}
+
+console.log(failures ? `\n== 9. 装配预装约束（跳过） ==` : '== 9. 装配预装约束 ==');
 {
   // corner-bracket-30 用 T 型螺母 → 装配说明应含预装提示
   const { buildAssemblySteps } = await import('../src/engine/assembly');
