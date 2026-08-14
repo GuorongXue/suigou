@@ -32,7 +32,8 @@ export interface Section {
   series: number;
   size: [number, number];
   slot: SlotDef;
-  wallThickness: number | null;
+  wallThickness: number | null;     // A 翅壁厚度（结构计算用）
+  slotWallThickness: number | null;  // 槽口壁厚 T（锚式公式 G=19-T+2 用）
   weightPerMeter: number | null;
   coreHole: { diameter: number; tapping: string; tapDepth: number };
   faces: FaceDef[];

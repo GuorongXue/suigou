@@ -12,9 +12,9 @@ section:
   series: 30
   size: [30, 30]
   slot: { type: T, width: 8 }
-  # ⚠ 壁厚语义冲突待核：库页截图标 2.0，但工艺页 3030A 实标 A翅壁=1.5±0.15 / B腔间壁=1.3±0.20（H外形 30.0±0.50）。
-  # 2.0 可能是槽口壁厚T（锚式 G=19-T+2 依赖字段）或不同变体。出图前需拆分 wallThickness(A) / slotWallThickness(T) 两字段
-  wallThickness: 2.0
+  # 壁厚拆分：A翅壁=1.5（结构计算），槽口壁厚T=2.0（锚式公式 G=19-T+2）
+  wallThickness: 1.5                # 工艺页 3030A 实标 A翅壁=1.5±0.15
+  slotWallThickness: 2.0             # 槽口壁厚 T（锚式连接件公式依赖字段）
   weightPerMeter: 0.85
   coreHole: { diameter: 6.8, tapping: M8, tapDepth: 20 }   # 源:工艺页(欧标30系列 6.8/7→M8/20mm)
   faces:

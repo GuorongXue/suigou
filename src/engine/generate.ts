@@ -574,7 +574,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   // 加工特征派生：连接件 machining 声明 → 每个接点的孔位（位置/方向/规格）
   const machining: MachiningOp[] = [];
   let mn = 0;
-  const T = sec.wallThickness ?? 2;
+  const T = sec.slotWallThickness ?? sec.wallThickness ?? 2;   // 锚式公式 G=19-T+2 用槽口壁厚 T
   for (const j of joints) {
     const [jx, jy, jz] = j.position;
     const inward = -j.outward;   // 从梁端指向梁内部
