@@ -62,9 +62,10 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   const loadType = ex.load?.type === 'concentrated' ? 'concentrated' : 'distributed';
   if (ex.load?.type === 'unknown') assumptions.push('载荷分布不明，按均布假设');
 
-  const mobility: FrameSpec['mobility'] = ex.mobility === 'caster' ? 'caster' : 'fixed';
+  const mobility: FrameSpec['mobility'] = (ex.mobility === 'caster' || ex.mobility === 'leveling-feet')
+    ? ex.mobility : 'fixed';
   if (ex.mobility === 'unknown') {
-    questions.push('需要带脚轮可以移动吗？（脚轮会按 2.5 倍冲击载荷设计）');
+    questions.push('底部怎么放？移动（脚轮，按 2.5 倍冲击设计）/ 调平（地脚，用于不平地面）/ 直接落地固定？');
   }
 
   const scene: FrameSpec['scene'] = ex.productType === 'workbench'

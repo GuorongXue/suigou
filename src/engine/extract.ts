@@ -9,7 +9,7 @@ export interface Extraction {
   dimensions: { width: number | null; depth: number | null; height: number | null; unit: string };
   load: { totalKg: number | null; type: 'distributed' | 'concentrated' | 'unknown'; description: string };
   scene: string;
-  mobility: 'fixed' | 'caster' | 'unknown';
+  mobility: 'fixed' | 'caster' | 'leveling-feet' | 'unknown';
   stiffnessNeed: string;
   environment: { humid: boolean | null; outdoor: boolean | null; vibration: boolean | null };
   panels: { material: string; position: string }[];
@@ -30,7 +30,7 @@ const SYSTEM_PROMPT = `你是一位资深机械结构工程师，负责把用户
 1. 只输出一个符合下方Schema的JSON对象，不要输出markdown代码块标记、解释或其他任何内容
 2. 用户没说的信息一律填 null 或 "unknown"，绝对禁止编造尺寸和载荷数值
 3. load.totalKg 只在用户明确说出重量数值时才填；你估算的重量只能写进 _assumptions，totalKg 保持 null
-4. mobility：用户提到轮子/移动/推拉填 caster；完全未提及移动需求一律填 "unknown"，不要推断为 fixed
+4. mobility：用户提到轮子/移动/推拉/走/滚填 caster；提到调平/地脚/水平/稳固/不平填 leveling-feet；明确说固定/不动/落地填 fixed；完全未提及移动需求一律填 "unknown"，不要推断为 fixed
 5. scene 判定标准：电脑桌/书桌/办公桌/学习桌/操作台面=workbench；家用置物/柜子=diy-furniture；车间/仓储重货架=industrial-rack；鱼缸相关一律=aquarium；儿童用品=child；阳台室外=outdoor；其余拿不准=unknown
 6. 可以做常识推断，但每条推断必须写入 _assumptions 数组（例如："鱼缸1.2米→满水约180kg→按250kg设计余量"）
 7. 高风险场景（水族/儿童用品/悬挂/带脚轮的高架/人体载荷）必须写入 _riskFlags
@@ -49,7 +49,7 @@ Schema：
   "dimensions": { "width": null, "depth": null, "height": null, "unit": "mm" },
   "load": { "totalKg": null, "type": "distributed | concentrated | unknown", "description": "" },
   "scene": "diy-furniture | industrial-rack | workbench | automation | precision | optical | aquarium | child | outdoor | unknown",
-  "mobility": "fixed | caster | unknown",
+  "mobility": "fixed | caster | leveling-feet | unknown",
   "stiffnessNeed": "normal | high | unknown",
   "environment": { "humid": null, "outdoor": null, "vibration": null },
   "panels": [ { "material": "wood | glass | acrylic | pegboard | other | none", "position": "top | shelf | bottom | side | door | drawer" } ],

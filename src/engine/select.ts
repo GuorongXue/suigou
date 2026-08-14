@@ -67,7 +67,7 @@ export interface ConnectorSelectInput {
   joint?: 'corner-90' | 'end-to-face';
   load: 'light' | 'medium' | 'heavy';
   hiddenRequired?: boolean;
-  mobility?: 'fixed' | 'caster';
+  mobility?: 'fixed' | 'caster' | 'leveling-feet';
   frameRole?: 'mainFrame' | 'general';
   alignedCoreHole?: boolean;
 }
