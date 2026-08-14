@@ -18,6 +18,8 @@ export interface FrameSpec {
   /** 顶面设计载荷 kg */
   loadKg: number;
   loadType: 'distributed' | 'concentrated';
+  /** 物件形态原型 id（knowledge/archetypes.yaml）：驱动真实尺寸默认与档位校验 */
+  archetype?: string;
   /** 用途场景，决定挠度限值档位（validation.yaml deflectionLimits） */
   scene: 'diy-furniture' | 'industrial-rack' | 'workbench' | 'precision';
   /** 高风险场景（水族/儿童/头顶）→ val-003 安全系数 2.0 */

@@ -41,7 +41,7 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   const WORKBENCH_HEIGHT_MAX = desk?.overallHeightMm?.hutchMax ?? 1800;
 
   const dim = ex.dimensions ?? { width: null, depth: null, height: null };
-  const width = dim.width ?? 800;
+  let width = dim.width ?? 800;
   let depth = dim.depth ?? 400;
   let height = dim.height ?? 750;
   if (dim.width == null) assumptions.push('宽度未说明，按 800mm 假设');
@@ -72,6 +72,29 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     : (SCENE_MAP[ex.scene] ?? 'diy-furniture');
   if (ex.productType === 'workbench' && SCENE_MAP[ex.scene] !== 'workbench') {
     assumptions.push('产品类型为桌子（workbench），场景按电脑桌/工作台语义处理');
+  }
+  // archetype 判定：真实物件档位来自 knowledge/archetypes.yaml
+  const archetype = scene === 'workbench' ? 'computer-desk'
+    : ex.scene === 'aquarium' ? 'aquarium-stand'
+    : ex.productType === 'shelf' ? 'storage-rack'
+    : ex.productType === 'cabinet' && (dim.height ?? 0) >= 1800 ? 'wardrobe'
+    : undefined;
+  // 非桌类 archetype：缺失维度用真实档位 std 值替换泛化默认
+  const arch = archetype ? kb.archetypes[archetype] : undefined;
+  if (arch && archetype !== 'computer-desk') {
+    const useStd = (label: '宽度' | '深度' | '高度', cur: number | null, std?: number) => {
+      if (cur != null || std == null) return null;
+      const i = assumptions.findIndex((a) => a.startsWith(`${label}未说明`));
+      if (i >= 0) assumptions.splice(i, 1);
+      assumptions.push(`${label}未说明，按${arch.name}常见档位 ${std}mm 假设`);
+      return std;
+    };
+    const w = useStd('宽度', dim.width, arch.widthMm?.std);
+    const d = useStd('深度', dim.depth, arch.depthMm?.std);
+    const h = useStd('高度', dim.height, archetype === 'aquarium-stand' ? (arch.standHeightMm as { std?: number } | undefined)?.std : arch.overallHeightMm?.std);
+    if (w != null) width = w;
+    if (d != null) depth = d;
+    if (h != null) height = h;
   }
   if (scene === 'workbench') {
     const deskDepthMin = desk?.depthMm?.min ?? 550;
@@ -241,6 +264,7 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     spec: {
       width: clamp(width, assumptions, '宽'), depth: clamp(depth, assumptions, '深'), height: clamp(height, assumptions, '高'),
       sectionId, connectorId, shelfCount: deskShelfCount,
+      archetype,
       workbenchLowerZoneRatio, workbenchDeskTopHeightMm, workbenchUpperShelfDepthRatio,
       loadKg, loadType, scene, highRisk, mobility, vibration,
       topPanel, shelfPanel, bottomPanel, doorPanel,

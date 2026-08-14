@@ -136,6 +136,52 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
     }
   }
 
+  // ---- val-archetype 其余物件档位（knowledge/archetypes.yaml，公开资料采集） ----
+  if (spec.archetype === 'storage-rack') {
+    const rack = kb.archetypes['storage-rack'];
+    const hMax = rack?.overallHeightMm?.max ?? 2000;
+    if (spec.height > 1600 && spec.mobility !== 'caster') {
+      checks.push({
+        level: 'warn', ruleId: 'val-rack-tipover',
+        message: `落地置物架高 ${spec.height}mm > 1600mm：建议上墙固定防倾倒（真实档位：常见 1500~1800，上限 ${hMax}）`,
+      });
+    }
+    const dMax = rack?.depthMm?.max ?? 600;
+    if (spec.depth > dMax) {
+      checks.push({
+        level: 'info', ruleId: 'val-rack-depth',
+        message: `置物架深度 ${spec.depth}mm 超过常见上限 ${dMax}mm：里侧物品难以取放，建议分两排或减深`,
+      });
+    }
+  }
+  if (spec.archetype === 'wardrobe') {
+    const w = kb.archetypes['wardrobe'];
+    const dMin = w?.depthMm?.min ?? 550;
+    const dMax = w?.depthMm?.max ?? 630;
+    if (spec.depth < dMin || spec.depth > dMax) {
+      checks.push({
+        level: 'warn', ruleId: 'val-wardrobe-depth',
+        message: `衣柜深度建议 ${dMin}~${dMax}mm（<${dMin} 厚外套挂不下，>${dMax} 浪费空间），当前 ${spec.depth}mm`,
+      });
+    }
+  }
+  if (spec.archetype === 'aquarium-stand') {
+    const aq = kb.archetypes['aquarium-stand'];
+    const factor = (aq?.loadFactorVsWater as number | undefined) ?? 1.5;
+    checks.push({
+      level: 'warn', ruleId: 'val-aquarium-load',
+      message: `鱼缸架承重必须≥满水总重×${factor}（含缸体/底砂/造景）；当前设计载荷 ${spec.loadKg}kg，请确认已按满水状态核算，禁止点状支撑`,
+    });
+    const hMin = (aq?.standHeightMm as { min?: number } | undefined)?.min ?? 700;
+    const hMax = (aq?.standHeightMm as { max?: number } | undefined)?.max ?? 900;
+    if (spec.height < hMin || spec.height > hMax) {
+      checks.push({
+        level: 'info', ruleId: 'val-aquarium-height',
+        message: `鱼缸底架常见高度 ${hMin}~${hMax}mm（含缸总高宜 1200~1400），当前 ${spec.height}mm`,
+      });
+    }
+  }
+
   // ---- val-005 斜撑触发器（五触发，行家 verified）；已加斜撑/背板则通过 ----
   const hasBrace = spec.brace;
   // 围网是围护件非剪力板（16号评测：区分围护板与结构剪力板），不计入抗剪体系

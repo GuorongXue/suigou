@@ -131,5 +131,32 @@ console.log('== 3. 生成冒烟 + 强制不变量 ==');
   }
 }
 
+console.log(failures ? `\n== 4. archetype 意图回归（跳过） ==` : '== 4. archetype 意图回归 ==');
+{
+  const { intentToSpec } = await import('../src/engine/intent');
+  const base = {
+    productType: 'shelf', dimensions: { width: null, depth: null, height: null, unit: 'mm' },
+    load: { totalKg: 20, type: 'distributed' as const, description: '' }, scene: 'diy-furniture',
+    mobility: 'fixed' as const, stiffnessNeed: 'normal', environment: { humid: null, outdoor: null, vibration: null },
+    panels: [], appearance: { color: null, hiddenConnectorsPreferred: null }, budgetSensitivity: 'unknown',
+    layers: 3, _missing: [], _assumptions: [], _riskFlags: [],
+  };
+  const rack = intentToSpec(base, kb);
+  if (rack.spec.archetype !== 'storage-rack') fail(`shelf 应判为 storage-rack，实际 ${rack.spec.archetype}`);
+  if (rack.spec.depth !== 400 || rack.spec.height !== 1700) fail(`置物架默认档位错误: ${rack.spec.width}×${rack.spec.depth}×${rack.spec.height}`);
+  const rackModel = generateFrame(rack.spec, kb);
+  if (!rackModel.checks.some((c) => c.ruleId === 'val-rack-tipover')) fail('高置物架缺少防倾倒提示');
+
+  const aq = intentToSpec({ ...base, productType: 'frame', scene: 'aquarium' }, kb);
+  if (aq.spec.archetype !== 'aquarium-stand') fail(`aquarium 应判为 aquarium-stand，实际 ${aq.spec.archetype}`);
+  if (aq.spec.height !== 750) fail(`鱼缸架默认高度应 750，实际 ${aq.spec.height}`);
+  if (!generateFrame(aq.spec, kb).checks.some((c) => c.ruleId === 'val-aquarium-load')) fail('鱼缸架缺少承重冗余提示');
+
+  const ward = intentToSpec({ ...base, productType: 'cabinet', dimensions: { width: 1800, depth: 400, height: 2400, unit: 'mm' } }, kb);
+  if (ward.spec.archetype !== 'wardrobe') fail(`高柜应判为 wardrobe，实际 ${ward.spec.archetype}`);
+  if (!generateFrame(ward.spec, kb).checks.some((c) => c.ruleId === 'val-wardrobe-depth')) fail('浅衣柜缺少深度档位提示');
+  if (!failures) ok('storage-rack / aquarium-stand / wardrobe 档位与校验通过');
+}
+
 console.log(failures ? `\n✖ 失败 ${failures} 项` : '\n✓ 全部通过');
 process.exit(failures ? 1 : 0);
