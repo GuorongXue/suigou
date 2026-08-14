@@ -634,7 +634,7 @@ export default function App() {
 
         <label style={{ display: 'block', marginBottom: 8 }}>
           隔板层数 {spec.shelfCount}
-          <input type="range" min={0} max={4} step={1} value={spec.shelfCount}
+          <input type="range" min={spec.scene === 'workbench' ? 1 : 0} max={4} step={1} value={spec.shelfCount}
             onChange={(e) => set({ shelfCount: Number(e.target.value) })} style={{ width: '100%' }} />
         </label>
 
