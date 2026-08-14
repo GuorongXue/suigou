@@ -119,40 +119,59 @@ function tex(key: string, size: number, draw: (ctx: CanvasRenderingContext2D, s:
   draw(ctx, size);
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 4;
   TEX_CACHE.set(key, t);
   return t;
 }
 
-/** 洞洞板：真实规格 Φ5mm 孔、25mm 孔距（中心距），MDF 棕色。
- *  512px 画布上 16×16=256 孔（真实板一张有数千孔）。孔贯穿板材→孔内黑暗。 */
-function pegboardTextures(size = 512) {
+/** 按板材真实尺寸克隆纹理并设置 repeat（保持纹理真实比例不拉伸） */
+function scaleTex(base: THREE.CanvasTexture, repeatX: number, repeatY: number) {
+  const t = base.clone();
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(repeatX, repeatY);
+  t.needsUpdate = true;
+  return t;
+}
+
+/** 洞洞板纹理集（含 alpha 通道：孔位置透明） */
+interface PegTex { color: THREE.CanvasTexture; bump: THREE.CanvasTexture; alpha: THREE.CanvasTexture; mm: number; }
+const PEG_CACHE = new Map<number, PegTex>();
+function pegboardTextures(size = 512): PegTex {
+  const hit = PEG_CACHE.get(size);
+  if (hit) return hit;
+  const step = size / 16, r = step * 0.1;     // 25mm 孔距，Φ5mm 孔
   const color = tex(`pegboard-c-${size}`, size, (ctx, s) => {
-    // MDF 底色 + 细微颗粒噪声
-    ctx.fillStyle = '#cfb896'; ctx.fillRect(0, 0, s, s);
-    for (let i = 0; i < s * 8; i++) {
+    ctx.fillStyle = '#cfb896'; ctx.fillRect(0, 0, s, s);            // MDF 底色
+    for (let i = 0; i < s * 8; i++) {                            // 细微颗粒
       const v = 180 + Math.random() * 60 | 0;
       ctx.fillStyle = `rgba(${v},${v - 30},${v - 60},0.04)`;
       ctx.fillRect(Math.random() * s, Math.random() * s, 1, 1);
     }
-    // 孔阵：25mm 孔距，Φ5mm 孔
-    const step = s / 16, r = step * 0.1;
     for (let y = step / 2; y < s; y += step) for (let x = step / 2; x < s; x += step) {
-      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.3);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.3); // 孔内黑暗（穿透感）
       g.addColorStop(0, '#2a1f10'); g.addColorStop(0.7, '#3d2c18'); g.addColorStop(1, '#5a4530');
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
-      ctx.lineWidth = r * 0.35; ctx.strokeStyle = '#ddc9a3'; ctx.stroke(); // 孔口挤压凸起边
+      ctx.lineWidth = r * 0.35; ctx.strokeStyle = '#ddc9a3'; ctx.stroke();
     }
   });
   const bump = tex(`pegboard-b-${size}`, size, (ctx, s) => {
-    ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, s, s);            // 平面=中灰
-    const step = s / 16, r = step * 0.1;
+    ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, s, s);
     for (let y = step / 2; y < s; y += step) for (let x = step / 2; x < s; x += step) {
-      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.5); // 孔=凹陷
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.5);
       g.addColorStop(0, '#000000'); g.addColorStop(0.8, '#303030'); g.addColorStop(1, '#808080');
       ctx.beginPath(); ctx.arc(x, y, r * 1.3, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
     }
   });
-  return { color, bump };
+  // alpha 通道：孔=黑（透明），板=白（不透明）→ 孔贯穿可见
+  const alpha = tex(`pegboard-a-${size}`, size, (ctx, s) => {
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, s, s);
+    for (let y = step / 2; y < s; y += step) for (let x = step / 2; x < s; x += step) {
+      ctx.beginPath(); ctx.arc(x, y, r * 1.1, 0, Math.PI * 2); ctx.fillStyle = '#000000'; ctx.fill();
+    }
+  });
+  const result: PegTex = { color, bump, alpha, mm: step * 16 };
+  PEG_CACHE.set(size, result);
+  return result;
 }
 
 /** 围网：镀锌钢丝网格，细密规则方格，金属光泽。钢丝≈2mm，网孔≈25mm。 */
@@ -177,7 +196,7 @@ function wireMeshTextures(size = 512) {
       ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(s, i); ctx.stroke();
     }
   });
-  return { color, bump };
+  return { color, bump, mm: (size / 16) * 16 };
 }
 
 /** 木纹：真实木纤维——长程平行流动线条（沿纤维方向），生长轮导致的
@@ -185,11 +204,9 @@ function wireMeshTextures(size = 512) {
 function woodTextures(size = 512) {
   const seed = (v: number) => { const x = Math.sin(v * 127.1) * 43758.5453; return x - Math.floor(x); };
   const color = tex(`wood-c-${size}`, size, (ctx, s) => {
-    // 基底：木色渐变（浅色边材→深色心材）
     const base = ctx.createLinearGradient(0, 0, s, 0);
     base.addColorStop(0, '#c9a87c'); base.addColorStop(0.5, '#b08d57'); base.addColorStop(1, '#9a7548');
     ctx.fillStyle = base; ctx.fillRect(0, 0, s, s);
-    // 生长轮：明暗相间的宽条带（年轮）
     for (let i = 0; i < 6; i++) {
       const y = (i / 6) * s + seed(i * 7) * s * 0.04;
       ctx.strokeStyle = i % 2 === 0 ? 'rgba(120,85,45,0.12)' : 'rgba(200,170,120,0.08)';
@@ -197,7 +214,6 @@ function woodTextures(size = 512) {
       for (let x = 0; x <= s; x += 20) ctx.lineTo(x, y + Math.sin(x * 0.01 + i) * s * 0.015);
       ctx.stroke();
     }
-    // 木纤维：大量细长、平行、沿 X 方向流动的线条
     for (let i = 0; i < 80; i++) {
       const y = seed(i * 31) * s, alpha = 0.04 + seed(i * 17) * 0.12;
       const shade = 60 + seed(i * 53) * 80 | 0;
@@ -208,7 +224,6 @@ function woodTextures(size = 512) {
       for (let x = 0; x <= s; x += 4) ctx.lineTo(x, y + Math.sin(x * freq + phase) * amp);
       ctx.stroke();
     }
-    // 木结（偶发）：同心椭圆环
     for (let k = 0; k < 2; k++) {
       const cx = seed(k * 97) * s, cy = seed(k * 61) * s, r = s * (0.03 + seed(k * 41) * 0.04);
       for (let rr = r; rr > 1; rr -= 1.5) {
@@ -229,19 +244,30 @@ function woodTextures(size = 512) {
       ctx.stroke();
     }
   });
-  return { color, bump };
+  return { color, bump, mm: 500 };   // 512px ≈ 500mm 木板
 }
 
-/** 用程序化纹理（map + bumpMap）装饰材质 */
-function withTextures(mat: THREE.MeshStandardMaterial, tex: { color: THREE.CanvasTexture; bump: THREE.CanvasTexture }, bumpScale: number) {
-  mat.map = tex.color; mat.bumpMap = tex.bump; mat.bumpScale = bumpScale; return mat;
+/** 纹理集统一接口（mm = 纹理覆盖的真实世界尺寸，用于计算 repeat） */
+interface TexSet { color: THREE.CanvasTexture; bump: THREE.CanvasTexture; alpha?: THREE.CanvasTexture; mm: number; }
+
+/** 按板材真实尺寸克隆纹理并设置 repeat（保持真实比例不拉伸）+ 可选 alpha */
+function applyTexSet(mat: THREE.MeshStandardMaterial, set: TexSet, w: number, d: number) {
+  mat.map = scaleTex(set.color, w / set.mm, d / set.mm);
+  mat.bumpMap = scaleTex(set.bump, w / set.mm, d / set.mm);
+  if (set.alpha) { mat.alphaMap = scaleTex(set.alpha, w / set.mm, d / set.mm); mat.transparent = true; }
+  return mat;
 }
-const PANEL_MATERIALS: Record<string, () => THREE.MeshStandardMaterial> = {
-  wood: () => withTextures(new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.8, metalness: 0.05 }), woodTextures(), 6),
-  pegboard: () => withTextures(new THREE.MeshStandardMaterial({ color: 0xc9a06a, roughness: 0.75, metalness: 0.05 }), pegboardTextures(), 8),
+/** 板材材质基础（纹理在渲染循环按真实尺寸设置 repeat） */
+const PANEL_BASE: Record<string, () => THREE.MeshStandardMaterial> = {
+  wood: () => new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.8, metalness: 0.05 }),
+  pegboard: () => new THREE.MeshStandardMaterial({ color: 0xc9a06a, roughness: 0.75, metalness: 0.05 }),
   glass: () => new THREE.MeshStandardMaterial({ color: 0xa8cfe0, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.35 }),
   acrylic: () => new THREE.MeshStandardMaterial({ color: 0xf2f6f8, roughness: 0.15, metalness: 0.05, transparent: true, opacity: 0.45 }),
-  'wire-mesh': () => withTextures(new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.6, metalness: 0.5, transparent: true, opacity: 0.35 }), wireMeshTextures(), 4),
+  'wire-mesh': () => new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.6, metalness: 0.5, transparent: true, opacity: 0.35 }),
+};
+/** 纹理集查找表（与 PANEL_BASE 一一对应） */
+const PANEL_TEX: Record<string, (s?: number) => TexSet> = {
+  wood: woodTextures, pegboard: () => { const t = pegboardTextures(); return { color: t.color, bump: t.bump, alpha: t.alpha, mm: t.mm }; }, 'wire-mesh': wireMeshTextures,
 };
 
 export function Viewer({ items, joints, machining, panels, accessories, mountPoints, dims, drawing, bubbles, viewRequest, focusY, onSelect, selection, warnMemberIds, profileColor }: ViewerProps) {
@@ -577,9 +603,14 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       }
     }
 
-    // 板材：木/洞洞板实体色，玻璃/亚克力半透明（boxSize 支持水平/竖直板）
+    // 板材：纹理按真实尺寸设置 repeat（不拉伸），洞洞板孔透明
     for (const p of panels) {
-      const mat = (PANEL_MATERIALS[p.material] ?? PANEL_MATERIALS.wood)();
+      const mat = (PANEL_BASE[p.material] ?? PANEL_BASE.wood)();
+      const texFn = PANEL_TEX[p.material];
+      if (texFn) {
+        const w = p.boxSize[0], d = p.boxSize[2];   // boxSize = [X, Y(厚), Z]
+        applyTexSet(mat, texFn(), Math.abs(w), Math.abs(d));
+      }
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(...p.boxSize), mat);
       mesh.position.set(...p.position);
       ctx.group.add(mesh);
