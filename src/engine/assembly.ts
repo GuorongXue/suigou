@@ -39,6 +39,8 @@ export function buildAssemblySteps(model: FrameModel, kb: KnowledgeBase): Assemb
   // 工具推导：M8 端攻/沉头需 6mm 内六角，其余 M6 体系 5mm
   const connTools = (conn?.bom ?? []).some((b) => /m8|edla/.test(b.sku))
     ? ['内六角扳手 6mm'] : ['内六角扳手 5mm'];
+  // 滑块/弹珠螺母预装约束：连接件用 T 型螺母时，螺母必须在校装前滑入梁端槽内
+  const usesTnut = (conn?.bom ?? []).some((b) => b.sku.startsWith('t-nut'));
 
   const steps: AssemblyStep[] = [];
   let n = 0;
@@ -46,7 +48,7 @@ export function buildAssemblySteps(model: FrameModel, kb: KnowledgeBase): Assemb
     steps.push({ step: ++n, title, parts, fasteners, tools, note });
 
   add('识别与清点', model.cutList.map((c) => `${c.partNo}×${c.qty}`),
-    [], [], '对照切割清单与单件加工图核对件号/长度/孔位，确认孔口已去毛刺');
+    [], [], `对照切割清单与单件加工图核对件号/长度/孔位，确认孔口已去毛刺${usesTnut ? '；清点滑块(T型螺母)数量，确认规格与连接件匹配' : ''}`);
 
   // 按接点高度分层：底框 → 中间层 → 顶框
   const ys = [...new Set(model.joints.map((j) => Math.round(j.position[1])))].sort((a, b) => a - b);
@@ -55,7 +57,7 @@ export function buildAssemblySteps(model: FrameModel, kb: KnowledgeBase): Assemb
     const bj = layer(ys[0]);
     add('底框与立柱', [...partOf(uniq(bj.map((j) => j.beamMemberId))), ...partOf(uniq(bj.map((j) => j.postMemberId)))],
       connFast(bj.length), connTools,
-      `4 根立柱平放，底层横梁用${conn?.name ?? '连接件'}连接（接点×${bj.length}）；先不完全拧紧，留校方余地`);
+      `4 根立柱平放，底层横梁用${conn?.name ?? '连接件'}连接（接点×${bj.length}）${usesTnut ? '——⚠ 滑块(T型螺母)必须在校装前从梁端面滑入槽内，连接封闭后无法补装' : ''}；先不完全拧紧，留校方余地`);
     for (const y of ys.slice(1, -1)) {
       const js = layer(y);
       add(`隔板层横梁（高 ${y}mm）`, partOf(uniq(js.map((j) => j.beamMemberId))),

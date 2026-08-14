@@ -282,5 +282,34 @@ console.log(failures ? `\n== 7. 洞洞板侧挂语义（跳过） ==` : '== 7. �
   if (!failures) ok(`洞洞板侧挂通过：pegboard+side → leftPanel ✓；wood+side → backPanel ✓`);
 }
 
+console.log(failures ? `\n== 8. 装配预装约束（跳过） ==` : '== 8. 装配预装约束 ==');
+{
+  // corner-bracket-30 用 T 型螺母 → 装配说明应含预装提示
+  const { buildAssemblySteps } = await import('../src/engine/assembly');
+  const bracket = generateFrame({
+    width: 800, depth: 400, height: 1200, scene: 'diy-furniture', shelfCount: 1,
+    sectionId: 'eu-3030', connectorId: 'corner-bracket-30',
+    topPanel: 'wood', shelfPanel: 'wood', bottomPanel: 'wood',
+    loadKg: 20, loadType: 'distributed', highRisk: false, mobility: 'fixed',
+    backPanel: 'none', leftPanel: 'none', rightPanel: 'none', brace: false,
+  }, kb);
+  const steps = buildAssemblySteps(bracket, kb);
+  const allNotes = steps.map((s) => s.note).join(' ');
+  if (!/滑块|T型螺母/.test(allNotes)) fail('角码连接件装配说明缺少滑块(T型螺母)预装提示');
+  if (!/滑入槽内|预装/.test(allNotes)) fail('装配说明缺少"滑入槽内"预装动作描述');
+  // 对比：不用 T 型螺母的连接件（如 anchor-30）不应有预装提示
+  const anchor = generateFrame({
+    width: 800, depth: 400, height: 1200, scene: 'diy-furniture', shelfCount: 1,
+    sectionId: 'eu-3030', connectorId: 'anchor-30',
+    topPanel: 'wood', shelfPanel: 'wood', bottomPanel: 'wood',
+    loadKg: 20, loadType: 'distributed', highRisk: false, mobility: 'fixed',
+    backPanel: 'none', leftPanel: 'none', rightPanel: 'none', brace: false,
+  }, kb);
+  const anchorSteps = buildAssemblySteps(anchor, kb);
+  const anchorNotes = anchorSteps.map((s) => s.note).join(' ');
+  if (/滑块.*滑入|预装.*螺母/.test(anchorNotes)) fail('锚式连接件(无 T 型螺母)不应有滑块预装提示');
+  if (!failures) ok(`装配预装约束通过：角码含预装提示 ✓；锚式无多余提示 ✓`);
+}
+
 console.log(failures ? `\n✖ 失败 ${failures} 项` : '\n✓ 全部通过');
 process.exit(failures ? 1 : 0);
