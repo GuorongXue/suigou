@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { loadKnowledgeBase } from './knowledge/loader';
 import { generateFrame } from './engine/generate';
 import { selectSectionFixedPoint } from './engine/select';
-import { runGolden } from './engine/golden';
+// import { runGolden } from './engine/golden';
 import { extractIntent, getApiKey, setApiKey } from './engine/extract';
 import { intentToSpec, type IntentResult } from './engine/intent';
 import { nestCutList } from './engine/nesting';
@@ -26,7 +26,6 @@ const FIELD_NAMES: Record<string, string> = {
   sectionId: '截面', connectorId: '连接件', topPanel: '顶面板', shelfPanel: '隔板材质', bottomPanel: '底板', doorPanel: '门板',
 };
 
-// 手动锁定字段 → 抽取字段路径（_explicitFields 解锁依据，9.4.1）
 const FIELD_TO_PATH: Record<string, string> = {
   width: 'dimensions.width', depth: 'dimensions.depth', height: 'dimensions.height',
   loadKg: 'load.totalKg', loadType: 'load.type', mobility: 'mobility',
@@ -56,7 +55,7 @@ const normalizeWorkbenchSpec = (s: FrameSpec): FrameSpec => {
     next.shelfCount = Math.max(1, next.shelfCount);
     next.doorPanel = 'none';
     next.bottomPanel = 'none';
-    if (next.backPanel !== 'pegboard') next.backPanel = 'none';   // 洞洞板立面收纳是电脑桌常见形态
+    if (next.backPanel !== 'pegboard') next.backPanel = 'none';
     next.leftPanel = 'none';
     next.rightPanel = 'none';
   }
@@ -77,31 +76,14 @@ export default function App() {
     bottomPanel: draft.spec.bottomPanel ?? 'none',
     brace: draft.spec.brace ?? false,
   }) : {
-    width: 700,
-    depth: 650,
-    height: 1100,
-    sectionId: 'eu-3030',
-    connectorId: 'corner-bracket-30',
-    shelfCount: 1,
-    loadKg: 30,
-    loadType: 'distributed',
-    scene: 'workbench',
-    highRisk: false,
-    mobility: 'fixed',
-    topPanel: 'none',
-    shelfPanel: 'none',
-    workbenchDeskTopHeightMm: 740,
-    workbenchLowerZoneRatio: 0.62,
-    workbenchUpperShelfDepthRatio: 0.55,
-    bottomPanel: 'none',
-    backPanel: 'none',
-    leftPanel: 'none',
-    rightPanel: 'none',
-    brace: false,
+    width: 700, depth: 650, height: 1100, sectionId: 'eu-3030', connectorId: 'corner-bracket-30',
+    shelfCount: 1, loadKg: 30, loadType: 'distributed', scene: 'workbench', highRisk: false,
+    mobility: 'fixed', topPanel: 'none', shelfPanel: 'none', workbenchDeskTopHeightMm: 740,
+    workbenchLowerZoneRatio: 0.62, workbenchUpperShelfDepthRatio: 0.55,
+    bottomPanel: 'none', backPanel: 'none', leftPanel: 'none', rightPanel: 'none', brace: false,
   });
   const [selection, setSelection] = useState<Selection | null>(null);
   const [mode, setMode] = useState<ViewMode>('appearance');
-  // 意图层状态（M4）：对话与滑杆共享同一方案状态（单一事实源）
   const [aiText, setAiText] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -110,8 +92,9 @@ export default function App() {
   const [manualChanges, setManualChanges] = useState<Map<string, string>>(new Map(draft?.manual ?? []));
   const [unsupportedSaved, setUnsupportedSaved] = useState<string[]>(draft?.unsupported ?? []);
   const [hasKey, setHasKey] = useState(() => !!getApiKey());
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
 
-  // 草稿持久化（9.4.3："已记录"必须真实——刷新不丢）
   useEffect(() => {
     const unsupported = aiResult?.unsupported ?? unsupportedSaved;
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ spec, chat, manual: [...manualChanges], unsupported } satisfies Draft));
@@ -130,12 +113,10 @@ export default function App() {
     setChat((c) => [...c, { role: 'user', text: userMsg }]);
     setAiText('');
     try {
-      // 9.4.2：追问与回答成对传递（assistant/user 轮次），模型能理解"要/不要/50公斤"指代什么
       const history = chat.slice(-6).map((m) => ({
         role: (m.role === 'ai' ? 'assistant' : 'user') as 'assistant' | 'user',
         content: m.text,
       }));
-      // 当前方案状态作为结构化 JSON 上下文（非自然语言备注）
       const stateJson = aiResult ? `\n[当前方案参数] ${JSON.stringify({
         width: spec.width, depth: spec.depth, height: spec.height,
         loadKg: spec.loadKg, loadType: spec.loadType, mobility: spec.mobility,
@@ -149,14 +130,13 @@ export default function App() {
         : '';
       const extraction = await extractIntent(userMsg + stateJson + manualNote, history);
       const result = intentToSpec(extraction, kb);
-      // 9.4.1：锁定解锁由模型返回的 _explicitFields 决定，不再用数字正则
       const explicit = new Set(extraction._explicitFields ?? []);
       const guarded = { ...result.spec };
       const nextManual = new Map(manualChanges);
       for (const key of manualChanges.keys()) {
         const path = FIELD_TO_PATH[key];
         if (path && explicit.has(path)) {
-          nextManual.delete(key);   // 用户本轮明确改口 → 采用 AI 新值并解锁
+          nextManual.delete(key);
         } else {
           (guarded as unknown as Record<string, unknown>)[key] = spec[key as keyof FrameSpec];
         }
@@ -192,13 +172,8 @@ export default function App() {
   const items: RenderMember[] = useMemo(() => {
     if (!result.model) return [];
     return result.model.members.map((m) => ({
-      id: m.id,
-      role: m.role,
-      section: kb.sections.find((s) => s.section.id === m.sectionId)!.section,
-      length: m.length,
-      position: m.position,
-      axis: m.axis,
-      tilt: m.tilt,
+      id: m.id, role: m.role, section: kb.sections.find((s) => s.section.id === m.sectionId)!.section,
+      length: m.length, position: m.position, axis: m.axis, tilt: m.tilt,
     }));
   }, [result, kb]);
 
@@ -207,16 +182,7 @@ export default function App() {
     const sec = kb.sections.find((s) => s.section.id === result.model!.spec.sectionId)!.section;
     return result.model.joints.map((j) => {
       const conn = kb.connectors.find((c) => c.connector.id === j.connectorId)!.connector;
-      return {
-        id: j.id,
-        connectorId: j.connectorId,
-        position: j.position,
-        beamAxis: j.beamAxis,
-        outward: j.outward,
-        ySide: j.ySide,
-        hidden: conn.visibility === 'hidden',
-        size: sec.size[0],
-      };
+      return { id: j.id, connectorId: j.connectorId, position: j.position, beamAxis: j.beamAxis, outward: j.outward, ySide: j.ySide, hidden: conn.visibility === 'hidden', size: sec.size[0] };
     });
   }, [result, kb]);
 
@@ -240,22 +206,9 @@ export default function App() {
     if (!result.model) return [];
     const methodName: Record<string, string> = { 't-nut-screw': 'T型螺母+螺栓', 'gasket-clamp': '胶垫+压条', 'shelf-support': '层板托平嵌', 'corner-flat': '平面直角件', 'caster-stem': '丝杆拧入', 'foot-stem': '地脚拧入', 'drawer-slide': '抽屉轨道' };
     return result.model.mounts.flatMap((m, i) => m.points.map((p) => ({
-      position: p,
-      label: `M${i + 1}`,
+      position: p, label: `M${i + 1}`,
       note: `${methodName[m.method] ?? m.method}｜${m.fasteners.map((f) => `${f.sku}×${f.qty}`).join(' ')}｜${m.note}`,
     })));
-  }, [result]);
-
-  const machiningSummary = useMemo(() => {
-    if (!result.model) return [];
-    const byKey = new Map<string, { type: string; spec: string; qty: number }>();
-    for (const m of result.model.machining) {
-      const key = `${m.type}:${m.spec}`;
-      const row = byKey.get(key);
-      if (row) row.qty++;
-      else byKey.set(key, { type: m.type, spec: m.spec, qty: 1 });
-    }
-    return [...byKey.values()];
   }, [result]);
 
   const warnMemberIds = useMemo(() => {
@@ -265,17 +218,10 @@ export default function App() {
       .flatMap((c) => c.memberIds!))];
   }, [result]);
 
-  // 选型建议（固定点）：与 AI 链路(intent.ts)同一函数，保证推荐与选型一致
   const recommendation = useMemo(() => {
-    const r = selectSectionFixedPoint({
-      width: spec.width, depth: spec.depth, loadKg: spec.loadKg,
-      loadType: spec.loadType, highRisk: spec.highRisk,
-    });
+    const r = selectSectionFixedPoint({ width: spec.width, depth: spec.depth, loadKg: spec.loadKg, loadType: spec.loadType, highRisk: spec.highRisk });
     return r.use !== spec.sectionId ? r : null;
   }, [spec, kb]);
-
-  const golden = useMemo(() => runGolden(kb), [kb]);
-  const goldenPass = golden.filter((g) => g.pass).length;
 
   const nesting = useMemo(() => (result.model ? nestCutList(result.model.cutList, kb) : null), [result, kb]);
   const assembly = useMemo(() => (result.model ? buildAssemblySteps(result.model, kb) : []), [result, kb]);
@@ -296,11 +242,9 @@ export default function App() {
       ]).filter((l) => l !== ''),
       '⚠ 本说明由方案装配关系自动生成；高风险场景请保留安全冗余并自行确认装配质量。',
     ].join('\n');
-    const url = URL.createObjectURL(new Blob(['\ufeff' + txt], { type: 'text/plain;charset=utf-8' }));
+    const url = URL.createObjectURL(new Blob(['﻿' + txt], { type: 'text/plain;charset=utf-8' }));
     const a = document.createElement('a');
-    a.href = url;
-    a.download = '装配说明.txt';
-    a.click();
+    a.href = url; a.download = '装配说明.txt'; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -312,14 +256,8 @@ export default function App() {
         if (next.workbenchLowerZoneRatio == null) next.workbenchLowerZoneRatio = 0.62;
         if (next.workbenchUpperShelfDepthRatio == null) next.workbenchUpperShelfDepthRatio = 0.55;
       }
-      // 一致性不变量：无抽屉时清除层数+方案（与 intent.ts 对齐，避免 drawerKind 残留）
-      if (next.drawerCount != null && next.drawerCount <= 0) {
-        next.drawerCount = undefined;
-        next.drawerKind = undefined;
-      }
       return next;
     });
-    // 对话开始后的手动调整要记账，下一轮注入模型上下文（单一事实源）
     if (chat.length > 0) {
       setManualChanges((mc) => {
         const next = new Map(mc);
@@ -334,63 +272,31 @@ export default function App() {
   const roleName: Record<string, string> = { post: '立柱', 'beam-x': '横梁(X向)', 'beam-z': '纵梁(Z向)', brace: '斜撑' };
 
   const selectedMember = selection?.type === 'member' ? items.find((i) => i.id === selection.id) ?? null : null;
-  const selectedJoint = selection?.type === 'joint' && model
-    ? model.joints.find((j) => j.id === selection.id) ?? null : null;
-  const selectedConnector = selectedJoint
-    ? kb.connectors.find((c) => c.connector.id === selectedJoint.connectorId) ?? null : null;
+  const selectedJoint = selection?.type === 'joint' && model ? model.joints.find((j) => j.id === selection.id) ?? null : null;
+  const selectedConnector = selectedJoint ? kb.connectors.find((c) => c.connector.id === selectedJoint.connectorId) ?? null : null;
 
-  // 尺寸标注：外观=干净无标注；图纸=完整尺寸链（总尺寸+层间距+代表长度）；选中始终标注
   const dims: RenderDim[] = useMemo(() => {
     const out: RenderDim[] = [];
     const { width: W, depth: D, height: H } = spec;
-    const secSize = kb.sections.find((s) => s.section.id === spec.sectionId)?.section.size[0] ?? 30;
     if (mode === 'drawing') {
-      // 总尺寸（基准在外轮廓）
       out.push({ a: [-W / 2, 2, D / 2], b: [W / 2, 2, D / 2], offset: [0, 0, 110], label: `W ${W}` });
       out.push({ a: [W / 2, 2, D / 2], b: [W / 2, 2, -D / 2], offset: [110, 0, 0], label: `D ${D}` });
       out.push({ a: [-W / 2, 0, -D / 2], b: [-W / 2, H, -D / 2], offset: [-110, 0, 0], label: `H ${H}` });
-      // 层间距尺寸链（左前柱上，从底到顶逐段，避免封闭尺寸链）
-      if (model) {
-        const ys = [...new Set(model.members.filter((m) => m.role !== 'post' && m.role !== 'brace').map((m) => m.position[1]))].sort((a, b) => a - b);
-        for (let i = 0; i < ys.length - 1; i++) {
-          const gap = Math.round(ys[i + 1] - ys[i]);
-          out.push({
-            a: [-W / 2, ys[i], D / 2], b: [-W / 2, ys[i + 1], D / 2],
-            offset: [-55, 0, 55], label: `${gap}`,
-          });
-        }
-        // 每种下料长度代表标注（横梁）
-        const seen = new Set<number>();
-        for (const m of model.members) {
-          if (m.role === 'post' || m.role === 'brace' || seen.has(m.length)) continue;
-          seen.add(m.length);
-          const along: [number, number, number] = m.axis === 'x' ? [1, 0, 0] : [0, 0, 1];
-          out.push({
-            a: [m.position[0] - along[0] * m.length / 2, m.position[1], m.position[2] - along[2] * m.length / 2],
-            b: [m.position[0] + along[0] * m.length / 2, m.position[1], m.position[2] + along[2] * m.length / 2],
-            offset: [0, secSize * 1.6, 0], label: `${m.length}`,
-          });
-        }
-      }
     }
     if (selectedMember) {
       const s = selectedMember.section.size[0];
-      const along: [number, number, number] = selectedMember.axis === 'x' ? [1, 0, 0]
-        : selectedMember.axis === 'y' ? [0, 1, 0] : [0, 0, 1];
+      const along: [number, number, number] = selectedMember.axis === 'x' ? [1, 0, 0] : selectedMember.axis === 'y' ? [0, 1, 0] : [0, 0, 1];
       const p = selectedMember.position;
-      const off: [number, number, number] = selectedMember.axis === 'y'
-        ? [Math.sign(p[0] || 1) * s * 1.6, 0, 0] : [0, s * 1.6, 0];
+      const off: [number, number, number] = selectedMember.axis === 'y' ? [Math.sign(p[0] || 1) * s * 1.6, 0, 0] : [0, s * 1.6, 0];
       out.push({
         a: [p[0] - along[0] * selectedMember.length / 2, p[1] - along[1] * selectedMember.length / 2, p[2] - along[2] * selectedMember.length / 2],
         b: [p[0] + along[0] * selectedMember.length / 2, p[1] + along[1] * selectedMember.length / 2, p[2] + along[2] * selectedMember.length / 2],
-        offset: off,
-        label: `${selectedMember.length} mm`,
+        offset: off, label: `${selectedMember.length} mm`,
       });
     }
     return out;
   }, [mode, spec, model, selectedMember, kb]);
 
-  // 件号球标（图纸模式）：每个件号取第一根构件中点，图与切割清单对照
   const bubbles: RenderBubble[] = useMemo(() => {
     if (mode !== 'drawing' || !model) return [];
     const seen = new Set<string>();
@@ -403,15 +309,8 @@ export default function App() {
     return out;
   }, [mode, model]);
 
-  // 视图预设（图纸模式：主视/俯视/左视/轴测）
-  const [viewReq, setViewReq] = useState<{ dir: [number, number, number]; seq: number } | null>(null);
-  const [leftOpen, setLeftOpen] = useState(true);
-  const [rightOpen, setRightOpen] = useState(true);
   const [partDetail, setPartDetail] = useState<string | null>(null);
-  const requestView = (dir: [number, number, number]) =>
-    setViewReq((v) => ({ dir, seq: (v?.seq ?? 0) + 1 }));
 
-  /** 改构件长度 = 反算对应整体尺寸重新生成（参数微调，非自由编辑） */
   const commitLength = (raw: string) => {
     if (!selectedMember || !model) return;
     const newLen = Math.round(Number(raw));
@@ -425,43 +324,27 @@ export default function App() {
     else if (selectedMember.role === 'beam-z') set({ depth: clamp(overall) });
     else set({ height: clamp(newLen) });
   };
-  const lengthTarget: Record<string, string> = {
-    post: '总高 H 同步调整', 'beam-x': '总宽 W 同步调整', 'beam-z': '总深 D 同步调整',
-  };
-  const machiningName: Record<string, string> = {
-    'through-hole': '通孔', 'end-tap': '端面攻丝', counterbore: '沉头孔', 'wrench-hole': '扬手孔',
-  };
+  const lengthTarget: Record<string, string> = { post: '总高 H 同步调整', 'beam-x': '总宽 W 同步调整', 'beam-z': '总深 D 同步调整' };
 
   const downloadCsv = (name: string, header: string[], rows: (string | number)[][]) => {
-    const csv = '\ufeff' + [header, ...rows].map((r) => r.join(',')).join('\n');
+    const csv = '﻿' + [header, ...rows].map((r) => r.join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    a.click();
+    a.href = url; a.download = name; a.click();
     URL.revokeObjectURL(url);
   };
 
-  /** 导出质量闸门：函数层自身校验，不只靠按钮禁用（9.2.2） */
   const exportGate = (): boolean => {
     if (!model) return false;
-    if (model.status === 'invalid') {
-      alert('方案存在结构错误（见结构校验红色项），禁止导出制造文件。请先修复。');
-      return false;
-    }
-    if (model.status === 'needs-confirmation') {
-      return confirm('方案存在警告项（见结构校验），确认已知晓风险并继续导出？');
-    }
+    if (model.status === 'invalid') { alert('方案存在结构错误（见结构校验红色项），禁止导出制造文件。请先修复。'); return false; }
+    if (model.status === 'needs-confirmation') { return confirm('方案存在警告项（见结构校验），确认已知晓风险并继续导出？'); }
     return true;
   };
 
-  /** 下料公差（cam.yaml 分段）：L≤1000 ±0.3 / >1000 ±0.5；precision 单向 */
-  const tolOf = (len: number) =>
-    spec.scene === 'precision' ? '+0/-0.2' : len <= 1000 ? '±0.3' : '±0.5';
+  const tolOf = (len: number) => spec.scene === 'precision' ? '+0/-0.2' : len <= 1000 ? '±0.3' : '±0.5';
 
   const exportCutList = () => {
     if (!model || !exportGate()) return;
-    // 工序链映射源：knowledge/rules/cam.yaml（cam-001~006）
     const processOf = (note: string) => {
       if (!note) return '切割→去毛刺';
       if (note.includes('沉')) return '切割→钻孔→沉头→去毛刺';
@@ -479,20 +362,15 @@ export default function App() {
   const exportBom = () => {
     if (!model || !exportGate()) return;
     const conn = kb.connectors.find((c) => c.connector.id === spec.connectorId)!.connector;
-    const rows: (string | number)[][] = model.cutList.map((c) => [
-      '型材', `${c.sectionId} L${c.length}`, c.qty,
-      sec2Price(c.length) != null ? (sec2Price(c.length)! * c.qty).toFixed(2) : '待补']);
+    const rows: (string | number)[][] = model.cutList.map((c) => ['型材', `${c.sectionId} L${c.length}`, c.qty, sec2Price(c.length) != null ? (sec2Price(c.length)! * c.qty).toFixed(2) : '待补']);
     rows.push(['连接件', conn.name, model.joints.length, '']);
     const bomAgg = new Map<string, number>();
     for (const b of conn.bom) bomAgg.set(b.sku, (bomAgg.get(b.sku) ?? 0) + b.qty * model.joints.length);
-    // 装配层紧固件（板材固定）聚合；脚轮/LED 本体走附件行避免重复
     for (const mt of model.mounts.filter((m) => m.method !== 'caster-stem' && m.method !== 'foot-stem' && m.method !== 'drawer-slide' && m.method !== 'slot-embed')) {
       for (const f of mt.fasteners) bomAgg.set(f.sku, (bomAgg.get(f.sku) ?? 0) + f.qty);
     }
     for (const [sku, qty] of bomAgg) rows.push(['配件', sku, qty, (kb.fasteners[sku] ? (kb.fasteners[sku].price * qty).toFixed(2) : '待补')]);
-    for (const p of model.panelList) {
-      rows.push(['板材', `${p.partNo} ${p.materialName} ${p.size[0]}×${p.size[1]}×${p.size[2]} ${p.holeNote}`, p.qty, (p.priceCny * p.qty).toFixed(2)]);
-    }
+    for (const p of model.panelList) rows.push(['板材', `${p.partNo} ${p.materialName} ${p.size[0]}×${p.size[1]}×${p.size[2]} ${p.holeNote}`, p.qty, (p.priceCny * p.qty).toFixed(2)]);
     for (const a of model.accessories) {
       if (a.kind === 'led-strip') {
         const m = Math.ceil((a.lengthMm ?? 1000) / 1000);
@@ -522,694 +400,366 @@ export default function App() {
   const warnCount = model?.checks.filter((c) => c.level === 'warn').length ?? 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh' }}>
-      {/* 顶栏：品牌 + 预设模板 + 状态 + 动作 */}
-      <header style={{ height: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', background: '#fff', borderBottom: '1px solid #e2e5ea', fontSize: 12, flexShrink: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', background: '#f5f6f8' }}>
+      {/* ═══════ 顶栏：品牌 + 预设 + 状态 + 导出 ═══════ */}
+      <header style={{ height: 42, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', background: '#fff', borderBottom: '1px solid #e2e5ea', fontSize: 12, flexShrink: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
         <b style={{ fontSize: 15, color: '#1a1a2e' }}>随构</b>
-        <span style={{ color: '#9ca3af', fontSize: 11, marginRight: 4 }}>参数化铝材设计</span>
-        {/* 预设模板：一键加载常见方案 */}
-        <div style={{ display: 'flex', gap: 4 }}>
+        <span style={{ color: '#9ca3af', fontSize: 11 }}>参数化铝材设计</span>
+        <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
           {([
             ['💻 电脑桌', { scene: 'workbench', width: 1200, depth: 600, height: 740, shelfCount: 1 }],
             ['📦 置物架', { scene: 'diy-furniture', width: 800, depth: 400, height: 1500, shelfCount: 3 }],
             ['🗄️ 工具柜', { scene: 'diy-furniture', width: 670, depth: 400, height: 815, drawerCount: 3, drawerKind: 'turnover-box' }],
-            ['🐟 鱼缸架', { scene: 'diy-furniture', width: 1000, depth: 400, height: 750, shelfCount: 2, highRisk: true }],
           ] as const).map(([label, preset]) => (
-            <button key={label} onClick={() => set(preset as Partial<FrameSpec>)} style={{
-              padding: '3px 8px', border: '1px solid #e2e5ea', borderRadius: 12, background: '#f8f9fa',
-              cursor: 'pointer', fontSize: 11, color: '#555', whiteSpace: 'nowrap',
-            }}>{label}</button>
+            <button key={label} onClick={() => set(preset as Partial<FrameSpec>)} style={{ padding: '3px 8px', border: '1px solid #e2e5ea', borderRadius: 12, background: '#f8f9fa', cursor: 'pointer', fontSize: 11, color: '#555', whiteSpace: 'nowrap' }}>{label}</button>
           ))}
         </div>
         <div style={{ flex: 1 }} />
         {model && (
-          <span style={{
-            fontSize: 11, padding: '3px 10px', borderRadius: 10,
-            background: model.status === 'valid' ? '#f0fff4' : model.status === 'needs-confirmation' ? '#fffbeb' : '#fdf0ee',
-            color: model.status === 'valid' ? '#2f855a' : model.status === 'needs-confirmation' ? '#b7791f' : '#c0392b',
-            fontWeight: 600,
-          }}>
+          <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 10, background: model.status === 'valid' ? '#f0fff4' : model.status === 'needs-confirmation' ? '#fffbeb' : '#fdf0ee', color: model.status === 'valid' ? '#2f855a' : model.status === 'needs-confirmation' ? '#b7791f' : '#c0392b', fontWeight: 600 }}>
             {model.status === 'valid' ? '✓ 可制造' : model.status === 'needs-confirmation' ? `⚠ ${warnCount} 警告` : `✖ ${errCount} 错误`}
           </span>
         )}
-        {model && (
-          <span style={{ color: '#888', fontSize: 11 }}>
-            {model.totals.memberCount} 根 · {model.totals.weightKg != null && `${model.totals.weightKg.toFixed(1)} kg`} · ¥{model.totals.priceCny?.toFixed(0) ?? '?'}
-          </span>
-        )}
-        {(chat.length > 0 || manualChanges.size > 0) && (
-          <button onClick={resetDraft} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: '#666', cursor: 'pointer' }}>新方案</button>
-        )}
+        {model && <span style={{ color: '#888', fontSize: 11 }}>{model.totals.memberCount} 根 · {model.totals.weightKg != null && `${model.totals.weightKg.toFixed(1)} kg`} · ¥{model.totals.priceCny?.toFixed(0) ?? '?'}</span>}
+        {(chat.length > 0 || manualChanges.size > 0) && <button onClick={resetDraft} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: '#666', cursor: 'pointer' }}>新方案</button>}
         <button onClick={exportCutList} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: !model || model.status === 'invalid' ? '#ccc' : '#555', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>切割</button>
         <button onClick={exportAssembly} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: !model || model.status === 'invalid' ? '#ccc' : '#555', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>装配</button>
         <button onClick={exportBom} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: 'none', borderRadius: 5, background: !model || model.status === 'invalid' ? '#e5e7eb' : '#1e6fff', color: !model || model.status === 'invalid' ? '#9ca3af' : '#fff', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer', fontWeight: 600 }}>BOM</button>
       </header>
 
+      {/* ═══════ 主区域：左栏 + 3D画布 + 右栏 ═══════ */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-      {leftOpen && (
-      <aside style={{ width: 340, display: 'flex', flexDirection: 'column', background: '#fff', borderRight: '1px solid #e2e5ea', flexShrink: 0 }}>
-        {/* 左栏顶部收起按钮 — 始终在栏内可见 */}
-        <button onClick={() => setLeftOpen(false)} title="收起参数面板" style={{
-          padding: '8px 12px', border: 'none', borderBottom: '1px solid #eef0f3', background: '#f7f8fa',
-          cursor: 'pointer', fontSize: 12, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6,
-        }}>
-          <span>⟨</span><span>收起</span>
-        </button>
-        <div style={{ padding: 14, overflowY: 'auto', fontSize: 13, lineHeight: 1.7 }}>
 
-        {/* 意图输入（M4） */}
-        {!hasKey ? (
-          <div style={{ background: '#fffbeb', padding: '8px 10px', borderRadius: 6, marginBottom: 10, fontSize: 12 }}>
-            首次使用请配置 LongCat API Key（仅存本地浏览器）：
-            <input type="password" placeholder="ak_..." style={{ width: '100%', marginTop: 4, padding: '4px 6px', border: '1px solid #d8c68a', borderRadius: 4 }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const v = (e.target as HTMLInputElement).value.trim();
-                  if (v) { setApiKey(v); setHasKey(true); }
-                }
-              }} />
-            <div style={{ color: '#999', marginTop: 2 }}>回车保存。没有 Key 也可直接用下方手动参数。</div>
-          </div>
-        ) : (
-          <div style={{ marginBottom: 10 }}>
-            {/* 对话历史：用户说了什么、AI 理解成什么，全程可追溯 */}
-            {chat.length > 0 && (
-              <div style={{ maxHeight: 220, overflowY: 'auto', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {chat.map((m, i) => (
-                  <div key={i} style={{
-                    alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                    maxWidth: '88%', padding: '6px 10px', borderRadius: 10, fontSize: 12,
-                    whiteSpace: 'pre-wrap', lineHeight: 1.6,
-                    background: m.role === 'user' ? '#1e6fff' : '#f0f2f5',
-                    color: m.role === 'user' ? '#fff' : '#333',
-                  }}>{m.text}</div>
+        {/* ── 左侧栏：参数 ── */}
+        {leftOpen && (
+          <aside style={{ width: 280, display: 'flex', flexDirection: 'column', background: '#fff', borderRight: '1px solid #e2e5ea', flexShrink: 0 }}>
+            <button onClick={() => setLeftOpen(false)} style={{ padding: '7px 12px', border: 'none', borderBottom: '1px solid #eef0f3', background: '#f7f8fa', cursor: 'pointer', fontSize: 11, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>⟨</span><span>收起参数</span>
+            </button>
+            <div style={{ padding: 12, overflowY: 'auto', fontSize: 12, lineHeight: 1.6 }}>
+              {/* AI 意图输入 */}
+              {!hasKey ? (
+                <div style={{ background: '#fffbeb', padding: '8px 10px', borderRadius: 6, marginBottom: 10, fontSize: 11 }}>
+                  首次使用请配置 LongCat API Key（仅存本地浏览器）：
+                  <input type="password" placeholder="ak_..." style={{ width: '100%', marginTop: 4, padding: '4px 6px', border: '1px solid #d8c68a', borderRadius: 4 }} onKeyDown={(e) => { if (e.key === 'Enter') { const v = (e.target as HTMLInputElement).value.trim(); if (v) { setApiKey(v); setHasKey(true); } } }} />
+                  <div style={{ color: '#999', marginTop: 2, fontSize: 10 }}>回车保存。没有 Key 也可直接用下方手动参数。</div>
+                </div>
+              ) : (
+                <div style={{ marginBottom: 10 }}>
+                  {chat.length > 0 && (
+                    <div style={{ maxHeight: 180, overflowY: 'auto', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {chat.map((m, i) => (
+                        <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '88%', padding: '5px 8px', borderRadius: 8, fontSize: 11, whiteSpace: 'pre-wrap', lineHeight: 1.5, background: m.role === 'user' ? '#1e6fff' : '#f0f2f5', color: m.role === 'user' ? '#fff' : '#333' }}>{m.text}</div>
+                      ))}
+                      {aiBusy && <div style={{ alignSelf: 'flex-start', color: '#999', fontSize: 11, padding: '2px 8px' }}>AI 理解中…</div>}
+                    </div>
+                  )}
+                  <textarea value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder={chat.length ? '回答追问或补充需求…' : '例：想要一个放3D打印机的架子，宽大概一米，带轮子方便移动'} rows={2} style={{ width: '100%', padding: '6px 8px', border: '1px solid #c9d2e0', borderRadius: 6, resize: 'vertical', fontFamily: 'inherit', fontSize: 12 }} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runIntent(); } }} />
+                  <button onClick={runIntent} disabled={aiBusy} style={{ width: '100%', marginTop: 4, padding: '6px 0', border: 'none', borderRadius: 5, background: aiBusy ? '#9db8e8' : '#1e6fff', color: '#fff', cursor: aiBusy ? 'wait' : 'pointer', fontSize: 12 }}>{aiBusy ? 'AI 理解中…' : chat.length ? '发送' : '✨ 生成方案'}</button>
+                  {aiError && <div style={{ color: '#c0392b', fontSize: 11, marginTop: 4 }}>✖ {aiError}</div>}
+                  {manualChanges.size > 0 && (
+                    <div style={{ color: '#8a7a3a', background: '#fdf9e8', padding: '4px 8px', borderRadius: 4, fontSize: 10, marginTop: 4 }}>
+                      🔒 已手动调整并锁定：{[...manualChanges.values()].join('，')}
+                    </div>
+                  )}
+                </div>
+              )}
+              {(aiResult?.unsupported.length || unsupportedSaved.length) ? (
+                <div style={{ background: '#fdf9e8', color: '#8a7a3a', padding: '6px 8px', borderRadius: 6, fontSize: 11, marginBottom: 8 }}>
+                  🚧 已存入草稿但暂不支持：{(aiResult?.unsupported ?? unsupportedSaved).join('、')}
+                </div>
+              ) : null}
+              {aiResult && (
+                <details style={{ fontSize: 11, color: '#666', marginBottom: 8 }}>
+                  <summary style={{ cursor: 'pointer' }}>AI 假设与选型依据（{aiResult.assumptions.length}）</summary>
+                  {aiResult.assumptions.map((a) => <div key={a} style={{ padding: '1px 0' }}>· {a}</div>)}
+                </details>
+              )}
+
+              {/* 快速尺寸 */}
+              <Section title="快速尺寸" icon="📐" defaultOpen={true}>
+                {([['总宽 W', 'width', 200, 3000], ['总深 D', 'depth', 200, 3000], ['总高 H', 'height', 200, 3000]] as const).map(([label, key, min, max]) => (
+                  <div key={key} style={{ marginBottom: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 1 }}>
+                      <span style={{ fontSize: 10, color: '#6b7280', flex: 1 }}>{label}</span>
+                      <input type="number" value={spec[key]} min={min} max={max} step={10} onChange={(e) => { const v = Number(e.target.value); if (v >= min && v <= max) set({ [key]: v } as Partial<FrameSpec>); }} style={{ width: 56, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 11, textAlign: 'right' }} />
+                      <span style={{ fontSize: 10, color: '#9ca3af' }}>mm</span>
+                    </div>
+                    <input type="range" min={min} max={max} step={10} value={spec[key]} onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<FrameSpec>)} style={{ width: '100%', height: 3 }} />
+                  </div>
                 ))}
-                {aiBusy && <div style={{ alignSelf: 'flex-start', color: '#999', fontSize: 12, padding: '2px 10px' }}>AI 理解中…</div>}
-              </div>
-            )}
-            <textarea
-              value={aiText}
-              onChange={(e) => setAiText(e.target.value)}
-              placeholder={chat.length ? '回答追问或补充需求…' : '例：想要一个放3D打印机的架子，宽大概一米，带轮子方便移动'}
-              rows={2}
-              style={{ width: '100%', padding: '6px 8px', border: '1px solid #c9d2e0', borderRadius: 6, resize: 'vertical', fontFamily: 'inherit', fontSize: 13 }}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runIntent(); } }}
-            />
-            <button onClick={runIntent} disabled={aiBusy} style={{
-              width: '100%', marginTop: 4, padding: '7px 0', border: 'none', borderRadius: 6,
-              background: aiBusy ? '#9db8e8' : '#1e6fff', color: '#fff', cursor: aiBusy ? 'wait' : 'pointer', fontSize: 13,
-            }}>{aiBusy ? 'AI 理解中…' : chat.length ? '发送' : '✨ 生成方案'}</button>
-            {aiError && <div style={{ color: '#c0392b', fontSize: 12, marginTop: 4 }}>✖ {aiError}</div>}
-            {manualChanges.size > 0 && (
-              <div style={{ color: '#8a7a3a', background: '#fdf9e8', padding: '4px 8px', borderRadius: 4, fontSize: 11, marginTop: 4 }}>
-                🔒 已手动调整并锁定：{[...manualChanges.values()].join('，')}（AI 不会覆盖，改口请在对话中明说）
-              </div>
-            )}
-          </div>
-        )}
+              </Section>
 
-        {(aiResult?.unsupported.length || unsupportedSaved.length) ? (
-          <div style={{ background: '#fdf9e8', color: '#8a7a3a', padding: '6px 8px', borderRadius: 6, fontSize: 12, marginBottom: 4 }}>
-            🚧 已存入草稿但暂不支持：{(aiResult?.unsupported ?? unsupportedSaved).join('、')}（当前版本只做正交框架+顶板/隔板）
-          </div>
-        ) : null}
-        {aiResult && (
-          <div style={{ marginBottom: 10 }}>
-            <details style={{ fontSize: 12, color: '#666' }}>
-              <summary style={{ cursor: 'pointer' }}>AI 假设与选型依据（{aiResult.assumptions.length}）</summary>
-              {aiResult.assumptions.map((a) => <div key={a} style={{ padding: '1px 0' }}>· {a}</div>)}
-            </details>
-          </div>
-        )}
+              {/* 板材与封板 */}
+              <Section title="板材与封板" icon="📦" defaultOpen={false}>
+                <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+                  {([['顶', 'topPanel'], ['隔板', 'shelfPanel'], ['底', 'bottomPanel']] as const).map(([label, key]) => (
+                    <label key={key} style={{ flex: 1 }}>
+                      <span style={{ fontSize: 10, color: '#8a90a0' }}>{label}</span>
+                      <select value={spec[key]} onChange={(e) => set({ [key]: e.target.value } as Partial<FrameSpec>)} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10, background: spec[key] !== 'none' ? '#f0f7ff' : '#fff' }}>
+                        <option value="none">无</option><option value="wood">木板</option><option value="glass">玻璃</option><option value="acrylic">亚克力</option><option value="pegboard">洞洞板</option>
+                      </select>
+                    </label>
+                  ))}
+                </div>
+                {spec.scene !== 'workbench' && spec.topPanel !== 'none' && (
+                  <div style={{ marginBottom: 6 }}>
+                    <span style={{ fontSize: 10, color: '#8a90a0' }}>顶板模式</span>
+                    <select value={spec.topPanelMode ?? 'overlay'} onChange={(e) => set({ topPanelMode: e.target.value as FrameSpec['topPanelMode'] })} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+                      <option value="overlay">全覆盖</option><option value="recessed">凹陷嵌框</option>
+                    </select>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {([['背', 'backPanel'], ['左', 'leftPanel'], ['右', 'rightPanel']] as const).map(([label, key]) => (
+                    <label key={key} style={{ flex: 1 }}>
+                      <span style={{ fontSize: 10, color: '#8a90a0' }}>{label}</span>
+                      <select value={spec[key]} onChange={(e) => set({ [key]: e.target.value } as Partial<FrameSpec>)} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10, background: spec[key] !== 'none' ? '#f0f7ff' : '#fff' }}>
+                        <option value="none">无</option><option value="wood">木板</option><option value="acrylic">亚克力</option><option value="pegboard">洞洞板</option><option value="wire-mesh">围网</option>
+                      </select>
+                    </label>
+                  ))}
+                  <label style={{ flex: 1 }}>
+                    <span style={{ fontSize: 10, color: '#8a90a0' }}>门</span>
+                    <select value={spec.doorPanel ?? 'none'} onChange={(e) => set({ doorPanel: e.target.value as FrameSpec['doorPanel'] })} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10, background: (spec.doorPanel ?? 'none') !== 'none' ? '#f0f7ff' : '#fff' }}>
+                      <option value="none">无</option><option value="wood">木门</option><option value="glass">玻璃门</option><option value="acrylic">亚克力门</option>
+                    </select>
+                  </label>
+                </div>
+              </Section>
 
-        {/* 快速尺寸：数字输入 + 滑杆合一，减少垂直空间 */}
-        {([
-          ['总宽 W', 'width', 200, 3000],
-          ['总深 D', 'depth', 200, 3000],
-          ['总高 H', 'height', 200, 3000],
-        ] as const).map(([label, key, min, max]) => (
-          <div key={key} style={{ marginBottom: 6 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-              <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 500, flex: 1 }}>{label}</span>
-              <input type="number" value={spec[key]} min={min} max={max} step={10}
-                onChange={(e) => { const v = Number(e.target.value); if (v >= min && v <= max) set({ [key]: v } as Partial<FrameSpec>); }}
-                style={{ width: 64, padding: '2px 6px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 12, textAlign: 'right' }} />
-              <span style={{ fontSize: 11, color: '#9ca3af' }}>mm</span>
-            </div>
-            <input type="range" min={min} max={max} step={10} value={spec[key]}
-              onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<FrameSpec>)} style={{ width: '100%', height: 4 }} />
-          </div>
-        ))}
+              {/* 结构与外观 */}
+              <Section title="结构与外观" icon="🔧" defaultOpen={false}>
+                <div style={{ marginBottom: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 1 }}>
+                    <span style={{ fontSize: 10, color: '#6b7280' }}>{spec.scene === 'workbench' ? '桌面高度' : '隔板层数'}</span>
+                    <span style={{ fontSize: 11, color: '#3769b2', fontWeight: 600 }}>{spec.scene === 'workbench' ? `${spec.workbenchDeskTopHeightMm ?? 740} mm` : spec.shelfCount}</span>
+                  </div>
+                  {spec.scene === 'workbench' ? (
+                    <input type="range" min={680} max={800} step={10} value={spec.workbenchDeskTopHeightMm ?? 740} onChange={(e) => set({ workbenchDeskTopHeightMm: Number(e.target.value) })} style={{ width: '100%', height: 3 }} />
+                  ) : (
+                    <input type="range" min={0} max={4} step={1} value={spec.shelfCount} onChange={(e) => set({ shelfCount: Number(e.target.value) })} style={{ width: '100%', height: 3 }} />
+                  )}
+                </div>
+                {spec.scene !== 'workbench' && (
+                  <div style={{ marginBottom: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 1 }}>
+                      <span style={{ fontSize: 10, color: '#6b7280' }}>抽屉层数</span>
+                      <span style={{ fontSize: 11, color: '#3769b2', fontWeight: 600 }}>{spec.drawerCount ?? 0}</span>
+                    </div>
+                    <input type="range" min={0} max={5} step={1} value={spec.drawerCount ?? 0} onChange={(e) => set({ drawerCount: Number(e.target.value) })} style={{ width: '100%', height: 3 }} />
+                    {(spec.drawerCount ?? 0) > 0 && (
+                      <select value={spec.drawerKind ?? 'ready-made'} onChange={(e) => set({ drawerKind: e.target.value as FrameSpec['drawerKind'] })} style={{ width: '100%', marginTop: 3, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+                        <option value="ready-made">成品抽屉</option><option value="turnover-box">周转箱</option>
+                      </select>
+                    )}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <label style={{ flex: 1 }}>
+                    <span style={{ fontSize: 10, color: '#8a90a0' }}>截面</span>
+                    <select value={spec.sectionId} onChange={(e) => set({ sectionId: e.target.value })} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+                      {kb.sections.map((s) => (<option key={s.section.id} value={s.section.id}>{s.section.name}</option>))}
+                    </select>
+                  </label>
+                  <label style={{ flex: 1 }}>
+                    <span style={{ fontSize: 10, color: '#8a90a0' }}>连接件</span>
+                    <select value={spec.connectorId} onChange={(e) => set({ connectorId: e.target.value })} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+                      {kb.connectors.map((c) => {
+                        const sec = kb.sections.find((s) => s.section.id === spec.sectionId)!.section;
+                        const ok = c.connector.compatible.series.includes(sec.id) && c.connector.compatible.slotWidths.includes(sec.slot.width);
+                        return (<option key={c.connector.id} value={c.connector.id} disabled={!ok}>{c.connector.name}{ok ? '' : ' ⚠'}</option>);
+                      })}
+                    </select>
+                  </label>
+                </div>
+                <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                  <label style={{ flex: 1 }}>
+                    <span style={{ fontSize: 10, color: '#8a90a0' }}>颜色</span>
+                    <select value={spec.profileColor ?? 'silver'} onChange={(e) => set({ profileColor: e.target.value as FrameSpec['profileColor'] })} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+                      <option value="silver">银白</option><option value="black">哑光黑</option><option value="gold">香槟金</option>
+                    </select>
+                  </label>
+                  <label style={{ flex: 1 }}>
+                    <span style={{ fontSize: 10, color: '#8a90a0' }}>底部</span>
+                    <select value={spec.mobility} onChange={(e) => set({ mobility: e.target.value as FrameSpec['mobility'] })} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+                      <option value="fixed">落地</option><option value="leveling-feet">调平脚</option><option value="caster">脚轮</option>
+                    </select>
+                  </label>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><input type="checkbox" checked={spec.brace} onChange={(e) => set({ brace: e.target.checked })} style={{ margin: 0 }} /> 斜撑</label>
+                  <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><input type="checkbox" checked={spec.centerColumn ?? false} onChange={(e) => set({ centerColumn: e.target.checked })} style={{ margin: 0 }} /> 中柱</label>
+                  <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><input type="checkbox" checked={spec.highRisk} onChange={(e) => set({ highRisk: e.target.checked })} style={{ margin: 0 }} /> 高风险</label>
+                </div>
+              </Section>
 
-        {/* ═══════ 板材与封板 ═══════ */}
-        <Section title="板材与封板" icon="📦" defaultOpen={false}>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-            {([['顶', 'topPanel'], ['隔板', 'shelfPanel'], ['底', 'bottomPanel']] as const).map(([label, key]) => (
-              <label key={key} style={{ flex: 1 }}>
-                <span style={{ fontSize: 10, color: '#8a90a0' }}>{label}</span>
-                <select value={spec[key]} onChange={(e) => set({ [key]: e.target.value } as Partial<FrameSpec>)} style={{ width: '100%', marginTop: 2, padding: '3px 6px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 11, background: spec[key] !== 'none' ? '#f0f7ff' : '#fff' }}>
-                  <option value="none">无</option>
-                  <option value="wood">木板</option>
-                  <option value="glass">玻璃</option>
-                  <option value="acrylic">亚克力</option>
-                  <option value="pegboard">洞洞板</option>
-                </select>
-              </label>
-            ))}
-          </div>
-          {spec.scene !== 'workbench' && spec.topPanel !== 'none' && (
-            <div style={{ marginBottom: 8 }}>
-              <span style={{ fontSize: 10, color: '#8a90a0' }}>顶板模式</span>
-              <select value={spec.topPanelMode ?? 'overlay'} onChange={(e) => set({ topPanelMode: e.target.value as FrameSpec['topPanelMode'] })} style={{ width: '100%', marginTop: 2, padding: '3px 6px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 11 }}>
-                <option value="overlay">全覆盖(齐外缘)</option>
-                <option value="recessed">凹陷嵌框内</option>
-              </select>
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 6 }}>
-            {([['背', 'backPanel'], ['左', 'leftPanel'], ['右', 'rightPanel']] as const).map(([label, key]) => (
-              <label key={key} style={{ flex: 1 }}>
-                <span style={{ fontSize: 10, color: '#8a90a0' }}>{label}</span>
-                <select value={spec[key]} onChange={(e) => set({ [key]: e.target.value } as Partial<FrameSpec>)} style={{ width: '100%', marginTop: 2, padding: '3px 6px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 11, background: spec[key] !== 'none' ? '#f0f7ff' : '#fff' }}>
-                  <option value="none">无</option>
-                  <option value="wood">木板</option>
-                  <option value="acrylic">亚克力</option>
-                  <option value="pegboard">洞洞板</option>
-                  <option value="wire-mesh">围网</option>
-                </select>
-              </label>
-            ))}
-            <label style={{ flex: 1 }}>
-              <span style={{ fontSize: 10, color: '#8a90a0' }}>门</span>
-              <select value={spec.doorPanel ?? 'none'} onChange={(e) => set({ doorPanel: e.target.value as FrameSpec['doorPanel'] })} style={{ width: '100%', marginTop: 2, padding: '3px 6px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 11, background: (spec.doorPanel ?? 'none') !== 'none' ? '#f0f7ff' : '#fff' }}>
-                <option value="none">无</option>
-                <option value="wood">木门</option>
-                <option value="glass">玻璃门</option>
-                <option value="acrylic">亚克力门</option>
-              </select>
-            </label>
-          </div>
-        </Section>
+              {/* 高级 */}
+              <Section title="高级" icon="⚙️" defaultOpen={false}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 1 }}>
+                  <span style={{ fontSize: 10, color: '#6b7280' }}>载荷</span>
+                  <span style={{ fontSize: 11, color: '#3769b2', fontWeight: 600 }}>{spec.loadKg} kg</span>
+                </div>
+                <input type="range" min={5} max={200} step={5} value={spec.loadKg} onChange={(e) => set({ loadKg: Number(e.target.value) })} style={{ width: '100%', height: 3, marginBottom: 6 }} />
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <label style={{ flex: 1 }}>
+                    <span style={{ fontSize: 10, color: '#8a90a0' }}>分布</span>
+                    <select value={spec.loadType} onChange={(e) => set({ loadType: e.target.value as FrameSpec['loadType'] })} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+                      <option value="distributed">均布</option><option value="concentrated">集中</option>
+                    </select>
+                  </label>
+                  <label style={{ flex: 1 }}>
+                    <span style={{ fontSize: 10, color: '#8a90a0' }}>场景</span>
+                    <select value={spec.scene} onChange={(e) => set({ scene: e.target.value as FrameSpec['scene'] })} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+                      <option value="diy-furniture">家具</option><option value="workbench">工作台</option><option value="industrial-rack">机架</option><option value="precision">精密</option>
+                    </select>
+                  </label>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><input type="checkbox" checked={spec.vibration ?? false} onChange={(e) => set({ vibration: e.target.checked })} style={{ margin: 0 }} /> 振动</label>
+                  <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><input type="checkbox" checked={spec.ledStrip ?? false} onChange={(e) => set({ ledStrip: e.target.checked })} style={{ margin: 0 }} /> LED</label>
+                </div>
+              </Section>
 
-        {/* ═══════ 结构与外观 ═══════ */}
-        <Section title="结构与外观" icon="🔧" defaultOpen={false}>
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-              <span style={{ fontSize: 11, color: '#6b7280' }}>{spec.scene === 'workbench' ? '桌面高度' : '隔板层数'}</span>
-              <span style={{ fontSize: 11, color: '#3769b2', fontWeight: 600 }}>{spec.scene === 'workbench' ? `${spec.workbenchDeskTopHeightMm ?? 740} mm` : spec.shelfCount}</span>
-            </div>
-            {spec.scene === 'workbench' ? (
-              <input type="range" min={680} max={800} step={10} value={spec.workbenchDeskTopHeightMm ?? 740}
-                onChange={(e) => set({ workbenchDeskTopHeightMm: Number(e.target.value) })} style={{ width: '100%', height: 4 }} />
-            ) : (
-              <input type="range" min={0} max={4} step={1} value={spec.shelfCount}
-                onChange={(e) => set({ shelfCount: Number(e.target.value) })} style={{ width: '100%', height: 4 }} />
-            )}
-          </div>
-          {spec.scene !== 'workbench' && (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                <span style={{ fontSize: 11, color: '#6b7280' }}>抽屉层数</span>
-                <span style={{ fontSize: 11, color: '#3769b2', fontWeight: 600 }}>{spec.drawerCount ?? 0}</span>
-              </div>
-              <input type="range" min={0} max={5} step={1} value={spec.drawerCount ?? 0}
-                onChange={(e) => set({ drawerCount: Number(e.target.value) })} style={{ width: '100%', height: 4 }} />
-              {(spec.drawerCount ?? 0) > 0 && (
-                <select value={spec.drawerKind ?? 'ready-made'} onChange={(e) => set({ drawerKind: e.target.value as FrameSpec['drawerKind'] })} style={{ width: '100%', marginTop: 4, padding: '3px 6px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 11 }}>
-                  <option value="ready-made">成品抽屉+反弹轨(无拉手)</option>
-                  <option value="turnover-box">周转箱+三折轨(工具)</option>
-                </select>
+              {recommendation && (
+                <div style={{ background: '#ebf4ff', color: '#2b6cb0', padding: '6px 8px', borderRadius: 5, marginTop: 8, fontSize: 11 }}>
+                  💡 推荐 <b>{kb.sections.find((s) => s.section.id === recommendation.use)?.section.name}</b>
+                  <button onClick={() => set({ sectionId: recommendation.use })} style={{ marginLeft: 6, border: '1px solid #2b6cb0', background: '#fff', color: '#2b6cb0', borderRadius: 3, padding: '1px 6px', cursor: 'pointer', fontSize: 10 }}>应用</button>
+                </div>
               )}
             </div>
-          )}
-          {spec.scene === 'workbench' && (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                <span style={{ fontSize: 11, color: '#6b7280' }}>上层浅搁板深度</span>
-                <span style={{ fontSize: 11, color: '#3769b2', fontWeight: 600 }}>{Math.round((spec.workbenchUpperShelfDepthRatio ?? 0.55) * 100)}%</span>
-              </div>
-              <input type="range" min={35} max={95} step={1} value={Math.round((spec.workbenchUpperShelfDepthRatio ?? 0.55) * 100)}
-                onChange={(e) => set({ workbenchUpperShelfDepthRatio: Number(e.target.value) / 100 })} style={{ width: '100%', height: 4 }} />
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 6 }}>
-            <label style={{ flex: 1 }}>
-              <span style={{ fontSize: 10, color: '#8a90a0' }}>截面</span>
-              <select value={spec.sectionId} onChange={(e) => set({ sectionId: e.target.value })} style={{ width: '100%', marginTop: 2, padding: '3px 6px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 11 }}>
-                {kb.sections.map((s) => (<option key={s.section.id} value={s.section.id}>{s.section.name}</option>))}
-              </select>
-            </label>
-            <label style={{ flex: 1 }}>
-              <span style={{ fontSize: 10, color: '#8a90a0' }}>连接件</span>
-              <select value={spec.connectorId} onChange={(e) => set({ connectorId: e.target.value })} style={{ width: '100%', marginTop: 2, padding: '3px 6px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 11 }}>
-                {kb.connectors.map((c) => {
-                  const sec = kb.sections.find((s) => s.section.id === spec.sectionId)!.section;
-                  const ok = c.connector.compatible.series.includes(sec.id) && c.connector.compatible.slotWidths.includes(sec.slot.width);
-                  return (<option key={c.connector.id} value={c.connector.id} disabled={!ok}>{c.connector.name}{ok ? '' : ' ⚠'}</option>);
-                })}
-              </select>
-            </label>
-          </div>
-          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-            <label style={{ flex: 1 }}>
-              <span style={{ fontSize: 10, color: '#8a90a0' }}>型材颜色</span>
-              <select value={spec.profileColor ?? 'silver'} onChange={(e) => set({ profileColor: e.target.value as FrameSpec['profileColor'] })} style={{ width: '100%', marginTop: 2, padding: '3px 6px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 11 }}>
-                <option value="silver">银白</option>
-                <option value="black">哑光黑</option>
-                <option value="gold">香槟金</option>
-              </select>
-            </label>
-            <label style={{ flex: 1 }}>
-              <span style={{ fontSize: 10, color: '#8a90a0' }}>底部</span>
-              <select value={spec.mobility} onChange={(e) => set({ mobility: e.target.value as FrameSpec['mobility'] })} style={{ width: '100%', marginTop: 2, padding: '3px 6px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 11 }}>
-                <option value="fixed">落地</option>
-                <option value="leveling-feet">调平脚</option>
-                <option value="caster">脚轮</option>
-              </select>
-            </label>
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-            <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={spec.brace} onChange={(e) => set({ brace: e.target.checked })} style={{ margin: 0 }} /> 斜撑</label>
-            <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={spec.centerColumn ?? false} onChange={(e) => set({ centerColumn: e.target.checked })} style={{ margin: 0 }} /> 中柱</label>
-            <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={spec.highRisk} onChange={(e) => set({ highRisk: e.target.checked })} style={{ margin: 0 }} /> 高风险</label>
-          </div>
-        </Section>
-
-        {/* ═══════ 高级 ═══════ */}
-        <Section title="高级" icon="⚙️" defaultOpen={false}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-            <span style={{ fontSize: 11, color: '#6b7280' }}>顶面载荷</span>
-            <span style={{ fontSize: 11, color: '#3769b2', fontWeight: 600 }}>{spec.loadKg} kg</span>
-          </div>
-          <input type="range" min={5} max={200} step={5} value={spec.loadKg}
-            onChange={(e) => set({ loadKg: Number(e.target.value) })} style={{ width: '100%', height: 4, marginBottom: 8 }} />
-          <div style={{ display: 'flex', gap: 6 }}>
-            <label style={{ flex: 1 }}>
-              <span style={{ fontSize: 10, color: '#8a90a0' }}>载荷分布</span>
-              <select value={spec.loadType} onChange={(e) => set({ loadType: e.target.value as FrameSpec['loadType'] })} style={{ width: '100%', marginTop: 2, padding: '3px 6px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 11 }}>
-                <option value="distributed">均布</option>
-                <option value="concentrated">集中</option>
-              </select>
-            </label>
-            <label style={{ flex: 1 }}>
-              <span style={{ fontSize: 10, color: '#8a90a0' }}>场景</span>
-              <select value={spec.scene} onChange={(e) => set({ scene: e.target.value as FrameSpec['scene'] })} style={{ width: '100%', marginTop: 2, padding: '3px 6px', border: '1px solid #c9d2e0', borderRadius: 4, fontSize: 11 }}>
-                <option value="diy-furniture">家具</option>
-                <option value="workbench">工作台</option>
-                <option value="industrial-rack">机架</option>
-                <option value="precision">精密</option>
-              </select>
-            </label>
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-            <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={spec.vibration ?? false} onChange={(e) => set({ vibration: e.target.checked })} style={{ margin: 0 }} /> 振动</label>
-            <label style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={spec.ledStrip ?? false} onChange={(e) => set({ ledStrip: e.target.checked })} style={{ margin: 0 }} /> LED</label>
-          </div>
-        </Section>
-
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          {([['顶面板', 'topPanel'], ['隔板材质', 'shelfPanel'], ['底板', 'bottomPanel']] as const).map(([label, key]) => (
-            <label key={key} style={{ flex: 1 }}>
-              {label}
-              <select value={spec[key]} onChange={(e) => set({ [key]: e.target.value } as Partial<FrameSpec>)} style={{ width: '100%', marginTop: 4 }}>
-                <option value="none">无</option>
-                <option value="wood">木板</option>
-                <option value="glass">玻璃(钢化)</option>
-                <option value="acrylic">亚克力</option>
-                <option value="pegboard">洞洞板</option>
-              </select>
-            </label>
-          ))}
-        </div>
-
-        {spec.scene !== 'workbench' && spec.topPanel !== 'none' && (
-          <label style={{ display: 'block', marginBottom: 8 }}>
-            顶板模式
-            <select value={spec.topPanelMode ?? 'overlay'} onChange={(e) => set({ topPanelMode: e.target.value as FrameSpec['topPanelMode'] })} style={{ width: '100%', marginTop: 4 }}>
-              <option value="overlay">全覆盖(齐外缘)</option>
-              <option value="recessed">凹陷嵌框内</option>
-            </select>
-          </label>
+          </aside>
+        )}
+        {!leftOpen && (
+          <button onClick={() => setLeftOpen(true)} title="展开参数" style={{ width: 36, background: '#e8edf4', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, flexShrink: 0, border: 'none', borderRight: '1px solid #dde1e8' }}>
+            <span style={{ fontSize: 14, color: '#3769b2' }}>⟩</span>
+            <span style={{ writingMode: 'vertical-rl', fontSize: 9, color: '#3769b2', letterSpacing: 1 }}>参数</span>
+          </button>
         )}
 
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-          {([['背板', 'backPanel'], ['左侧板', 'leftPanel'], ['右侧板', 'rightPanel']] as const).map(([label, key]) => (
-            <label key={key} style={{ flex: 1, fontSize: 12 }}>
-              {label}
-              <select value={spec[key]} onChange={(e) => set({ [key]: e.target.value } as Partial<FrameSpec>)} style={{ width: '100%', marginTop: 4 }}>
-                <option value="none">无</option>
-                <option value="wood">木板</option>
-                <option value="acrylic">亚克力</option>
-                <option value="pegboard">洞洞板</option>
-                <option value="wire-mesh">围网</option>
-              </select>
-            </label>
-          ))}
-          <label style={{ flex: 1, fontSize: 12 }}>
-            门板(正面)
-            <select value={spec.doorPanel ?? 'none'} onChange={(e) => set({ doorPanel: e.target.value as FrameSpec['doorPanel'] })} style={{ width: '100%', marginTop: 4 }}>
-              <option value="none">无</option>
-              <option value="wood">木门</option>
-              <option value="glass">玻璃门</option>
-              <option value="acrylic">亚克力门</option>
-            </select>
-          </label>
-        </div>
-
-        <label style={{ display: 'block', marginBottom: 8 }}>
-          顶面载荷 {spec.loadKg} kg
-          <input type="range" min={5} max={200} step={5} value={spec.loadKg}
-            onChange={(e) => set({ loadKg: Number(e.target.value) })} style={{ width: '100%' }} />
-        </label>
-
-        {result.error && <div style={{ color: '#c0392b', marginTop: 10, fontSize: 12, padding: '6px 8px', background: '#fdf0ee', borderRadius: 4 }}>⚠ {result.error}</div>}
-
-        {recommendation && (
-          <div style={{ background: '#ebf4ff', color: '#2b6cb0', padding: '7px 9px', borderRadius: 6, marginTop: 10, fontSize: 12, lineHeight: 1.6 }}>
-            💡 选型建议：推荐 <b>{kb.sections.find((s) => s.section.id === recommendation.use)?.section.name ?? recommendation.use}</b>
-            <button onClick={() => set({ sectionId: recommendation.use })} style={{ marginLeft: 6, border: '1px solid #2b6cb0', background: '#fff', color: '#2b6cb0', borderRadius: 4, padding: '1px 8px', cursor: 'pointer', fontSize: 12 }}>应用</button>
-          </div>
-        )}
-        </div>{/* 结束左栏内层滚动区 */}
-      </aside>
-      )}
-
-      <main style={{ flex: 1, position: 'relative' }}>
-        <Viewer
-          items={items}
-          joints={mode === 'structure' ? joints : []}
-          machining={mode !== 'appearance' ? machining : []}
-          panels={panels}
-          accessories={accessories}
-          mountPoints={mode === 'structure' ? mountPoints : []}
-          dims={dims}
-          drawing={mode === 'drawing'}
-          bubbles={bubbles}
-          viewRequest={viewReq}
-          focusY={spec.height / 2}
-          onSelect={setSelection}
-          selection={selection}
-          warnMemberIds={warnMemberIds}
-          profileColor={spec.profileColor}
-        />
-        {/* 图纸视图预设：正交标准视角 */}
-        {mode === 'drawing' && (
-          <div style={{
-            position: 'absolute', top: 60, left: '50%', transform: 'translateX(-50%)',
-            display: 'flex', gap: 4, background: 'rgba(255,255,255,.95)', padding: 4,
-            borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,.1)',
-          }}>
-            {([
-              ['主视图', [0, 0, 1]],
-              ['俯视图', [0, 1, 0]],
-              ['左视图', [-1, 0, 0]],
-              ['轴测', [1, 0.7, 1]],
-            ] as [string, [number, number, number]][]).map(([name, dir]) => (
-              <button key={name} onClick={() => requestView(dir)} style={{
-                border: 'none', borderRadius: 6, padding: '4px 14px', cursor: 'pointer',
-                fontSize: 12, background: 'transparent', color: '#555',
-              }}>{name}</button>
+        {/* ── 3D 画布（主导区域） ── */}
+        <main style={{ flex: 1, position: 'relative', background: '#f5f6f8' }}>
+          <Viewer items={items} joints={mode === 'structure' ? joints : []} machining={mode !== 'appearance' ? machining : []} panels={panels} accessories={accessories} mountPoints={mode === 'structure' ? mountPoints : []} dims={dims} drawing={mode === 'drawing'} bubbles={bubbles} focusY={spec.height / 2} onSelect={setSelection} selection={selection} warnMemberIds={warnMemberIds} profileColor={spec.profileColor} />
+          {/* 视图模式工具条 */}
+          <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 3, background: 'rgba(255,255,255,.92)', padding: 3, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
+            {([['appearance', '外观'], ['structure', '结构'], ['drawing', '图纸']] as const).map(([m, name]) => (
+              <button key={m} onClick={() => setMode(m)} style={{ border: 'none', borderRadius: 5, padding: '5px 14px', cursor: 'pointer', fontSize: 12, background: mode === m ? '#1e6fff' : 'transparent', color: mode === m ? '#fff' : '#555' }}>{name}</button>
             ))}
           </div>
-        )}
-        {/* 视图模式工具条：按用户任务阶段分层显示 */}
-        <div style={{
-          position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)',
-          display: 'flex', gap: 4, background: 'rgba(255,255,255,.95)', padding: 4,
-          borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,.1)',
-        }}>
-          {([['appearance', '外观'], ['structure', '结构'], ['drawing', '图纸']] as const).map(([m, name]) => (
-            <button key={m} onClick={() => setMode(m)} style={{
-              border: 'none', borderRadius: 6, padding: '6px 18px', cursor: 'pointer', fontSize: 13,
-              background: mode === m ? '#1e6fff' : 'transparent',
-              color: mode === m ? '#fff' : '#555',
-            }}>{name}</button>
-          ))}
-        </div>
-        {selectedMember && (
-          <div style={{
-            position: 'absolute', top: 130, right: 14, width: 240,
-            background: 'rgba(255,255,255,.96)', borderRadius: 8, padding: '12px 14px',
-            boxShadow: '0 4px 16px rgba(0,0,0,.12)', fontSize: 13, lineHeight: 1.8,
-          }}>
-            <div style={{ fontWeight: 600, marginBottom: 4, color: '#1e6fff' }}>
-              {roleName[selectedMember.role] ?? selectedMember.role} · {selectedMember.id}
+          {selectedMember && (
+            <div style={{ position: 'absolute', top: 56, right: 12, width: 220, background: 'rgba(255,255,255,.95)', borderRadius: 8, padding: '10px 12px', boxShadow: '0 4px 16px rgba(0,0,0,.12)', fontSize: 12, lineHeight: 1.8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 3, color: '#1e6fff' }}>{roleName[selectedMember.role] ?? selectedMember.role} · {selectedMember.id}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>下料长度：<input key={selectedMember.id + ':' + selectedMember.length} type="number" defaultValue={selectedMember.length} min={40} max={2000} step={10} style={{ width: 60, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3 }} onKeyDown={(e) => { if (e.key === 'Enter') commitLength((e.target as HTMLInputElement).value); }} onBlur={(e) => { if (Number(e.target.value) !== selectedMember.length) commitLength(e.target.value); }} /> mm</div>
+              <div style={{ color: '#888', fontSize: 11 }}>回车确认，{lengthTarget[selectedMember.role]}</div>
+              <div>米重：{selectedMember.section.weightPerMeter != null ? `${selectedMember.section.weightPerMeter} kg/m` : '待补'}</div>
+              <div>单根约：{selectedMember.section.price.perMeter != null ? `¥${((selectedMember.section.price.perMeter * selectedMember.length) / 1000).toFixed(2)}` : '待补'}</div>
             </div>
-            <div>截面：{selectedMember.section.name}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              下料长度：
-              <input
-                key={selectedMember.id + ':' + selectedMember.length}
-                type="number"
-                defaultValue={selectedMember.length}
-                min={40}
-                max={2000}
-                step={10}
-                style={{ width: 76, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 4 }}
-                onKeyDown={(e) => { if (e.key === 'Enter') commitLength((e.target as HTMLInputElement).value); }}
-                onBlur={(e) => { if (Number(e.target.value) !== selectedMember.length) commitLength(e.target.value); }}
-              /> mm
+          )}
+          {selectedJoint && selectedConnector && (
+            <div style={{ position: 'absolute', top: 56, right: 12, width: 220, background: 'rgba(255,255,255,.95)', borderRadius: 8, padding: '10px 12px', boxShadow: '0 4px 16px rgba(0,0,0,.12)', fontSize: 12, lineHeight: 1.8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 3, color: '#1e6fff' }}>连接件 · {selectedJoint.id}</div>
+              <div>{selectedConnector.connector.name}</div>
+              <div>强度等级：{selectedConnector.connector.strengthClass} / 5</div>
+              <div>安装：{selectedConnector.connector.visibility === 'hidden' ? '隐藏式' : '外露式'}{selectedConnector.connector.machining.length > 0 && ` · 需加工 ${selectedConnector.connector.machining.length} 项`}</div>
             </div>
-            <div style={{ color: '#888', fontSize: 12 }}>回车确认，{lengthTarget[selectedMember.role]}</div>
-            <div>米重：{selectedMember.section.weightPerMeter != null ? `${selectedMember.section.weightPerMeter} kg/m` : '待补'}</div>
-            <div>单根约：{selectedMember.section.price.perMeter != null ? `¥${((selectedMember.section.price.perMeter * selectedMember.length) / 1000).toFixed(2)}` : '待补'}</div>
-            <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>点击空白处取消选择</div>
-          </div>
-        )}
-        {selectedJoint && selectedConnector && (
-          <div style={{
-            position: 'absolute', top: 130, right: 14, width: 240,
-            background: 'rgba(255,255,255,.96)', borderRadius: 8, padding: '12px 14px',
-            boxShadow: '0 4px 16px rgba(0,0,0,.12)', fontSize: 13, lineHeight: 1.8,
-          }}>
-            <div style={{ fontWeight: 600, marginBottom: 4, color: '#1e6fff' }}>
-              连接件 · {selectedJoint.id}
-            </div>
-            <div>{selectedConnector.connector.name}</div>
-            <div>强度等级：{selectedConnector.connector.strengthClass} / 5</div>
-            <div>承载角色：{selectedConnector.connector.loadRole === 'primary' ? '主承重' : '定位/外观'}</div>
-            <div>安装：{selectedConnector.connector.visibility === 'hidden' ? '隐藏式' : '外露式'}
-              {selectedConnector.connector.machining.length > 0 && ` · 需加工 ${selectedConnector.connector.machining.length} 项`}</div>
-            <div style={{ color: '#666', fontSize: 12 }}>
-              BOM：{selectedConnector.connector.bom.map((b) => `${b.sku}×${b.qty}`).join('，')}
-            </div>
-            {selectedConnector.connector.note && (
-              <div style={{ color: '#b7791f', fontSize: 12, marginTop: 4 }}>⚠ {selectedConnector.connector.note}</div>
-            )}
-            <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>在左侧下拉框可更换连接件类型</div>
-          </div>
-        )}
-        {partDetail && model && (() => {
-          const item = model.cutList.find((c) => c.partNo === partDetail);
-          if (!item) return null;
-          const ss = kb.sections.find((s) => s.section.id === item.sectionId)?.section.size[0] ?? 30;
-          return <PartDrawing item={item} sectionSize={ss} tolerance={tolOf(item.length)} onClose={() => setPartDetail(null)} />;
-        })()}
-      </main>
+          )}
+          {partDetail && model && (() => {
+            const item = model.cutList.find((c) => c.partNo === partDetail);
+            if (!item) return null;
+            const ss = kb.sections.find((s) => s.section.id === item.sectionId)?.section.size[0] ?? 30;
+            return <PartDrawing item={item} sectionSize={ss} tolerance={tolOf(item.length)} onClose={() => setPartDetail(null)} />;
+          })()}
+        </main>
 
-      {rightOpen && (
-      <aside style={{ width: 340, display: 'flex', flexDirection: 'column', background: '#fff', borderLeft: '1px solid #e2e5ea', flexShrink: 0 }}>
-        <button onClick={() => setRightOpen(false)} title="收起结果面板" style={{
-          padding: '8px 12px', border: 'none', borderBottom: '1px solid #eef0f3', background: '#f7f8fa',
-          cursor: 'pointer', fontSize: 12, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6,
-        }}>
-          <span>⟩</span><span>收起</span>
-        </button>
-        <div style={{ padding: 14, overflowY: 'auto', fontSize: 13, lineHeight: 1.7 }}>
-        {model ? (
-          <>
-            {model.warnings.map((w) => (
-              <div key={w} style={{ color: '#b7791f', background: '#fffbeb', padding: '6px 8px', borderRadius: 4, marginBottom: 8, fontSize: 12 }}>⚠ {w}</div>
-            ))}
-
-            <h3 style={{ margin: '0 0 6px', fontSize: 14 }}>结构校验</h3>
-            {model.checks.map((c, i) => {
-              const st = levelStyle[c.level];
-              return (
-                <div key={i} style={{ color: st.color, background: st.bg, padding: '5px 8px', borderRadius: 4, marginBottom: 4, fontSize: 12 }}>
-                  {st.icon} <b>{c.ruleId}</b> {c.message}
-                </div>
-              );
-            })}
-
-            <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>切割清单（按件号）</h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #d8dce2', color: '#666', textAlign: 'left' }}>
-                  <th style={{ padding: '4px 0' }}>件号</th>
-                  <th style={{ textAlign: 'right' }}>长度</th>
-                  <th style={{ textAlign: 'right' }}>数量</th>
-                  <th style={{ textAlign: 'right' }}>加工</th>
-                </tr>
-              </thead>
-              <tbody>
-                {model.cutList.map((c) => (
-                  <tr key={c.partNo} onClick={() => setPartDetail(c.partNo)} title="点击查看单件加工图"
-                    style={{ borderBottom: '1px solid #f0f2f5', cursor: 'pointer' }}>
-                    <td style={{ padding: '4px 0', color: '#1e6fff', textDecoration: 'underline' }}>{c.partNo}</td>
-                    <td style={{ textAlign: 'right' }}>{c.length}</td>
-                    <td style={{ textAlign: 'right' }}>×{c.qty}</td>
-                    <td style={{ textAlign: 'right', fontSize: 11, color: '#777' }}>{c.machiningNote || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {nesting && (
-              <>
-                <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>下料方案（套裁）</h3>
-                <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
-                  原料 {nesting.stockLengthMm}mm × {nesting.totalStockBars} 根 · 利用率 {(nesting.utilization * 100).toFixed(1)}% · 锯口 {nesting.kerfMm}mm/刀
-                </div>
-                {nesting.bars.map((b, i) => (
-                  <div key={i} style={{ fontSize: 11, color: '#777', padding: '2px 0', borderBottom: '1px solid #f0f2f5' }}>
-                    #{i + 1}：{b.cuts.map((c) => `${c.partNo}(${c.length})`).join(' + ')} → 余料 {b.remnantMm}mm
-                  </div>
-                ))}
-              </>
-            )}
-
-            {model.panelList.length > 0 && (
-              <>
-                <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>板材清单（按件号）</h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid #d8dce2', color: '#666', textAlign: 'left' }}>
-                      <th style={{ padding: '4px 0' }}>件号</th>
-                      <th>材质</th>
-                      <th style={{ textAlign: 'right' }}>长×宽×厚</th>
-                      <th style={{ textAlign: 'right' }}>数量</th>
-                      <th style={{ textAlign: 'right' }}>估价</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {model.panelList.map((p) => (
-                      <tr key={p.partNo} style={{ borderBottom: '1px solid #f0f2f5' }}>
-                        <td style={{ padding: '4px 0' }}>{p.partNo}</td>
-                        <td>{p.materialName}</td>
-                        <td style={{ textAlign: 'right', fontSize: 11 }}>{p.size[0]}×{p.size[1]}×{p.size[2]}</td>
-                        <td style={{ textAlign: 'right' }}>×{p.qty}</td>
-                        <td style={{ textAlign: 'right' }}>¥{(p.priceCny * p.qty).toFixed(0)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-                  {model.panelList.map((p) => `${p.partNo}: ${p.holeNote}`).join(' · ')}
-                </div>
-              </>
-            )}
-
-            <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>价格明细（未税估价）</h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <tbody>
-                {([['型材', model.totals.cost.profile], ['板材(含钻孔)', model.totals.cost.panels],
-                   ['连接件', model.totals.cost.connectors], ['紧固件/胶垫压条', model.totals.cost.fasteners],
-                   ['型材加工费', model.totals.cost.machining], ['附件', model.totals.cost.accessories]] as const)
-                  .filter(([, v]) => v > 0)
-                  .map(([label, v]) => (
-                    <tr key={label} style={{ borderBottom: '1px solid #f0f2f5' }}>
-                      <td style={{ padding: '3px 0', color: '#666' }}>{label}</td>
-                      <td style={{ textAlign: 'right' }}>¥{v.toFixed(2)}</td>
-                    </tr>
+        {/* ── 右侧栏：结果 ── */}
+        {rightOpen && (
+          <aside style={{ width: 300, display: 'flex', flexDirection: 'column', background: '#fff', borderLeft: '1px solid #e2e5ea', flexShrink: 0 }}>
+            <button onClick={() => setRightOpen(false)} style={{ padding: '7px 12px', border: 'none', borderBottom: '1px solid #eef0f3', background: '#f7f8fa', cursor: 'pointer', fontSize: 11, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>⟩</span><span>收起结果</span>
+            </button>
+            <div style={{ padding: 12, overflowY: 'auto', fontSize: 12, lineHeight: 1.6 }}>
+              {model ? (
+                <>
+                  {model.warnings.map((w) => (
+                    <div key={w} style={{ color: '#b7791f', background: '#fffbeb', padding: '5px 8px', borderRadius: 4, marginBottom: 6, fontSize: 11 }}>⚠ {w}</div>
                   ))}
-                <tr>
-                  <td style={{ padding: '4px 0', fontWeight: 600 }}>合计</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>¥{model.totals.cost.total.toFixed(2)}</td>
-                </tr>
-              </tbody>
-            </table>
-            <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>非实价报价：板材/紧固件/加工费为市场量级估价，以平台实际报价为准</div>
-
-            <div style={{ marginTop: 10, color: '#555' }}>
-              构件 {model.totals.memberCount} 根 · 总长 {(model.totals.totalLengthMm / 1000).toFixed(2)} m
-              {model.totals.weightKg != null && <> · 约 {model.totals.weightKg.toFixed(1)} kg</>}
-              {model.totals.priceCny != null && <> · 合计约 ¥{model.totals.priceCny.toFixed(0)}（未税）</>}
+                  <h3 style={{ margin: '0 0 4px', fontSize: 13 }}>结构校验</h3>
+                  {model.checks.map((c, i) => {
+                    const st = levelStyle[c.level];
+                    return (
+                      <div key={i} style={{ color: st.color, background: st.bg, padding: '4px 7px', borderRadius: 3, marginBottom: 3, fontSize: 11 }}>
+                        {st.icon} <b>{c.ruleId}</b> {c.message}
+                      </div>
+                    );
+                  })}
+                  <h3 style={{ margin: '10px 0 4px', fontSize: 13 }}>切割清单</h3>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                    <thead><tr style={{ borderBottom: '1px solid #d8dce2', color: '#666' }}><th style={{ padding: '3px 0' }}>件号</th><th style={{ textAlign: 'right' }}>长度</th><th style={{ textAlign: 'right' }}>数量</th></tr></thead>
+                    <tbody>
+                      {model.cutList.map((c) => (
+                        <tr key={c.partNo} onClick={() => setPartDetail(c.partNo)} title="点击查看单件加工图" style={{ borderBottom: '1px solid #f0f2f5', cursor: 'pointer' }}>
+                          <td style={{ padding: '3px 0', color: '#1e6fff', textDecoration: 'underline' }}>{c.partNo}</td><td style={{ textAlign: 'right' }}>{c.length}</td><td style={{ textAlign: 'right' }}>×{c.qty}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {nesting && (
+                    <>
+                      <h3 style={{ margin: '10px 0 4px', fontSize: 13 }}>下料方案</h3>
+                      <div style={{ fontSize: 11, color: '#555', marginBottom: 3 }}>原料 {nesting.stockLengthMm}mm × {nesting.totalStockBars} 根 · 利用率 {(nesting.utilization * 100).toFixed(1)}%</div>
+                      {nesting.bars.map((b, i) => (
+                        <div key={i} style={{ fontSize: 10, color: '#777', padding: '2px 0', borderBottom: '1px solid #f0f2f5' }}>#{i + 1}：{b.cuts.map((c) => `${c.partNo}(${c.length})`).join(' + ')} → 余料 {b.remnantMm}mm</div>
+                      ))}
+                    </>
+                  )}
+                  {model.panelList.length > 0 && (
+                    <>
+                      <h3 style={{ margin: '10px 0 4px', fontSize: 13 }}>板材清单</h3>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                        <tbody>
+                          {model.panelList.map((p) => (
+                            <tr key={p.partNo} style={{ borderBottom: '1px solid #f0f2f5' }}>
+                              <td style={{ padding: '3px 0' }}>{p.partNo}</td><td>{p.materialName}</td><td style={{ textAlign: 'right', fontSize: 10 }}>{p.size[0]}×{p.size[1]}×{p.size[2]}</td><td style={{ textAlign: 'right' }}>×{p.qty}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </>
+                  )}
+                  <h3 style={{ margin: '10px 0 4px', fontSize: 13 }}>价格明细</h3>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                    <tbody>
+                      {([['型材', model.totals.cost.profile], ['板材', model.totals.cost.panels], ['连接件', model.totals.cost.connectors], ['紧固件', model.totals.cost.fasteners], ['加工', model.totals.cost.machining], ['附件', model.totals.cost.accessories]] as const).filter(([, v]) => v > 0).map(([label, v]) => (
+                        <tr key={label} style={{ borderBottom: '1px solid #f0f2f5' }}><td style={{ padding: '2px 0', color: '#666' }}>{label}</td><td style={{ textAlign: 'right' }}>¥{v.toFixed(2)}</td></tr>
+                      ))}
+                      <tr><td style={{ padding: '3px 0', fontWeight: 600 }}>合计</td><td style={{ textAlign: 'right', fontWeight: 600 }}>¥{model.totals.cost.total.toFixed(2)}</td></tr>
+                    </tbody>
+                  </table>
+                  {assembly.length > 0 && (
+                    <details style={{ marginTop: 8 }}>
+                      <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>装配步骤（{assembly.length} 步）</summary>
+                      {assembly.map((s) => (
+                        <div key={s.step} style={{ padding: '4px 0', borderBottom: '1px solid #f0f2f5', fontSize: 11 }}>
+                          <b>{s.step}. {s.title}</b>
+                          {s.parts.length > 0 && <div style={{ color: '#555' }}>用件：{s.parts.join('、')}</div>}
+                          {s.note && <div style={{ color: '#999', fontSize: 10 }}>{s.note}</div>}
+                        </div>
+                      ))}
+                    </details>
+                  )}
+                </>
+              ) : (
+                <div style={{ color: '#999' }}>生成方案后这里显示校验结果与清单</div>
+              )}
             </div>
-
-            {machiningSummary.length > 0 && (
-              <>
-                <h3 style={{ margin: '12px 0 6px', fontSize: 14 }}>加工清单</h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid #d8dce2', color: '#666', textAlign: 'left' }}>
-                      <th style={{ padding: '4px 0' }}>类型</th>
-                      <th>规格</th>
-                      <th style={{ textAlign: 'right' }}>数量</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {machiningSummary.map((m) => (
-                      <tr key={m.type + m.spec} style={{ borderBottom: '1px solid #f0f2f5' }}>
-                        <td style={{ padding: '4px 0' }}>{machiningName[m.type] ?? m.type}</td>
-                        <td>{m.spec}</td>
-                        <td style={{ textAlign: 'right' }}>×{m.qty}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div style={{ color: '#999', fontSize: 12 }}>深色圆片 = 孔口位置（表面可见面）</div>
-              </>
-            )}
-
-            {assembly.length > 0 && (
-              <details style={{ marginTop: 12 }}>
-                <summary style={{ cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>装配步骤（{assembly.length} 步）</summary>
-                {assembly.map((s) => (
-                  <div key={s.step} style={{ padding: '6px 0', borderBottom: '1px solid #f0f2f5', fontSize: 12 }}>
-                    <b>{s.step}. {s.title}</b>
-                    {s.parts.length > 0 && <div style={{ color: '#555' }}>用件：{s.parts.join('、')}</div>}
-                    {s.fasteners.length > 0 && <div style={{ color: '#555' }}>紧固件：{s.fasteners.join('、')}</div>}
-                    {s.tools.length > 0 && <div style={{ color: '#777' }}>工具：{s.tools.join('、')}</div>}
-                    <div style={{ color: '#999' }}>{s.note}</div>
-                  </div>
-                ))}
-              </details>
-            )}
-
-            {/* 免责三要素（07文档责任设计） */}
-            <div style={{ marginTop: 12, padding: '8px 10px', background: '#f7f8fa', borderRadius: 6, color: '#888', fontSize: 11, lineHeight: 1.6 }}>
-              ① 本方案的承重/挠度为工程估算参考，基于典型截面参数（厂家间差异可达20%~50%）；
-              ② 未经专业结构认证，不替代持证工程师核算；
-              ③ 水族/儿童/头顶等高风险场景请务必勾选高风险选项并保留安全冗余，最终装配质量需自行确认。
-            </div>
-          </>
-        ) : (
-          <div style={{ color: '#999' }}>生成方案后这里显示校验结果与清单</div>
+          </aside>
         )}
-
-        {/* 研发诊断信息收纳，不暴露给普通用户（16号评测 2.2.5） */}
-        <details style={{ marginTop: 12, fontSize: 12, color: '#aaa' }}>
-          <summary style={{ cursor: 'pointer' }}>开发者诊断</summary>
-          <div>知识库：{kb.sections.length} 截面 · {kb.connectors.length} 连接件 · {Object.keys(kb.rules).length} 规则包</div>
-          <div style={{ color: goldenPass === golden.length ? '#2f855a' : '#c0392b' }}>
-            Golden 用例 {goldenPass}/{golden.length} {goldenPass === golden.length ? '✓' : '✖'}
-          </div>
-          {golden.filter((g) => !g.pass).map((g) => (
-            <div key={g.id} style={{ color: '#c0392b' }}>✖ {g.id} actual: {g.actual}</div>
-          ))}
-        </details>
-        </div>{/* 结束右栏内层滚动区 */}
-      </aside>
-      )}
-      {!rightOpen && (
-        <button onClick={() => setRightOpen(true)} title="展开结果面板" style={{
-          width: 40, background: '#e8edf4', cursor: 'pointer', display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, border: 'none', borderLeft: '1px solid #dde1e8',
-        }}>
-          <span style={{ fontSize: 16, color: '#3769b2' }}>⟨</span>
-          <span style={{ writingMode: 'vertical-rl', fontSize: 10, color: '#3769b2', letterSpacing: 1 }}>结果</span>
-        </button>
-      )}
-      {!leftOpen && (
-        <button onClick={() => setLeftOpen(true)} title="展开参数面板" style={{
-          width: 40, background: '#e8edf4', cursor: 'pointer', display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, border: 'none', borderRight: '1px solid #dde1e8',
-        }}>
-          <span style={{ fontSize: 16, color: '#3769b2' }}>⟩</span>
-          <span style={{ writingMode: 'vertical-rl', fontSize: 10, color: '#3769b2', letterSpacing: 1 }}>参数</span>
-        </button>
-      )}
+        {!rightOpen && (
+          <button onClick={() => setRightOpen(true)} title="展开结果" style={{ width: 36, background: '#e8edf4', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, flexShrink: 0, border: 'none', borderLeft: '1px solid #dde1e8' }}>
+            <span style={{ fontSize: 14, color: '#3769b2' }}>⟨</span>
+            <span style={{ writingMode: 'vertical-rl', fontSize: 9, color: '#3769b2', letterSpacing: 1 }}>结果</span>
+          </button>
+        )}
       </div>
     </div>
   );
