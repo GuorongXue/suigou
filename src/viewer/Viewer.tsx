@@ -190,43 +190,41 @@ function wireMeshTextures(size = 512) {
 function woodTextures(size = 512): TexSet {
   const seed = (v: number) => { const x = Math.sin(v * 127.1) * 43758.5453; return x - Math.floor(x); };
   const color = tex(`wood-c-${size}`, size, (ctx, s) => {
-    const base = ctx.createLinearGradient(0, 0, s, 0);
-    base.addColorStop(0, '#c9a87c'); base.addColorStop(0.5, '#b08d57'); base.addColorStop(1, '#9a7548');
-    ctx.fillStyle = base; ctx.fillRect(0, 0, s, s);
-    for (let i = 0; i < 6; i++) {
-      const y = (i / 6) * s + seed(i * 7) * s * 0.04;
-      ctx.strokeStyle = i % 2 === 0 ? 'rgba(120,85,45,0.12)' : 'rgba(200,170,120,0.08)';
-      ctx.lineWidth = s * 0.06; ctx.beginPath(); ctx.moveTo(0, y);
-      for (let x = 0; x <= s; x += 20) ctx.lineTo(x, y + Math.sin(x * 0.01 + i) * s * 0.015);
+    // 无缝底色：周期性颜色变化（左右边缘一致，避免接缝）
+    for (let x = 0; x < s; x++) {
+      const t = Math.sin(x / s * Math.PI * 2 * 3) * 0.5 + 0.5;  // 3 个周期，sin 保证边缘连续
+      const r = 140 + t * 60 | 0, g = 100 + t * 45 | 0, b = 55 + t * 30 | 0;
+      ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fillRect(x, 0, 1, s);
+    }
+    // 生长轮：明暗条带（沿 Y 方向，与纤维垂直）
+    for (let i = 0; i < 8; i++) {
+      const y = (i / 8) * s + seed(i * 7) * s * 0.03;
+      ctx.strokeStyle = i % 2 === 0 ? 'rgba(100,70,35,0.10)' : 'rgba(190,155,105,0.06)';
+      ctx.lineWidth = s * 0.04; ctx.beginPath(); ctx.moveTo(0, y);
+      for (let x = 0; x <= s; x += 20) ctx.lineTo(x, y + Math.sin(x * 0.008 + i) * s * 0.01);
       ctx.stroke();
     }
-    for (let i = 0; i < 80; i++) {
-      const y = seed(i * 31) * s, alpha = 0.04 + seed(i * 17) * 0.12;
-      const shade = 60 + seed(i * 53) * 80 | 0;
-      ctx.strokeStyle = `rgba(${shade + 30},${shade},${shade - 20},${alpha})`;
-      ctx.lineWidth = 0.3 + seed(i * 11) * 1.5;
+    // 木纤维：大量细长、平行、沿 X 方向（sin 周期保证左右无缝）
+    for (let i = 0; i < 100; i++) {
+      const y = seed(i * 31) * s, alpha = 0.03 + seed(i * 17) * 0.1;
+      const shade = 50 + seed(i * 53) * 70 | 0;
+      ctx.strokeStyle = `rgba(${shade + 30},${shade},${shade - 15},${alpha})`;
+      ctx.lineWidth = 0.3 + seed(i * 11) * 1.2;
       ctx.beginPath(); ctx.moveTo(0, y);
-      const phase = seed(i * 7) * Math.PI * 2, amp = 1 + seed(i * 3) * 4, freq = 0.003 + seed(i * 9) * 0.006;
-      for (let x = 0; x <= s; x += 4) ctx.lineTo(x, y + Math.sin(x * freq + phase) * amp);
+      const phase = seed(i * 7) * Math.PI * 2, amp = 0.8 + seed(i * 3) * 3;
+      for (let x = 0; x <= s; x += 3) ctx.lineTo(x, y + Math.sin(x / s * Math.PI * 2 + phase) * amp);
       ctx.stroke();
-    }
-    for (let k = 0; k < 2; k++) {
-      const cx = seed(k * 97) * s, cy = seed(k * 61) * s, r = s * (0.03 + seed(k * 41) * 0.04);
-      for (let rr = r; rr > 1; rr -= 1.5) {
-        ctx.beginPath(); ctx.ellipse(cx, cy, rr, rr * 0.7, seed(k) * 0.3, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(70,45,20,${0.15 * (rr / r)})`; ctx.lineWidth = 0.8; ctx.stroke();
-      }
     }
   });
   const bump = tex(`wood-b-${size}`, size, (ctx, s) => {
     ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, s, s);
-    for (let i = 0; i < 80; i++) {
+    for (let i = 0; i < 100; i++) {
       const y = seed(i * 31) * s;
-      ctx.strokeStyle = `rgba(40,40,40,${0.1 + seed(i * 17) * 0.15})`;
-      ctx.lineWidth = 0.5 + seed(i * 11) * 1.5;
+      ctx.strokeStyle = `rgba(40,40,40,${0.08 + seed(i * 17) * 0.12})`;
+      ctx.lineWidth = 0.4 + seed(i * 11) * 1.2;
       ctx.beginPath(); ctx.moveTo(0, y);
-      const phase = seed(i * 7) * Math.PI * 2, amp = 1 + seed(i * 3) * 4, freq = 0.003 + seed(i * 9) * 0.006;
-      for (let x = 0; x <= s; x += 4) ctx.lineTo(x, y + Math.sin(x * freq + phase) * amp);
+      const phase = seed(i * 7) * Math.PI * 2, amp = 0.8 + seed(i * 3) * 3;
+      for (let x = 0; x <= s; x += 3) ctx.lineTo(x, y + Math.sin(x / s * Math.PI * 2 + phase) * amp);
       ctx.stroke();
     }
   });
