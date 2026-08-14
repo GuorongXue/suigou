@@ -119,5 +119,13 @@ export async function extractIntent(
   const jsonText = content.includes('{')
     ? content.slice(content.indexOf('{'), content.lastIndexOf('}') + 1)
     : content;
-  return JSON.parse(jsonText) as Extraction;
+  try {
+    return JSON.parse(jsonText) as Extraction;
+  } catch (e) {
+    // LLM 输出被截断/多余 markdown/非 JSON 时，给可操作的提示而非原始语法错误
+    const snippet = jsonText.slice(0, 120).replace(/\s+/g, ' ').trim();
+    throw new Error(
+      `AI 返回的参数格式无法解析（${(e as Error).message}）。通常是输出被截断，请重试；若反复出现请简化描述。原始片段：${snippet || '(空)'}`,
+    );
+  }
 }
