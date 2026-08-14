@@ -101,15 +101,18 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
     const desk = kb.archetypes['computer-desk'];
     const hMin = desk?.overallHeightMm?.hutchMin ?? 1100;
     const hMax = desk?.overallHeightMm?.hutchMax ?? 1800;
-    if (spec.height < hMin || spec.height > hMax) {
+    const pMin = desk?.deskTopHeightMm?.min ?? 680;
+    const pMax = desk?.deskTopHeightMm?.max ?? 800;
+    const isPureDesk = spec.height >= pMin && spec.height <= pMax;
+    if (!isPureDesk && (spec.height < hMin || spec.height > hMax)) {
       checks.push({
         level: 'warn', ruleId: 'val-workbench-height',
-        message: `工作台（含上层置物）建议总高 ${hMin}~${hMax}mm，当前 ${spec.height}mm 偏离常用区间；请确认是否仍是电脑桌语义`,
+        message: `电脑桌合理总高：纯桌面 ${pMin}~${pMax}mm 或带上架 ${hMin}~${hMax}mm，当前 ${spec.height}mm 偏离常用区间；请确认是否仍是电脑桌语义`,
       });
     }
     const dMin = desk?.deskTopHeightMm?.min ?? 680;
     const dMax = desk?.deskTopHeightMm?.max ?? 800;
-    if ((spec.workbenchDeskTopHeightMm ?? 740) < dMin || (spec.workbenchDeskTopHeightMm ?? 740) > dMax) {
+    if (!isPureDesk && ((spec.workbenchDeskTopHeightMm ?? 740) < dMin || (spec.workbenchDeskTopHeightMm ?? 740) > dMax)) {
       checks.push({
         level: 'warn', ruleId: 'val-workbench-desk-top',
         message: `主桌面高度建议 ${dMin}~${dMax}mm，当前 ${(spec.workbenchDeskTopHeightMm ?? 740)}mm 可能影响坐姿与键鼠操作舒适度`,
