@@ -311,5 +311,31 @@ console.log(failures ? `\n== 8. 装配预装约束（跳过） ==` : '== 8. 装�
   if (!failures) ok(`装配预装约束通过：角码含预装提示 ✓；锚式无多余提示 ✓`);
 }
 
+console.log(failures ? `\n== 9. 型材颜色维度（跳过） ==` : '== 9. 型材颜色维度 ==');
+{
+  // profileColor 应传递到生成结果（通过渲染层材质验证）
+  const black = generateFrame({
+    width: 600, depth: 400, height: 1000, scene: 'diy-furniture', shelfCount: 1,
+    sectionId: 'eu-3030', connectorId: 'corner-bracket-30', profileColor: 'black',
+    topPanel: 'none', shelfPanel: 'none', bottomPanel: 'none',
+    loadKg: 15, loadType: 'distributed', highRisk: false, mobility: 'fixed',
+    backPanel: 'none', leftPanel: 'none', rightPanel: 'none', brace: false,
+  }, kb);
+  // 颜色由 Viewer 材质消费，生成层验证字段透传即可
+  if (black.spec.profileColor !== 'black') fail(`profileColor 应透传为 black，实际 ${black.spec.profileColor}`);
+  // 三种颜色都能正常生成不报错
+  for (const color of ['silver', 'black', 'gold'] as const) {
+    const m = generateFrame({
+      width: 600, depth: 400, height: 1000, scene: 'diy-furniture', shelfCount: 1,
+      sectionId: 'eu-3030', connectorId: 'corner-bracket-30', profileColor: color,
+      topPanel: 'none', shelfPanel: 'none', bottomPanel: 'none',
+      loadKg: 15, loadType: 'distributed', highRisk: false, mobility: 'fixed',
+      backPanel: 'none', leftPanel: 'none', rightPanel: 'none', brace: false,
+    }, kb);
+    if (m.status === 'invalid') fail(`${color} 颜色方案不应 invalid`);
+  }
+  if (!failures) ok('型材颜色维度通过：silver/black/gold 三档均生成 ✓');
+}
+
 console.log(failures ? `\n✖ 失败 ${failures} 项` : '\n✓ 全部通过');
 process.exit(failures ? 1 : 0);

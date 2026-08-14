@@ -99,10 +99,14 @@ interface ViewerProps {
   selection?: Selection | null;
   /** 校验问题构件（橙色警示） */
   warnMemberIds?: string[];
+  /** 型材颜色：silver/black/gold → 轮廓材质颜色 */
+  profileColor?: 'silver' | 'black' | 'gold';
 }
 
 const SELECT_COLOR = 0x1e6fff;
 const WARN_COLOR = 0xe8833a;
+/** 型材颜色调色板（阳极氧化/哑光/香槟） */
+const PROFILE_COLORS: Record<string, number> = { silver: 0xc4c9cf, black: 0x2a2d3a, gold: 0xc9a84c };
 
 const PANEL_MATERIALS: Record<string, () => THREE.MeshStandardMaterial> = {
   wood: () => new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.8, metalness: 0.05 }),
@@ -112,7 +116,7 @@ const PANEL_MATERIALS: Record<string, () => THREE.MeshStandardMaterial> = {
   'wire-mesh': () => new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.6, metalness: 0.5, transparent: true, opacity: 0.3 }),
 };
 
-export function Viewer({ items, joints, machining, panels, accessories, mountPoints, dims, drawing, bubbles, viewRequest, focusY, onSelect, selection, warnMemberIds }: ViewerProps) {
+export function Viewer({ items, joints, machining, panels, accessories, mountPoints, dims, drawing, bubbles, viewRequest, focusY, onSelect, selection, warnMemberIds, profileColor }: ViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const ctxRef = useRef<{
     scene: THREE.Scene;
@@ -333,8 +337,9 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
 
     // 同截面同长度共享一份挤出几何（渲染实验验证的性能路线）
     const geomCache = new Map<string, { geom: THREE.ExtrudeGeometry; edges: THREE.EdgesGeometry }>();
-    // 图纸风：白体深棱线（近似线框）；默认：铝材质+淡棱线
-    const baseColor = drawing ? 0xf8fafc : 0xc4c9cf;
+    // 图纸风：白体深棱线（近似线框）；默认：型材颜色（银白/黑/金）
+    const profileHex = PROFILE_COLORS[profileColor ?? 'silver'] ?? PROFILE_COLORS.silver;
+    const baseColor = drawing ? 0xf8fafc : profileHex;
     const edgeMat = new THREE.LineBasicMaterial(drawing
       ? { color: 0x2f3a4d, transparent: true, opacity: 0.9 }
       : { color: 0x6b7280, transparent: true, opacity: 0.35 });
@@ -361,6 +366,7 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       if (item.role !== 'post') mesh.scale.z = (item.length - 0.3) / item.length;
       mesh.userData.sel = { type: 'member', id: item.id } satisfies Selection;
       mesh.userData.member = item;
+      mesh.userData.baseColor = baseColor;
       mesh.userData.baseColor = baseColor;
       ctx.group.add(mesh);
       ctx.memberMeshes.set(item.id, mesh);

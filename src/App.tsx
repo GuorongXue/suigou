@@ -812,6 +812,15 @@ export default function App() {
           </select>
         </label>
 
+        <label style={{ display: 'block', marginBottom: 12 }}>
+          型材颜色
+          <select value={spec.profileColor ?? 'silver'} onChange={(e) => set({ profileColor: e.target.value as FrameSpec['profileColor'] })} style={{ width: '100%', marginTop: 4 }}>
+            <option value="silver">阳极氧化银白</option>
+            <option value="black">哑光黑</option>
+            <option value="gold">香槟金</option>
+          </select>
+        </label>
+
         {result.error && <div style={{ color: '#c0392b', marginBottom: 12 }}>⚠ {result.error}</div>}
 
         {recommendation && (
@@ -844,6 +853,7 @@ export default function App() {
           onSelect={setSelection}
           selection={selection}
           warnMemberIds={warnMemberIds}
+          profileColor={spec.profileColor}
         />
         {/* 图纸视图预设：正交标准视角 */}
         {mode === 'drawing' && (

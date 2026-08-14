@@ -45,6 +45,8 @@ export interface FrameSpec {
   brace: boolean;
   /** 中柱：在框架中心(x=0)加前后两根立柱，将内腔分为左右双列（工具柜/分区柜异构拓扑） */
   centerColumn?: boolean;
+  /** 型材颜色：silver=阳极氧化银白（默认）/ black=哑光黑（工具柜常见）/ gold=香槟金 */
+  profileColor?: 'silver' | 'black' | 'gold';
   /** LED 灯条：顶框前梁下槽内嵌（mat-004） */
   ledStrip?: boolean;
   /** 正面单开门（槽装合页+磁吸+把手） */
