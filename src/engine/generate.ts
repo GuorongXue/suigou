@@ -505,7 +505,10 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     let dn = 0;
     for (const { y, pitch } of drawerBoxes) {
       const accId = `ad-${++dn}`;
-      const bw = W - 2 * s - 30;   // 两侧轨道各留 ~15
+      // 抽屉盒净宽 = 总宽 − 2×立柱宽 − 滑轨侧向间隙（每侧 ~15mm，硬件属体）。
+      // 立柱位置由 W/s 决定，与连接件 lengthOffset 无关（lengthOffset 只影响梁的轴向长度）。
+      const DRAWER_SIDE_CLEARANCE = 30;
+      const bw = W - 2 * s - DRAWER_SIDE_CLEARANCE;
       const bh = Math.min(pitch - 25, kind === 'turnover-box' ? 155 : pitch - 25);
       const bd = D - 2 * s;
       accessories.push({
