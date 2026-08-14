@@ -553,6 +553,16 @@ export default function App() {
       </header>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+      {!leftOpen && (
+        <button onClick={() => setLeftOpen(true)} title="展开参数面板" style={{
+          width: 36, background: '#f0f2f5', cursor: 'pointer',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+          flexShrink: 0, border: 'none', borderRight: '1px solid #dde1e8',
+        }}>
+          <span style={{ fontSize: 16, color: '#6b7280' }}>⟩</span>
+          <span style={{ writingMode: 'vertical-rl', fontSize: 11, color: '#6b7280', letterSpacing: 2 }}>参数</span>
+        </button>
+      )}
       {leftOpen && (
       <aside style={{ width: 340, padding: 14, background: '#fff', borderRight: '1px solid #e2e5ea', overflowY: 'auto', fontSize: 13, lineHeight: 1.7, flexShrink: 0 }}>
 
@@ -871,10 +881,11 @@ export default function App() {
         )}
       </aside>
       )}
-      <button onClick={() => setLeftOpen((o) => !o)} title={leftOpen ? '收起左栏' : '展开左栏'}
-        style={{ width: 16, border: 'none', borderRight: '1px solid #e2e5ea', background: '#f7f8fa', cursor: 'pointer', color: '#888', fontSize: 11, flexShrink: 0, padding: 0 }}>
-        {leftOpen ? '‹' : '›'}
-      </button>
+      {leftOpen && (
+        <button onClick={() => setLeftOpen(false)} title="收起参数面板" style={{
+          width: 24, border: 'none', borderRight: '1px solid #e2e5ea', background: '#f7f8fa', cursor: 'pointer', color: '#888', fontSize: 12, flexShrink: 0, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>⟨</button>
+      )}
 
       <main style={{ flex: 1, position: 'relative' }}>
         <Viewer
@@ -990,10 +1001,21 @@ export default function App() {
       </main>
 
       {/* 右栏：方案结果——为什么可靠、要买什么（16号评测 2.3） */}
-      <button onClick={() => setRightOpen((o) => !o)} title={rightOpen ? '收起右栏' : '展开右栏'}
-        style={{ width: 16, border: 'none', borderLeft: '1px solid #e2e5ea', background: '#f7f8fa', cursor: 'pointer', color: '#888', fontSize: 11, flexShrink: 0, padding: 0 }}>
-        {rightOpen ? '›' : '‹'}
-      </button>
+      {!rightOpen && (
+        <button onClick={() => setRightOpen(true)} title="展开结果面板" style={{
+          width: 36, background: '#f0f2f5', cursor: 'pointer',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+          flexShrink: 0, border: 'none', borderLeft: '1px solid #dde1e8',
+        }}>
+          <span style={{ fontSize: 16, color: '#6b7280' }}>⟨</span>
+          <span style={{ writingMode: 'vertical-rl', fontSize: 11, color: '#6b7280', letterSpacing: 2 }}>结果</span>
+        </button>
+      )}
+      {rightOpen && (
+        <button onClick={() => setRightOpen(false)} title="收起结果面板" style={{
+          width: 24, border: 'none', borderLeft: '1px solid #e2e5ea', background: '#f7f8fa', cursor: 'pointer', color: '#888', fontSize: 12, flexShrink: 0, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>⟩</button>
+      )}
       {rightOpen && (
       <aside style={{ width: 340, padding: 14, background: '#fff', borderLeft: '1px solid #e2e5ea', overflowY: 'auto', fontSize: 13, lineHeight: 1.7, flexShrink: 0 }}>
         {model ? (
