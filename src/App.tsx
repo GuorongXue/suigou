@@ -771,14 +771,20 @@ export default function App() {
                     <>
                       <h3 style={{ margin: '10px 0 4px', fontSize: 13 }}>板材清单</h3>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                        <thead><tr style={{ borderBottom: '1px solid #d8dce2', color: '#666' }}><th style={{ padding: '3px 0', textAlign: 'left' }}>件号</th><th style={{ textAlign: 'left' }}>材质</th><th style={{ textAlign: 'right' }}>长×宽×厚</th><th style={{ textAlign: 'right' }}>重量</th><th style={{ textAlign: 'right' }}>数量</th></tr></thead>
                         <tbody>
-                          {model.panelList.map((p) => (
-                            <tr key={p.partNo} style={{ borderBottom: '1px solid #f0f2f5' }}>
-                              <td style={{ padding: '3px 0' }}>{p.partNo}</td><td>{p.materialName}</td><td style={{ textAlign: 'right', fontSize: 10 }}>{p.size[0]}×{p.size[1]}×{p.size[2]}</td><td style={{ textAlign: 'right' }}>×{p.qty}</td>
-                            </tr>
-                          ))}
+                          {model.panelList.map((p) => {
+                            const kgPerM2 = kb.panels[p.material]?.kgPerM2 ?? 10;
+                            const wt = ((p.size[0] / 1000) * (p.size[1] / 1000) * kgPerM2 * p.qty);
+                            return (
+                              <tr key={p.partNo} style={{ borderBottom: '1px solid #f0f2f5' }}>
+                                <td style={{ padding: '3px 0' }}>{p.partNo}</td><td>{p.materialName}</td><td style={{ textAlign: 'right', fontSize: 10 }}>{p.size[0]}×{p.size[1]}×{p.size[2]}</td><td style={{ textAlign: 'right' }}>{wt.toFixed(1)}kg</td><td style={{ textAlign: 'right' }}>×{p.qty}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
+                      <div style={{ fontSize: 10, color: '#999', marginTop: '3px' }}>板材总重 {model.panelList.reduce((s, p) => { const k = kb.panels[p.material]?.kgPerM2 ?? 10; return s + (p.size[0] / 1000) * (p.size[1] / 1000) * k * p.qty; }, 0).toFixed(1)}kg · {model.panelList.map((p) => p.holeNote).join(' · ')}</div>
                     </>
                   )}
                   <h3 style={{ margin: '10px 0 4px', fontSize: 13 }}>价格明细</h3>
