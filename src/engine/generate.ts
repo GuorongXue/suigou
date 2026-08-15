@@ -133,6 +133,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     }
   }
 
+  const drawerBoxes: { y: number; pitch: number; colWidth?: number; xCenter?: number }[] = [];  // 抽屉盒位置（分区塔/普通抽屉塔共用）
+
   // 中柱分区（工具柜/异构柜）：在框架内部加立柱，将内腔分为左右双列
   let xCenter: number | null = null;
   if (spec.centerColumn) {
@@ -233,8 +235,6 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       }
     }
   };
-
-  const drawerBoxes: { y: number; pitch: number; colWidth?: number; xCenter?: number }[] = [];  // 抽屉盒位置（分区塔/普通抽屉塔共用）
 
   if (spec.scene === 'workbench' && isPureDesk) {
     addRectLayer(H - s / 2, D);
