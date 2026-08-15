@@ -363,6 +363,21 @@ export default function App() {
     }
   }, [highlightedCheck, result, memberById]);
 
+  // 键盘快捷键（Fusion 360 / Figma 式专业体验）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === '1') setMode('appearance');
+      else if (e.key === '2') setMode('structure');
+      else if (e.key === '3') setMode('drawing');
+      else if (e.key === 'r' || e.key === 'R') setSelection(null);
+      else if (e.key === 'Escape') { setSelection(null); setHighlightedPartNo(null); setHighlightedCheck(null); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const tolOf = (len: number) => spec.scene === 'precision' ? '+0/-0.2' : len <= 1000 ? '±0.3' : '±0.5';
 
   const exportCutList = () => {
@@ -666,16 +681,16 @@ export default function App() {
           <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', textAlign: 'center' }}>
             <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,.92)', padding: 3, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
               {([
-                ['appearance', '外观', '看造型'],
-                ['structure', '结构', '看连接'],
-                ['drawing', '图纸', '看尺寸'],
-              ] as const).map(([m, name, desc]) => (
+                ['appearance', '外观', '看造型', '1'],
+                ['structure', '结构', '看连接', '2'],
+                ['drawing', '图纸', '看尺寸', '3'],
+              ] as const).map(([m, name, desc, key]) => (
                 <button key={m} onClick={() => setMode(m)} title={desc} style={{
                   border: 'none', borderRadius: 5, padding: '5px 12px', cursor: 'pointer', fontSize: 12,
                   background: mode === m ? '#1e6fff' : 'transparent', color: mode === m ? '#fff' : '#555',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
                 }}>
-                  <span>{name}</span>
+                  <span>{name}<sup style={{ fontSize: 8, marginLeft: 2, opacity: 0.6 }}>{key}</sup></span>
                   <span style={{ fontSize: 9, opacity: mode === m ? 0.8 : 0.5 }}>{desc}</span>
                 </button>
               ))}
