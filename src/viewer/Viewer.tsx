@@ -235,9 +235,9 @@ const TEX_MM = 400;
 const PANEL_BASE: Record<string, () => THREE.MeshStandardMaterial> = {
   wood: () => new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.8, metalness: 0.05 }),
   pegboard: () => new THREE.MeshStandardMaterial({ color: 0xc9a06a, roughness: 0.75, metalness: 0.05 }),
-  glass: () => new THREE.MeshStandardMaterial({ color: 0xa8cfe0, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.35 }),
-  acrylic: () => new THREE.MeshStandardMaterial({ color: 0xf2f6f8, roughness: 0.15, metalness: 0.05, transparent: true, opacity: 0.45 }),
-  'wire-mesh': () => new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.6, metalness: 0.5, transparent: true, opacity: 0.35 }),
+  glass: () => new THREE.MeshStandardMaterial({ color: 0xa8cfe0, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.35, depthWrite: false }),
+  acrylic: () => new THREE.MeshStandardMaterial({ color: 0xf2f6f8, roughness: 0.15, metalness: 0.05, transparent: true, opacity: 0.45, depthWrite: false }),
+  'wire-mesh': () => new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.6, metalness: 0.5, transparent: true, opacity: 0.35, depthWrite: false }),
 };
 /** 纹理集查找表（wood 用纯色无纹理，仅 pegboard/wire-mesh 需要纹理） */
 const PANEL_TEX: Record<string, () => TexSet> = {
@@ -590,6 +590,7 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       const mesh = new THREE.Mesh(panelGeo(Math.abs(sx), Math.abs(sy), Math.abs(sz)), mat);
       mesh.position.set(...p.position);
       mesh.userData.sel = { type: 'panel', id: p.id } satisfies Selection;
+      if (mat.transparent) mesh.renderOrder = 1;   // 透明面板后渲染，避免遮挡问题
       ctx.group.add(mesh);
       if (p.mode === 'door-front') {   // 门把手：右缘内 40mm 竖拉手
         const handle = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 110, 10),
