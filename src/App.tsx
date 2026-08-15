@@ -218,6 +218,13 @@ export default function App() {
       .flatMap((c) => c.memberIds!))];
   }, [result]);
 
+  // 校验条目点击 → 高亮关联构件（取第一个构件的件号）
+  const memberById = useMemo(() => {
+    const m = new Map<string, string>();
+    if (result.model) for (const mem of result.model.members) m.set(mem.id, mem.partNo ?? '');
+    return m;
+  }, [result]);
+
   const recommendation = useMemo(() => {
     const r = selectSectionFixedPoint({ width: spec.width, depth: spec.depth, loadKg: spec.loadKg, loadType: spec.loadType, highRisk: spec.highRisk });
     return r.use !== spec.sectionId ? r : null;
@@ -311,6 +318,7 @@ export default function App() {
 
   const [partDetail, setPartDetail] = useState<string | null>(null);
   const [highlightedPartNo, setHighlightedPartNo] = useState<string | null>(null);
+  const [highlightedCheck, setHighlightedCheck] = useState<string | null>(null);
 
   const commitLength = (raw: string) => {
     if (!selectedMember || !model) return;
@@ -341,6 +349,18 @@ export default function App() {
     if (model.status === 'needs-confirmation') { return confirm('方案存在警告项（见结构校验），确认已知晓风险并继续导出？'); }
     return true;
   };
+
+  // 校验条目点击 → 高亮关联构件
+  useEffect(() => {
+    if (highlightedCheck && result.model) {
+      const check = result.model.checks.find((c) => c.ruleId === highlightedCheck);
+      const firstMemberId = check?.memberIds?.[0];
+      if (firstMemberId) {
+        const partNo = memberById.get(firstMemberId);
+        if (partNo) setHighlightedPartNo(partNo);
+      }
+    }
+  }, [highlightedCheck, result, memberById]);
 
   const tolOf = (len: number) => spec.scene === 'precision' ? '+0/-0.2' : len <= 1000 ? '±0.3' : '±0.5';
 
@@ -687,9 +707,14 @@ export default function App() {
                   <h3 style={{ margin: '0 0 4px', fontSize: 13 }}>结构校验</h3>
                   {model.checks.map((c, i) => {
                     const st = levelStyle[c.level];
+                    const hasMembers = c.memberIds != null && c.memberIds.length > 0;
+                    const focused = highlightedCheck === c.ruleId;
                     return (
-                      <div key={i} style={{ color: st.color, background: st.bg, padding: '4px 7px', borderRadius: 3, marginBottom: 3, fontSize: 11 }}>
-                        {st.icon} <b>{c.ruleId}</b> {c.message}
+                      <div key={i} onClick={() => hasMembers && setHighlightedCheck((p) => (p === c.ruleId ? null : c.ruleId))} style={{
+                        color: st.color, background: focused ? '#fff3cd' : st.bg, padding: '4px 7px', borderRadius: 3, marginBottom: 3, fontSize: 11,
+                        cursor: hasMembers ? 'pointer' : 'default', border: focused ? '1px solid #e0c050' : '1px solid transparent',
+                      }}>
+                        {st.icon} <b>{c.ruleId}</b> {c.message}{hasMembers && <span style={{ fontSize: 9, marginLeft: 4, opacity: 0.7 }}>●高亮</span>}
                       </div>
                     );
                   })}
