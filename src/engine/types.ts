@@ -48,10 +48,10 @@ export interface FrameSpec {
   centerColumn?: {
     /** 中柱偏移比（0.5=居中，0.67=左列占2/3，0.33=左列占1/3） */
     offsetRatio: number;
-    /** 左列结构 */
-    left: { type: 'drawer'; count: number; kind?: 'turnover-box' | 'ready-made' } | { type: 'shelf'; count: number };
+    /** 左列结构：抽屉/开放搁板/封闭柜门 */
+    left: CenterColumnType;
     /** 右列结构 */
-    right: { type: 'drawer'; count: number; kind?: 'turnover-box' | 'ready-made' } | { type: 'shelf'; count: number };
+    right: CenterColumnType;
   };
   /** 型材颜色：silver=阳极氧化银白（默认）/ black=哑光黑（工具柜常见）/ gold=香槟金 */
   profileColor?: 'silver' | 'black' | 'gold';
@@ -60,6 +60,12 @@ export interface FrameSpec {
   /** 正面单开门（槽装合页+磁吸+把手） */
   doorPanel?: PanelMaterial;
 }
+
+/** 中柱分区的单列类型：抽屉/开放搁板/封闭柜门 */
+export type CenterColumnType =
+  | { type: 'drawer'; count: number; kind?: 'turnover-box' | 'ready-made' }
+  | { type: 'shelf'; count: number }
+  | { type: 'cabinet'; count: number };   // 封闭柜门：内可选搁板层数，正面有门板+把手+铰链
 
 export type MemberRole = 'post' | 'beam-x' | 'beam-z' | 'brace';
 

@@ -19,8 +19,9 @@ interface ChatMsg {
   text: string;
 }
 
-/** 中柱子组件——避免 IIFE 在 JSX 中的运行时问题 */
+/** 中柱子组件 */
 function CenterColumnConfig({ cc, onChange }: { cc: NonNullable<FrameSpec['centerColumn']>; onChange: (patch: Partial<typeof cc>) => void }) {
+  if (!cc?.left || !cc?.right) return null;
   return (
     <Section title="中柱分区" icon="▐▌" defaultOpen={true}>
       <div style={{ marginBottom: 8 }}>
@@ -33,17 +34,19 @@ function CenterColumnConfig({ cc, onChange }: { cc: NonNullable<FrameSpec['cente
       <div style={{ display: 'flex', gap: 6 }}>
         <label style={{ flex: 1 }}>
           <span style={{ fontSize: 10, color: '#8a90a0' }}>左列</span>
-          <select value={cc.left.type} onChange={(e) => onChange({ left: { type: e.target.value as 'drawer' | 'shelf', count: cc.left.count } })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+          <select value={cc.left.type} onChange={(e) => { const t = e.target.value as 'drawer' | 'shelf' | 'cabinet'; onChange({ left: { type: t, count: cc.left.count } }); }} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
             <option value="drawer">抽屉</option>
             <option value="shelf">搁板</option>
+            <option value="cabinet">柜门</option>
           </select>
           <input type="number" min={1} max={6} value={cc.left.count} onChange={(e) => onChange({ left: { ...cc.left, count: Number(e.target.value) || 1 } })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }} />
         </label>
         <label style={{ flex: 1 }}>
           <span style={{ fontSize: 10, color: '#8a90a0' }}>右列</span>
-          <select value={cc.right.type} onChange={(e) => onChange({ right: { type: e.target.value as 'drawer' | 'shelf', count: cc.right.count } })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+          <select value={cc.right.type} onChange={(e) => { const t = e.target.value as 'drawer' | 'shelf' | 'cabinet'; onChange({ right: { type: t, count: cc.right.count } }); }} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
             <option value="drawer">抽屉</option>
             <option value="shelf">搁板</option>
+            <option value="cabinet">柜门</option>
           </select>
           <input type="number" min={1} max={6} value={cc.right.count} onChange={(e) => onChange({ right: { ...cc.right, count: Number(e.target.value) || 1 } })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }} />
         </label>

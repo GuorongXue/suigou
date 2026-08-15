@@ -1,5 +1,5 @@
 import type { KnowledgeBase } from '../knowledge/types';
-import type { FrameSpec, FrameModel, Member, Joint, MachiningOp, PanelItem, PanelMaterial, MountItem, AccessoryItem, PanelListItem, PartOp } from './types';
+import type { FrameSpec, FrameModel, Member, Joint, MachiningOp, PanelItem, PanelMaterial, MountItem, AccessoryItem, PanelListItem, PartOp, CenterColumnType } from './types';
 import { validateFrame } from './validate';
 
 /**
@@ -144,12 +144,12 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     addPost(xCenter, zFront, 0, H);
   }
 
-  // 辅助函数：中柱分区的单列结构
-  const addCenterColStructure = (colXLeft: number, colXRight: number, colWidth: number,
-    col: { type: 'drawer'; count: number; kind?: 'turnover-box' | 'ready-made' } | { type: 'shelf'; count: number }) => {
+  // 辅助函数：中柱分区的单列结构（抽屉/搁板/柜门）
+  const addCenterColStructure = (colXLeft: number, colXRight: number, colWidth: number, col: CenterColumnType) => {
     if (colWidth <= 0) return;
     const leftInnerX = colXLeft + s / 2;
     const rightInnerX = colXRight - s / 2;
+    const colCenterX = colXLeft + colWidth / 2;
     if (col.type === 'drawer') {
       const pitch = (H - 2 * s) / col.count;
       for (let d = 0; d < col.count; d++) {
@@ -163,9 +163,54 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
             addJoint({ position: [x, y, z], beamAxis: 'z', outward, ySide: -1, beamMemberId: beamId, postMemberId: postId });
           }
         }
-        drawerBoxes.push({ y, pitch, colWidth, xCenter: colXLeft + colWidth / 2 });
+        drawerBoxes.push({ y, pitch, colWidth, xCenter: colCenterX });
+      }
+    } else if (col.type === 'cabinet') {
+      // 封闭柜门：内部搁板 + 正面门板（铰链+把手+磁吸）
+      const shelfPitch = (H - 2 * s) / (col.count + 1);
+      for (let sh = 0; sh < col.count; sh++) {
+        const y = s + (sh + 1) * shelfPitch;
+        for (const x of [leftInnerX, rightInnerX]) {
+          add({ role: 'beam-z', sectionId: sec.id, length: D - 2 * s + 2 * conn.lengthOffset, position: [x, y, 0], axis: 'z' });
+          const beamId = `m-${n}`;
+          for (const outward of [1, -1] as const) {
+            const z = outward === -1 ? zBack : zFront;
+            const postId = postAt.get(`${x},${z}`)!;
+            addJoint({ position: [x, y, z], beamAxis: 'z', outward, ySide: -1, beamMemberId: beamId, postMemberId: postId });
+          }
+        }
+        // 内部搁板
+        addPanel(spec.shelfPanel, y, false, { depthRatio: 1, align: 'center' });
+      }
+      // 柜门：覆盖整个正面，左铰右开
+      const dw = colWidth - s;            // 门宽 = 柱间净宽
+      const dh = H - 2 * s;              // 门高 = 柱间净高
+      if (dw > 50 && dh > 50) {
+        const doorMaterial = spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood';
+        const ps = PANEL_SPEC[doorMaterial];
+        const panelId = `pn-${++pn}`;
+        panels.push({
+          id: panelId, material: doorMaterial,
+          size: [dw, dh, ps.thickness], boxSize: [dw, dh, ps.thickness],
+          position: [colCenterX, H / 2, D / 2 + ps.thickness / 2],
+          mode: 'door-front',
+          mountNote: `柜门(左铰右开)：合页×2 + 把手 + 磁吸`,
+          holes: [
+            { x: dw - 40, y: dh / 2 - 48, diameter: 5 },
+            { x: dw - 40, y: dh / 2 + 48, diameter: 5 },
+          ],
+        });
+        // 铰链：左柱上下 1/5 门高处
+        const hingeX = colXLeft + s / 2;
+        mounts.push({
+          id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId, method: 'hinge',
+          note: '柜门合页×2 入左柱槽（T型螺母固定）+ 磁吸扣右柱中部 + 把手孔距96',
+          fasteners: [{ sku: 'hinge-slot-30', qty: 2 }, { sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l12', qty: 4 }, { sku: 'magnetic-catch', qty: 1 }, { sku: 'handle-96', qty: 1 }],
+          points: [[hingeX, s + dh / 5, D / 2], [hingeX, s + dh * 4 / 5, D / 2], [colXRight - s / 2, H / 2, D / 2]],
+        });
       }
     } else {
+      // 开放搁板
       const shelfPitch = (H - 2 * s) / (col.count + 1);
       for (let sh = 0; sh < col.count; sh++) {
         const y = s + (sh + 1) * shelfPitch;
