@@ -187,7 +187,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     }
   };
 
-  const drawerBoxes: { y: number; pitch: number }[] = [];  // 抽屉盒位置（分区塔/普通抽屉塔共用）
+  const drawerBoxes: { y: number; pitch: number; colWidth?: number; xCenter?: number }[] = [];  // 抽屉盒位置（分区塔/普通抽屉塔共用）
 
   if (spec.scene === 'workbench' && isPureDesk) {
     addRectLayer(H - s / 2, D);
@@ -264,7 +264,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
               note: '抽屉轨道梁：角码两端固定于前后柱', fasteners: [{ sku: 'corner-bracket-30-body', qty: 2 }, { sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l16', qty: 4 }],
               points: [[x, y, zBack], [x, y, zFront]] });
           }
-          drawerBoxes.push({ y, pitch });
+          drawerBoxes.push({ y, pitch, colWidth, xCenter: xCursor + colWidth / 2 });
         }
       } else {
         // 搁板层：中柱位深向梁（右角柱已有框梁）
@@ -315,7 +315,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
           points: [[x, y, zBack], [x, y, zFront]],
         });
       }
-      drawerBoxes.push({ y, pitch });
+      drawerBoxes.push({ y, pitch, colWidth: W - 2 * s, xCenter: 0 });
     }
   }
 
@@ -600,17 +600,17 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const boxSku = kind === 'turnover-box' ? 'turnover-box-148' : 'drawer-box-ready';
     const slideSku = kind === 'turnover-box' ? 'drawer-slide-350' : 'rebound-slide-350';
     let dn = 0;
-    for (const { y, pitch } of drawerBoxes) {
+    for (const { y, pitch, colWidth, xCenter } of drawerBoxes) {
       const accId = `ad-${++dn}`;
-      // 抽屉盒净宽 = 总宽 − 2×立柱宽 − 滑轨侧向间隙（每侧 ~15mm，硬件属体）。
-      // 立柱位置由 W/s 决定，与连接件 lengthOffset 无关（lengthOffset 只影响梁的轴向长度）。
+      // 抽屉盒净宽 = 分区宽 − 滑轨侧向间隙（每侧 ~15mm，硬件属体）。
+      // 分区宽度由 partitions.widths 决定（非均匀双列时各列不同）
       const DRAWER_SIDE_CLEARANCE = 30;
-      const bw = W - 2 * s - DRAWER_SIDE_CLEARANCE;
+      const bw = (colWidth ?? W - 2 * s) - DRAWER_SIDE_CLEARANCE;
       const bh = Math.min(pitch - 25, kind === 'turnover-box' ? 155 : pitch - 25);
       const bd = D - 2 * s;
       accessories.push({
         id: accId, kind: 'drawer-box', sku: boxSku,
-        position: [0, y + 10 + bh / 2, 0], weightKg: kind === 'turnover-box' ? 1.2 : 3.0,
+        position: [xCenter ?? 0, y + 10 + bh / 2, 0], weightKg: kind === 'turnover-box' ? 1.2 : 3.0,
         boxSize: [bw, bh, bd],
       });
       mounts.push({
