@@ -1,0 +1,25 @@
+# 垂直角码 2020：外挂面板固定（工具收纳柜侧板/背板外挂×4）
+meta:
+  id: vertical-bracket-20
+  source: 用户实拍案例库（随构/21 工具收纳柜 BOM ×4 + 安装工艺谱系图）
+  confidence: verified
+  review: pending-expert
+  version: 0.1.0
+  updated: 2026-08-14
+connector:
+  id: vertical-bracket-20
+  name: 垂直角码 2020(外挂面板)
+  category: vertical-bracket
+  visibility: external
+  compatible: { slotWidths: [6], series: [eu-2020] }
+  strengthClass: 2
+  loadRole: primary
+  note: L 型垂直角码，用于将面板(洞洞板/海洋板)外挂于框架侧面；螺钉入柱槽+面板角孔
+  removable: true
+  lengthOffset: 0
+  attach: { facesRequired: 2, orientation: perpendicular }
+  machining: []
+  bom:
+    - { sku: vertical-bracket-20, qty: 1 }
+    - { sku: screw-m4-10-pan, qty: 2 }
+    - { sku: t-nut-m4, qty: 2 }

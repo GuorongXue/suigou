@@ -36,6 +36,8 @@ fasteners:
   shelf-support-30:    { name: 层板托 3030(平嵌隐形),  price: 2.00 }
   flat-corner-plate:   { name: 平面直角连接件(板材固定薄L片), price: 1.00 }
   vertical-bracket-20: { name: 垂直角码 2020(外挂面板), price: 1.20 }
+  corner-cube-20: { name: 三维角件 2020(立方三孔), price: 2.00 }
+  edla-s1-m6-l30: { name: 端攻螺栓 M6×30 圆柱头, price: 0.45 }
   three-way-cube-30:   { name: 三通端面连接件本体 30系列, price: 4.50 }
   internal-slot-20:    { name: 内置角槽本体 2020,      price: 1.00 }
   end-cap-20:          { name: 端面盖板 2020,          price: 0.80 }

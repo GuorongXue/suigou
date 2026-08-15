@@ -1,0 +1,25 @@
+# 三维角件 2020：真实案例实证（工具收纳柜 670×400×815 用量×4，角部三向连接）
+meta:
+  id: corner-cube-20
+  source: 用户实拍案例库（随构/21 工具收纳柜 BOM ×4）
+  confidence: verified
+  review: pending-expert
+  version: 0.1.0
+  updated: 2026-08-14
+connector:
+  id: corner-cube-20
+  name: 三维角件 2020(立方三孔)
+  category: corner-cube
+  visibility: exposed
+  compatible: { slotWidths: [6], series: [eu-2020] }
+  strengthClass: 3
+  loadRole: primary
+  note: 立方三孔角件，同时接三向端面；2020 框架角部主力（小型柜体角部美观整洁）
+  removable: true
+  lengthOffset: 0
+  attach: { facesRequired: 3, orientation: corner }
+  machining:
+    - { type: end-tap, thread: M6, depth: 15, onMember: beam, note: '梁端面攻丝接三通(2020系列 M6)' }
+  bom:
+    - { sku: corner-cube-20, qty: 1 }
+    - { sku: edla-s1-m6-l30, qty: 3 }
