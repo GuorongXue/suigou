@@ -281,6 +281,7 @@ export default function App() {
   const selectedMember = selection?.type === 'member' ? items.find((i) => i.id === selection.id) ?? null : null;
   const selectedJoint = selection?.type === 'joint' && model ? model.joints.find((j) => j.id === selection.id) ?? null : null;
   const selectedConnector = selectedJoint ? kb.connectors.find((c) => c.connector.id === selectedJoint.connectorId) ?? null : null;
+  const selectedPanel = selection?.type === 'panel' && model ? model.panels.find((p) => p.id === selection.id) ?? null : null;
 
   const dims: RenderDim[] = useMemo(() => {
     const out: RenderDim[] = [];
@@ -302,8 +303,23 @@ export default function App() {
         offset: off, label: `${selectedMember.length} mm`,
       });
     }
+    // 面板选中时显示尺寸（长×宽两条尺寸线）
+    if (selectedPanel) {
+      const sp = selectedPanel.position;
+      const sx = selectedPanel.boxSize[0], sy = selectedPanel.boxSize[1], sz = selectedPanel.boxSize[2];
+      // 根据面板方向确定长和宽的显示
+      if (sy < sx && sy < sz) {
+        // 水平板（厚度沿 Y）：显示长(X)和宽(Z）
+        out.push({ a: [sp[0] - sx / 2, sp[1], sp[2] - sz / 2], b: [sp[0] + sx / 2, sp[1], sp[2] - sz / 2], offset: [0, 0, -Math.max(40, sz * 0.3)], label: `${sx} mm` });
+        out.push({ a: [sp[0] - sx / 2, sp[1], sp[2] - sz / 2], b: [sp[0] - sx / 2, sp[1], sp[2] + sz / 2], offset: [-Math.max(40, sx * 0.3), 0, 0], label: `${sz} mm` });
+      } else {
+        // 竖直板（厚度沿 Z）：显示高(Y)和宽(X)
+        out.push({ a: [sp[0] - sx / 2, sp[1] - sy / 2, sp[2]], b: [sp[0] + sx / 2, sp[1] - sy / 2, sp[2]], offset: [0, 0, Math.max(40, sz * 2)], label: `${sx} mm` });
+        out.push({ a: [sp[0] - sx / 2, sp[1] - sy / 2, sp[2]], b: [sp[0] - sx / 2, sp[1] + sy / 2, sp[2]], offset: [-Math.max(40, sx * 0.3), 0, 0], label: `${sy} mm` });
+      }
+    }
     return out;
-  }, [mode, spec, model, selectedMember, kb]);
+  }, [mode, spec, model, selectedMember, selectedPanel, kb]);
 
   const bubbles: RenderBubble[] = useMemo(() => {
     if (mode !== 'drawing' || !model) return [];
