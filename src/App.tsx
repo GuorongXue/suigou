@@ -285,10 +285,12 @@ export default function App() {
   const dims: RenderDim[] = useMemo(() => {
     const out: RenderDim[] = [];
     const { width: W, depth: D, height: H } = spec;
-    // 常驻总尺寸标注（所有模式显示，Fusion 360 式）
-    out.push({ a: [-W / 2, 2, D / 2], b: [W / 2, 2, D / 2], offset: [0, 0, 110], label: `W ${W}` });
-    out.push({ a: [W / 2, 2, D / 2], b: [W / 2, 2, -D / 2], offset: [110, 0, 0], label: `D ${D}` });
-    out.push({ a: [-W / 2, 0, -D / 2], b: [-W / 2, H, -D / 2], offset: [-110, 0, 0], label: `H ${H}` });
+    // 尺寸标注仅图纸模式显示（外观模式保持干净看造型）
+    if (mode === 'drawing') {
+      out.push({ a: [-W / 2, 2, D / 2], b: [W / 2, 2, D / 2], offset: [0, 0, 110], label: `W ${W}` });
+      out.push({ a: [W / 2, 2, D / 2], b: [W / 2, 2, -D / 2], offset: [110, 0, 0], label: `D ${D}` });
+      out.push({ a: [-W / 2, 0, -D / 2], b: [-W / 2, H, -D / 2], offset: [-110, 0, 0], label: `H ${H}` });
+    }
     if (selectedMember) {
       const s = selectedMember.section.size[0];
       const along: [number, number, number] = selectedMember.axis === 'x' ? [1, 0, 0] : selectedMember.axis === 'y' ? [0, 1, 0] : [0, 0, 1];
@@ -660,11 +662,24 @@ export default function App() {
         {/* ── 3D 画布（主导区域） ── */}
         <main style={{ flex: 1, position: 'relative', background: '#f5f6f8' }}>
           <Viewer items={items} joints={mode === 'structure' ? joints : []} machining={mode !== 'appearance' ? machining : []} panels={panels} accessories={accessories} mountPoints={mode === 'structure' ? mountPoints : []} dims={dims} drawing={mode === 'drawing'} bubbles={bubbles} focusY={spec.height / 2} onSelect={setSelection} selection={selection} warnMemberIds={warnMemberIds} profileColor={spec.profileColor} highlightedPartNo={highlightedPartNo} />
-          {/* 视图模式工具条 */}
-          <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 3, background: 'rgba(255,255,255,.92)', padding: 3, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
-            {([['appearance', '外观'], ['structure', '结构'], ['drawing', '图纸']] as const).map(([m, name]) => (
-              <button key={m} onClick={() => setMode(m)} style={{ border: 'none', borderRadius: 5, padding: '5px 14px', cursor: 'pointer', fontSize: 12, background: mode === m ? '#1e6fff' : 'transparent', color: mode === m ? '#fff' : '#555' }}>{name}</button>
-            ))}
+          {/* 视图模式工具条 — 三模式明确分工 */}
+          <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', textAlign: 'center' }}>
+            <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,.92)', padding: 3, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
+              {([
+                ['appearance', '外观', '看造型'],
+                ['structure', '结构', '看连接'],
+                ['drawing', '图纸', '看尺寸'],
+              ] as const).map(([m, name, desc]) => (
+                <button key={m} onClick={() => setMode(m)} title={desc} style={{
+                  border: 'none', borderRadius: 5, padding: '5px 12px', cursor: 'pointer', fontSize: 12,
+                  background: mode === m ? '#1e6fff' : 'transparent', color: mode === m ? '#fff' : '#555',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+                }}>
+                  <span>{name}</span>
+                  <span style={{ fontSize: 9, opacity: mode === m ? 0.8 : 0.5 }}>{desc}</span>
+                </button>
+              ))}
+            </div>
           </div>
           {selectedMember && (
             <div style={{ position: 'absolute', top: 56, right: 12, width: 220, background: 'rgba(255,255,255,.95)', borderRadius: 8, padding: '10px 12px', boxShadow: '0 4px 16px rgba(0,0,0,.12)', fontSize: 12, lineHeight: 1.8 }}>
