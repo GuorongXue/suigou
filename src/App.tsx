@@ -194,7 +194,7 @@ export default function App() {
 
   const panels: RenderPanel[] = useMemo(() => {
     if (!result.model) return [];
-    return result.model.panels.map((p) => ({ material: p.material, boxSize: p.boxSize, position: p.position, mode: p.mode }));
+    return result.model.panels.map((p) => ({ id: p.id, material: p.material, boxSize: p.boxSize, position: p.position, mode: p.mode }));
   }, [result]);
 
   const accessories: RenderAccessory[] = useMemo(() => {
@@ -713,6 +713,22 @@ export default function App() {
               <div>安装：{selectedConnector.connector.visibility === 'hidden' ? '隐藏式' : '外露式'}{selectedConnector.connector.machining.length > 0 && ` · 需加工 ${selectedConnector.connector.machining.length} 项`}</div>
             </div>
           )}
+          {selection?.type === 'panel' && model && (() => {
+            const panel = model.panels.find((p) => p.id === selection.id);
+            if (!panel) return null;
+            const ps = kb.panels[panel.material];
+            const kgPerM2 = ps?.kgPerM2 ?? 10;
+            const wt = (panel.size[0] / 1000) * (panel.size[1] / 1000) * kgPerM2;
+            return (
+              <div style={{ position: 'absolute', top: 56, right: 12, width: 220, background: 'rgba(255,255,255,.95)', borderRadius: 8, padding: '10px 12px', boxShadow: '0 4px 16px rgba(0,0,0,.12)', fontSize: 12, lineHeight: 1.8 }}>
+                <div style={{ fontWeight: 600, marginBottom: 3, color: '#1e6fff' }}>板材 · {panel.partNo}</div>
+                <div>材质：{ps?.name ?? panel.material}</div>
+                <div>尺寸：{panel.size[0]}×{panel.size[1]}×{panel.size[2]} mm</div>
+                <div>重量：{wt.toFixed(2)} kg</div>
+                <div>位置：{panel.mode}</div>
+              </div>
+            );
+          })()}
           {partDetail && model && (() => {
             const item = model.cutList.find((c) => c.partNo === partDetail);
             if (!item) return null;

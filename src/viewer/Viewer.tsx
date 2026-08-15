@@ -33,7 +33,7 @@ export interface RenderJoint {
   size: number;
 }
 
-export type Selection = { type: 'member'; id: string } | { type: 'joint'; id: string };
+export type Selection = { type: 'member'; id: string } | { type: 'joint'; id: string } | { type: 'panel'; id: string };
 
 export interface RenderMachining {
   position: [number, number, number];
@@ -44,6 +44,7 @@ export interface RenderMachining {
 }
 
 export interface RenderPanel {
+  id: string;
   material: string;
   boxSize: [number, number, number];
   position: [number, number, number];
@@ -410,9 +411,12 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       raycaster.setFromCamera(ndc, camera);
       const ctx2 = ctxRef.current;
       if (!ctx2) return;
+      const panelMeshes: THREE.Object3D[] = [];
+      ctx2.group.traverse((o) => { if ((o as THREE.Mesh).userData?.sel?.type === 'panel') panelMeshes.push(o); });
       const targets: THREE.Object3D[] = [
         ...ctx2.memberMeshes.values(),
         ...[...ctx2.jointMeshes.values()].flat(),
+        ...panelMeshes,
       ];
       const hits = raycaster.intersectObjects(targets, false);
       const hit = hits[0]?.object;
@@ -585,6 +589,7 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       if (texFn) { const t = texFn(); mat.map = t.color; mat.bumpMap = t.bump; if (t.alpha) { mat.alphaMap = t.alpha; mat.transparent = true; } }
       const mesh = new THREE.Mesh(panelGeo(Math.abs(sx), Math.abs(sy), Math.abs(sz)), mat);
       mesh.position.set(...p.position);
+      mesh.userData.sel = { type: 'panel', id: p.id } satisfies Selection;
       ctx.group.add(mesh);
       if (p.mode === 'door-front') {   // 门把手：右缘内 40mm 竖拉手
         const handle = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 110, 10),
@@ -756,6 +761,22 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
         mat.emissiveIntensity = id === selJointId ? 0.6 : 1;
       }
     }
+
+    // 面板选中高亮
+    const selPanelId = selection?.type === 'panel' ? selection.id : null;
+    ctx.group.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (mesh.userData?.sel?.type === 'panel' && mesh.material) {
+        const mat = mesh.material as THREE.MeshStandardMaterial;
+        if (mesh.userData.sel.id === selPanelId) {
+          mat.emissive.setHex(0x1e6fff);
+          mat.emissiveIntensity = 0.5;
+        } else {
+          mat.emissive.setHex(0x000000);
+          mat.emissiveIntensity = 1;
+        }
+      }
+    });
   }, [selection, items, warnMemberIds, drawing]);
 
   // 尺寸标注渲染（dims 数组驱动：主线 + 两端引线 + 蓝色标签）
