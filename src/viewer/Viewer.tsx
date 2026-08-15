@@ -581,6 +581,10 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       }
     }
 
+    // 板材：先清理旧面板，再重建（避免堆积）
+    const oldPanels: THREE.Object3D[] = [];
+    ctx.group.traverse((o) => { if ((o as THREE.Mesh).userData?.sel?.type === 'panel') oldPanels.push(o); });
+    for (const o of oldPanels) { ctx.group.remove(o); (o as THREE.Mesh).geometry.dispose(); ((o as THREE.Mesh).material as THREE.Material)?.dispose(); }
     // 板材：自定义几何体按物理尺寸映射 UV（纹理真实比例不拉伸），洞洞板孔透明
     for (const p of panels) {
       const mat = (PANEL_BASE[p.material] ?? PANEL_BASE.wood)();
@@ -767,14 +771,16 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
     const selPanelId = selection?.type === 'panel' ? selection.id : null;
     ctx.group.traverse((o) => {
       const mesh = o as THREE.Mesh;
-      if (mesh.userData?.sel?.type === 'panel' && mesh.material) {
-        const mat = mesh.material as THREE.MeshStandardMaterial;
-        if (mesh.userData.sel.id === selPanelId) {
-          mat.emissive.setHex(0x1e6fff);
-          mat.emissiveIntensity = 0.5;
-        } else {
-          mat.emissive.setHex(0x000000);
-          mat.emissiveIntensity = 1;
+      if (mesh.userData?.sel?.type === 'panel') {
+        const mat = mesh.material as THREE.MeshStandardMaterial | undefined;
+        if (mat) {
+          if (mesh.userData.sel.id === selPanelId) {
+            mat.emissive.setHex(0x1e6fff);
+            mat.emissiveIntensity = 0.6;
+          } else {
+            mat.emissive.setHex(0x000000);
+            mat.emissiveIntensity = 1;
+          }
         }
       }
     });
