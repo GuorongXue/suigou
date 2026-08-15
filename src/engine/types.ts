@@ -48,10 +48,10 @@ export interface FrameSpec {
   centerColumn?: {
     /** 中柱偏移比（0.5=居中，0.67=左列占2/3，0.33=左列占1/3） */
     offsetRatio: number;
-    /** 左列结构：抽屉/开放搁板/封闭柜门 */
-    left: CenterColumnType;
-    /** 右列结构 */
-    right: CenterColumnType;
+    /** 左列结构：空/抽屉/隔板/柜门 */
+    left?: CenterColumnType;
+    /** 右列结构：空/抽屉/隔板/柜门 */
+    right?: CenterColumnType;
   };
   /** 型材颜色：silver=阳极氧化银白（默认）/ black=哑光黑（工具柜常见）/ gold=香槟金 */
   profileColor?: 'silver' | 'black' | 'gold';

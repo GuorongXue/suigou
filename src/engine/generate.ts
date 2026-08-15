@@ -366,8 +366,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         }
         addPanel(spec.shelfPanel, y, false, { depthRatio: 1, align: 'center' });
       }
-      const dw = colWidth - s;
-      const dh = H - 2 * s;
+      const dw = colWidth;                 // 门宽 = 立柱中心距（门覆盖立柱，消除缝隙）
+      const dh = H - 2 * s;                // 门高 = 立柱间净高
       if (dw > 50 && dh > 50) {
         const doorMaterial = spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood';
         const ps = PANEL_SPEC[doorMaterial];
@@ -375,12 +375,13 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         panels.push({ id: panelId, material: doorMaterial, size: [dw, dh, ps.thickness], boxSize: [dw, dh, ps.thickness],
           position: [colCenterX, H / 2, D / 2 + ps.thickness / 2], mode: 'door-front',
           mountNote: `柜门(左铰右开)：合页×2 + 把手 + 磁吸`,
-          holes: [{ x: dw - 40, y: dh / 2 - 48, diameter: 5 }, { x: dw - 40, y: dh / 2 + 48, diameter: 5 }] });
-        const hingeX = colXLeft + s / 2;
+          holes: [{ x: dw / 2 - 40, y: dh / 2 - 48, diameter: 5 }, { x: dw / 2 - 40, y: dh / 2 + 48, diameter: 5 }] });
+        const hingeX = colXLeft + s / 2;  // 铰链装在前左立柱
+        const catchX = colXRight - s / 2;  // 磁吸装在前右立柱
         mounts.push({ id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId, method: 'hinge',
           note: '柜门合页×2 入左柱槽 + 磁吸扣右柱中部 + 把手孔距96',
           fasteners: [{ sku: 'hinge-slot-30', qty: 2 }, { sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l12', qty: 4 }, { sku: 'magnetic-catch', qty: 1 }, { sku: 'handle-96', qty: 1 }],
-          points: [[hingeX, s + dh / 5, D / 2], [hingeX, s + dh * 4 / 5, D / 2], [colXRight - s / 2, H / 2, D / 2]] });
+          points: [[hingeX, s + dh / 5, D / 2], [hingeX, s + dh * 4 / 5, D / 2], [catchX, H / 2, D / 2]] });
       }
     } else {
       const shelfPitch = (H - 2 * s) / (col.count + 1);
@@ -400,12 +401,12 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     }
   };
 
-  // 中柱分区：左右两列独立结构
+  // 中柱分区：左右两列独立结构（可为空=开放空间）
   if (spec.centerColumn && xCenter != null) {
     const leftW = xCenter - xLeft - s;
     const rightW = xRight - xCenter - s;
-    addCenterColStructure(xLeft, xCenter, leftW, spec.centerColumn.left);
-    addCenterColStructure(xCenter, xRight, rightW, spec.centerColumn.right);
+    if (spec.centerColumn.left) addCenterColStructure(xLeft, xCenter, leftW, spec.centerColumn.left);
+    if (spec.centerColumn.right) addCenterColStructure(xCenter, xRight, rightW, spec.centerColumn.right);
   }
 
   if (!isPureDesk) addPanel(spec.topPanel, H, true, spec.scene === 'workbench'

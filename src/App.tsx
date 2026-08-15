@@ -7,7 +7,7 @@ import { extractIntent, getApiKey, setApiKey } from './engine/extract';
 import { intentToSpec, type IntentResult } from './engine/intent';
 import { nestCutList } from './engine/nesting';
 import { buildAssemblySteps } from './engine/assembly';
-import type { FrameSpec } from './engine/types';
+import type { FrameSpec, CenterColumnType } from './engine/types';
 import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type RenderPanel, type RenderAccessory, type RenderMountPoint, type RenderDim, type RenderBubble, type Selection } from './viewer/Viewer';
 import { PartDrawing } from './components/PartDrawing';
 import { Section } from './components/PanelSection';
@@ -21,7 +21,7 @@ interface ChatMsg {
 
 /** 中柱子组件 */
 function CenterColumnConfig({ cc, onChange }: { cc: NonNullable<FrameSpec['centerColumn']>; onChange: (patch: Partial<typeof cc>) => void }) {
-  if (!cc?.left || !cc?.right) return null;
+  if (!cc?.left && !cc?.right) return null;
   return (
     <Section title="中柱分区" icon="▐▌" defaultOpen={true}>
       <div style={{ marginBottom: 8 }}>
@@ -34,21 +34,23 @@ function CenterColumnConfig({ cc, onChange }: { cc: NonNullable<FrameSpec['cente
       <div style={{ display: 'flex', gap: 6 }}>
         <label style={{ flex: 1 }}>
           <span style={{ fontSize: 10, color: '#8a90a0' }}>左列</span>
-          <select value={cc.left.type} onChange={(e) => { const t = e.target.value as 'drawer' | 'shelf' | 'cabinet'; onChange({ left: { type: t, count: cc.left.count } }); }} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+          <select value={cc.left?.type ?? ''} onChange={(e) => onChange({ left: e.target.value === '' ? undefined : { type: e.target.value as 'drawer' | 'shelf' | 'cabinet', count: cc.left?.count ?? 2 } })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+            <option value="">空</option>
             <option value="drawer">抽屉</option>
-            <option value="shelf">搁板</option>
+            <option value="shelf">隔板</option>
             <option value="cabinet">柜门</option>
           </select>
-          <input type="number" min={1} max={6} value={cc.left.count} onChange={(e) => onChange({ left: { ...cc.left, count: Number(e.target.value) || 1 } })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }} />
+          {cc.left && <input type="number" min={1} max={6} value={cc.left.count} onChange={(e) => onChange({ left: { ...cc.left, count: Number(e.target.value) || 1 } as CenterColumnType })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }} />}
         </label>
         <label style={{ flex: 1 }}>
           <span style={{ fontSize: 10, color: '#8a90a0' }}>右列</span>
-          <select value={cc.right.type} onChange={(e) => { const t = e.target.value as 'drawer' | 'shelf' | 'cabinet'; onChange({ right: { type: t, count: cc.right.count } }); }} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+          <select value={cc.right?.type ?? ''} onChange={(e) => onChange({ right: e.target.value === '' ? undefined : { type: e.target.value as 'drawer' | 'shelf' | 'cabinet', count: cc.right?.count ?? 2 } })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+            <option value="">空</option>
             <option value="drawer">抽屉</option>
-            <option value="shelf">搁板</option>
+            <option value="shelf">隔板</option>
             <option value="cabinet">柜门</option>
           </select>
-          <input type="number" min={1} max={6} value={cc.right.count} onChange={(e) => onChange({ right: { ...cc.right, count: Number(e.target.value) || 1 } })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }} />
+          {cc.right && <input type="number" min={1} max={6} value={cc.right.count} onChange={(e) => onChange({ right: { ...cc.right, count: Number(e.target.value) || 1 } as CenterColumnType })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }} />}
         </label>
       </div>
     </Section>
