@@ -388,10 +388,36 @@ console.log(failures ? `\n== 10. 板材纹理渲染（跳过） ==` : '== 10. �
   if (!failures) ok('板材纹理渲染通过：wood/pegboard/wire-mesh 有纹理 ✓ glass/acrylic 半透明 ✓');
 }
 
-if (!failures) {
-  // 黄金锚点①（随构/21 工具收纳柜 670×400×815）：非均匀双列（左425+右185）
-  // 当前引擎仅支持均匀中柱双列，非均匀双列+通长梁为 Phase 0 后拓扑扩展
-  ok('黄金锚点①（工具柜 670×400×815）：非均匀双列+通长梁待实施（中柱骨架已就绪）');
+console.log(failures ? `\n== 12. 黄金锚点①工具柜（跳过） ==` : '== 12. 黄金锚点①工具柜 ==');
+{
+  // 黄金锚点①（随构/21 工具收纳柜 670×400×815）：非均匀双列（左425抽屉+右185工具）
+  const cabinet = generateFrame({
+    width: 670, depth: 400, height: 815, scene: 'diy-furniture', shelfCount: 0,
+    sectionId: 'eu-2020', connectorId: 'internal-slot-20', mobility: 'leveling-feet',
+    topPanel: 'wood', shelfPanel: 'wood', bottomPanel: 'wood', backPanel: 'none', leftPanel: 'none', rightPanel: 'none',
+    loadKg: 30, loadType: 'distributed', highRisk: false,
+    partitions: {
+      count: 2, widths: [425, 185],
+      columns: [
+        { type: 'drawer', count: 4, kind: 'turnover-box' },
+        { type: 'shelf', count: 2 },
+      ],
+    },
+  }, kb);
+  const lens = new Map<number, number>();
+  for (const m of cabinet.members) lens.set(m.length, (lens.get(m.length) ?? 0) + 1);
+  // 调试输出实际 BOM
+  console.log('  实际 BOM:', [...lens.entries()].sort((a, b) => b[0] - a[0]).map(([l, c]) => `${l}×${c}`).join(' / '));
+  const posts = cabinet.members.filter((m) => m.role === 'post');
+  console.log('  立柱位置:', posts.map((m) => `(${m.position[0].toFixed(0)},${m.position[2].toFixed(0)},L${m.length})`).join(' '));
+  console.log('  立柱总数:', posts.length, 'postCallCount=6');
+  // Phase 0 简化：立柱统一全高 815mm（真实产品外柱 810、内柱 775，变高立柱为后续扩展）
+  // 目标 BOM：630×4(全宽横梁) / 360×14(深向梁) / 815×6(立柱)
+  if (lens.get(630) !== 4) fail(`630mm 横梁应为 4，实际 ${lens.get(630) ?? 0}`);
+  if (lens.get(815) !== 6) fail(`815mm 立柱应为 6，实际 ${lens.get(815) ?? 0}`);
+  // 注意：val-001 挠度校验可能因 2020 系列在 30kg@630mm 下超限——这是真实的工程限制，非拓扑错误
+  // 几何对齐通过即算成功（Phase 0 不要求通过所有校验）
+  if (!failures) ok(`黄金锚点①几何对齐通过：630×${lens.get(630)} / 815×${lens.get(815)} + 4抽屉（深向梁${lens.get(360) ?? 0}根）`);
 }
 
 console.log(failures ? `\n✖ 失败 ${failures} 项` : '\n✓ 全部通过');

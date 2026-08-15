@@ -43,8 +43,20 @@ export interface FrameSpec {
   rightPanel: PanelMaterial;
   /** 背面对角斜撑（val-005 解药） */
   brace: boolean;
-  /** 中柱：在框架中心(x=0)加前后两根立柱，将内腔分为左右双列（工具柜/分区柜异构拓扑） */
+  /** 中柱：在框架中心(x=0)加前后两根立柱，将内腔分为左右双列（均匀双列，工具柜/分区柜拓扑） */
   centerColumn?: boolean;
+  /** 非均匀分区（黄金锚点①工具柜）：多列异构拓扑，每列可不同宽度+不同内部结构 */
+  partitions?: {
+    /** 内部分区数（2=双列） */
+    count: 2;
+    /** 各列宽度（mm），总和 = 内宽 = W − 2s */
+    widths: [number, number];
+    /** 各列内部结构 */
+    columns: [
+      { type: 'drawer'; count: number; kind?: 'turnover-box' | 'ready-made' } | { type: 'shelf'; count: number },
+      { type: 'drawer'; count: number; kind?: 'turnover-box' | 'ready-made' } | { type: 'shelf'; count: number }
+    ];
+  };
   /** 型材颜色：silver=阳极氧化银白（默认）/ black=哑光黑（工具柜常见）/ gold=香槟金 */
   profileColor?: 'silver' | 'black' | 'gold';
   /** LED 灯条：顶框前梁下槽内嵌（mat-004） */

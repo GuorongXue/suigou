@@ -127,11 +127,11 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     addPost(xRight, zFront, 0, deskY + s / 2);
     addPost(xLeft, zUpperFront, deskY + s / 2, H);
     addPost(xRight, zUpperFront, deskY + s / 2, H);
-  } else {
+  } else if (!spec.partitions) {
     for (const [x, z] of [[xLeft, zBack], [xRight, zBack], [xLeft, zFront], [xRight, zFront]]) {
       addPost(x, z, 0, H);
     }
-    // 中柱（工具柜/分区柜）：中心 x=0 前后各一根全高立柱，将内腔分为左右双列
+    // 中柱（均匀双列）：中心 x=0 前后各一根全高立柱
     if (spec.centerColumn) {
       addPost(0, zBack, 0, H);
       addPost(0, zFront, 0, H);
@@ -187,6 +187,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     }
   };
 
+  const drawerBoxes: { y: number; pitch: number }[] = [];  // 抽屉盒位置（分区塔/普通抽屉塔共用）
+
   if (spec.scene === 'workbench' && isPureDesk) {
     addRectLayer(H - s / 2, D);
     // 底部长边双横撑（案例：离地约120，短边方向开放保腿部进出）
@@ -209,6 +211,72 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         points: [[0, H - s / 2, -D / 2 + s], [0, H - s / 2, D / 2 - s]],
       });
     }
+  } else if (spec.partitions) {
+    // 非均匀分区拓扑（黄金锚点①工具柜）：多列异构
+    // 外柱（4角）+ 内部分区柱
+    for (const [x, z] of [[xLeft, zBack], [xRight, zBack], [xLeft, zFront], [xRight, zFront]]) {
+      addPost(x, z, 0, H);
+    }
+    let xCursor = xLeft;
+    for (let i = 0; i < spec.partitions.count - 1; i++) {
+      xCursor += spec.partitions.widths[i] + s;
+      addPost(xCursor, zBack, 0, H);
+      addPost(xCursor, zFront, 0, H);
+    }
+    // 所有立柱 X 位置（不含右角柱，避免重复）
+    const postXs = [...new Set([xLeft, ...spec.partitions.widths.reduce<number[]>((acc, w) => {
+      acc.push((acc.length ? acc[acc.length - 1] : xLeft) + (acc.length ? s : 0) + w); return acc;
+    }, [])])];
+    // 顶底框：全宽横梁 + 深向梁（左柱+中柱，右角柱已有角码）
+    for (const y of [s / 2, H - s / 2]) {
+      for (const z of [zBack, zFront]) {
+        add({ role: 'beam-x', sectionId: sec.id, length: beamX, position: [0, y, z], axis: 'x' });
+        const beamId = `m-${n}`;
+        for (const outward of [1, -1] as const) {
+          addJoint({ position: [outward * (W / 2 - s), y, z], beamAxis: 'x', outward, ySide: y <= s ? 1 : -1,
+            beamMemberId: beamId, postMemberId: postAt.get(`${outward * (W / 2 - s / 2)},${z}`)! });
+        }
+      }
+      for (const x of postXs) {
+        add({ role: 'beam-z', sectionId: sec.id, length: D - 2 * s + 2 * conn.lengthOffset, position: [x, y, 0], axis: 'z' });
+        const beamId = `m-${n}`;
+        for (const outward of [1, -1] as const) {
+          const z = outward === -1 ? zBack : zFront;
+          addJoint({ position: [x, y, outward * (D / 2 - s)], beamAxis: 'z', outward, ySide: y <= s ? 1 : -1,
+            beamMemberId: beamId, postMemberId: postAt.get(`${x},${z}`)! });
+        }
+      }
+    }
+    // 各列内部结构
+    xCursor = xLeft;
+    for (let i = 0; i < spec.partitions.count; i++) {
+      const colWidth = spec.partitions.widths[i];
+      const xNext = xCursor + colWidth + s;
+      const col = spec.partitions.columns[i];
+      if (col.type === 'drawer') {
+        const pitch = (H - 2 * s) / col.count;
+        for (let d = 0; d < col.count; d++) {
+          const y = s + d * pitch + 20;
+          // 抽屉轨道梁：左右两根深向梁
+          for (const x of [xCursor + s / 2, xNext - s / 2]) {
+            add({ role: 'beam-z', sectionId: sec.id, length: D - 2 * s + 2 * conn.lengthOffset, position: [x, y, 0], axis: 'z' });
+            mounts.push({ id: `mt-${++mtn}`, targetType: 'member', targetId: `m-${n}`, method: 't-nut-screw',
+              note: '抽屉轨道梁：角码两端固定于前后柱', fasteners: [{ sku: 'corner-bracket-30-body', qty: 2 }, { sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l16', qty: 4 }],
+              points: [[x, y, zBack], [x, y, zFront]] });
+          }
+          drawerBoxes.push({ y, pitch });
+        }
+      } else {
+        // 搁板层：中柱位深向梁（右角柱已有框梁）
+        const shelfPitch = (H - 2 * s) / (col.count + 1);
+        for (let sh = 0; sh < col.count; sh++) {
+          const y = s + (sh + 1) * shelfPitch;
+          const xMid = xCursor + colWidth / 2;
+          add({ role: 'beam-z', sectionId: sec.id, length: D - 2 * s + 2 * conn.lengthOffset, position: [xMid, y, 0], axis: 'z' });
+        }
+      }
+      xCursor = xNext;
+    }
   } else if (spec.scene === 'workbench') {
     // 桌下正面完全开放：底部仅保留后横撑，不做前梁和两侧落地围框。
     add({ role: 'beam-x', sectionId: sec.id, length: beamX, position: [0, s / 2, zBack], axis: 'x' });
@@ -230,7 +298,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   if (spec.drawerCount != null && !Number.isFinite(spec.drawerCount)) {
     throw new Error('抽屉层数必须是有限数值');
   }
-  const drawerBoxes: { y: number; pitch: number }[] = [];
+
   if (drawerCount > 0 && spec.scene !== 'workbench') {
     const pitch = (H - 2 * s) / drawerCount;
     if (pitch < 120) {
