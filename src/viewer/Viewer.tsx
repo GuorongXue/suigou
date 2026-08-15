@@ -594,6 +594,7 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       const mesh = new THREE.Mesh(panelGeo(Math.abs(sx), Math.abs(sy), Math.abs(sz)), mat);
       mesh.position.set(...p.position);
       mesh.userData.sel = { type: 'panel', id: p.id } satisfies Selection;
+      mesh.userData.baseColor = mat.color.getHex();   // 存储原色用于高亮恢复
       if (mat.transparent) mesh.renderOrder = 1;   // 透明面板后渲染，避免遮挡问题
       ctx.group.add(mesh);
       if (p.mode === 'door-front') {   // 门把手：右缘内 40mm 竖拉手
@@ -767,7 +768,7 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       }
     }
 
-    // 面板选中高亮
+    // 面板选中高亮（选中→亮蓝色，恢复→原色）
     const selPanelId = selection?.type === 'panel' ? selection.id : null;
     ctx.group.traverse((o) => {
       const mesh = o as THREE.Mesh;
@@ -775,11 +776,13 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
         const mat = mesh.material as THREE.MeshStandardMaterial | undefined;
         if (mat) {
           if (mesh.userData.sel.id === selPanelId) {
+            mat.color.setHex(0x1e6fff);   // 选中→亮蓝
             mat.emissive.setHex(0x1e6fff);
-            mat.emissiveIntensity = 0.6;
+            mat.emissiveIntensity = 0.5;
           } else {
+            mat.color.setHex((mesh.userData.baseColor as number) ?? 0xb08d57);   // 恢复原色
             mat.emissive.setHex(0x000000);
-            mat.emissiveIntensity = 1;
+            mat.emissiveIntensity = 0;
           }
         }
       }
