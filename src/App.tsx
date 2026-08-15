@@ -285,11 +285,10 @@ export default function App() {
   const dims: RenderDim[] = useMemo(() => {
     const out: RenderDim[] = [];
     const { width: W, depth: D, height: H } = spec;
-    if (mode === 'drawing') {
-      out.push({ a: [-W / 2, 2, D / 2], b: [W / 2, 2, D / 2], offset: [0, 0, 110], label: `W ${W}` });
-      out.push({ a: [W / 2, 2, D / 2], b: [W / 2, 2, -D / 2], offset: [110, 0, 0], label: `D ${D}` });
-      out.push({ a: [-W / 2, 0, -D / 2], b: [-W / 2, H, -D / 2], offset: [-110, 0, 0], label: `H ${H}` });
-    }
+    // 常驻总尺寸标注（所有模式显示，Fusion 360 式）
+    out.push({ a: [-W / 2, 2, D / 2], b: [W / 2, 2, D / 2], offset: [0, 0, 110], label: `W ${W}` });
+    out.push({ a: [W / 2, 2, D / 2], b: [W / 2, 2, -D / 2], offset: [110, 0, 0], label: `D ${D}` });
+    out.push({ a: [-W / 2, 0, -D / 2], b: [-W / 2, H, -D / 2], offset: [-110, 0, 0], label: `H ${H}` });
     if (selectedMember) {
       const s = selectedMember.section.size[0];
       const along: [number, number, number] = selectedMember.axis === 'x' ? [1, 0, 0] : selectedMember.axis === 'y' ? [0, 1, 0] : [0, 0, 1];
