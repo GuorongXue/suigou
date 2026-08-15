@@ -75,9 +75,11 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     assumptions.push('产品类型为桌子（workbench），场景按电脑桌/工作台语义处理');
   }
   // archetype 判定：真实物件档位来自 knowledge/archetypes.yaml
+  const hasDrawers = (ex.panels?.some((p) => p.position === 'drawer') ?? false);
   const archetype = scene === 'workbench' ? 'computer-desk'
     : ex.scene === 'aquarium' ? 'aquarium-stand'
     : ex.productType === 'shelf' ? 'storage-rack'
+    : ex.productType === 'cabinet' && hasDrawers ? 'drawer-tower'
     : ex.productType === 'cabinet' && (dim.height ?? 0) >= 1800 ? 'wardrobe'
     : undefined;
   // 非桌类 archetype：缺失维度用真实档位 std 值替换泛化默认
