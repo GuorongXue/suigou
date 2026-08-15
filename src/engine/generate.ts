@@ -144,15 +144,17 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     addPost(xCenter, zFront, 0, H);
   }
 
-  // 辅助函数：中柱分区的单列结构（必须在调用前声明）
+  // 辅助函数：中柱分区的单列结构
   const addCenterColStructure = (colXLeft: number, colXRight: number, colWidth: number,
     col: { type: 'drawer'; count: number; kind?: 'turnover-box' | 'ready-made' } | { type: 'shelf'; count: number }) => {
     if (colWidth <= 0) return;
+    const leftInnerX = colXLeft + s / 2;
+    const rightInnerX = colXRight - s / 2;
     if (col.type === 'drawer') {
       const pitch = (H - 2 * s) / col.count;
       for (let d = 0; d < col.count; d++) {
         const y = s + d * pitch + 20;
-        for (const x of [colXLeft + s / 2, colXRight - s / 2]) {
+        for (const x of [leftInnerX, rightInnerX]) {
           add({ role: 'beam-z', sectionId: sec.id, length: D - 2 * s + 2 * conn.lengthOffset, position: [x, y, 0], axis: 'z' });
           const beamId = `m-${n}`;
           for (const outward of [1, -1] as const) {
@@ -167,13 +169,14 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       const shelfPitch = (H - 2 * s) / (col.count + 1);
       for (let sh = 0; sh < col.count; sh++) {
         const y = s + (sh + 1) * shelfPitch;
-        const xMid = colXLeft + colWidth / 2;
-        add({ role: 'beam-z', sectionId: sec.id, length: D - 2 * s + 2 * conn.lengthOffset, position: [xMid, y, 0], axis: 'z' });
-        const beamId = `m-${n}`;
-        for (const outward of [1, -1] as const) {
-          const z = outward === -1 ? zBack : zFront;
-          const postId = postAt.get(`${xMid},${z}`)!;
-          addJoint({ position: [xMid, y, z], beamAxis: 'z', outward, ySide: -1, beamMemberId: beamId, postMemberId: postId });
+        for (const x of [leftInnerX, rightInnerX]) {
+          add({ role: 'beam-z', sectionId: sec.id, length: D - 2 * s + 2 * conn.lengthOffset, position: [x, y, 0], axis: 'z' });
+          const beamId = `m-${n}`;
+          for (const outward of [1, -1] as const) {
+            const z = outward === -1 ? zBack : zFront;
+            const postId = postAt.get(`${x},${z}`)!;
+            addJoint({ position: [x, y, z], beamAxis: 'z', outward, ySide: -1, beamMemberId: beamId, postMemberId: postId });
+          }
         }
       }
     }
@@ -193,24 +196,29 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const layerBack = centerZ - outerDepth / 2 + s / 2;
     const layerFront = centerZ + outerDepth / 2 - s / 2;
     for (const z of [layerBack, layerFront]) {
-      if (spec.centerColumn) {
-        // 中柱：横梁分为左右两段，各连接角柱与中柱（立柱位置由 W/s 决定，与连接件 lengthOffset 无关）
-        const halfBeamX = W / 2 - 3 * s / 2 + 2 * conn.lengthOffset;
+      if (spec.centerColumn && xCenter != null) {
+        // 中柱：横梁在中心处断开为左右两段，各连接角柱与中柱
         // 左半段：左角柱 → 中柱
-        add({ role: 'beam-x', sectionId: sec.id, length: halfBeamX, position: [-W / 4 + s / 4, y, z], axis: 'x' });
+        const leftLen = xCenter - xLeft - s + 2 * conn.lengthOffset;
+        const leftCenter = (xLeft + xCenter) / 2;
+        add({ role: 'beam-x', sectionId: sec.id, length: leftLen, position: [leftCenter, y, z], axis: 'x' });
         const leftBeamId = `m-${n}`;
         for (const outward of [1, -1] as const) {
-          const postId = postAt.get(outward === -1 ? `${xLeft},${z}` : `0,${z}`)!;
-          const jointX = outward === -1 ? -(W / 2 - s) : -s / 2;
+          const px = outward === -1 ? xLeft : xCenter;
+          const postId = postAt.get(`${px},${z}`)!;
+          const jointX = outward === -1 ? -(W / 2 - s) : (xCenter - s);
           addJoint({ position: [jointX, y, z], beamAxis: 'x', outward, ySide,
             beamMemberId: leftBeamId, postMemberId: postId });
         }
         // 右半段：中柱 → 右角柱
-        add({ role: 'beam-x', sectionId: sec.id, length: halfBeamX, position: [W / 4 - s / 4, y, z], axis: 'x' });
+        const rightLen = xRight - xCenter - s + 2 * conn.lengthOffset;
+        const rightCenter = (xCenter + xRight) / 2;
+        add({ role: 'beam-x', sectionId: sec.id, length: rightLen, position: [rightCenter, y, z], axis: 'x' });
         const rightBeamId = `m-${n}`;
         for (const outward of [1, -1] as const) {
-          const postId = postAt.get(outward === 1 ? `${xRight},${z}` : `0,${z}`)!;
-          const jointX = outward === 1 ? (W / 2 - s) : s / 2;
+          const px = outward === 1 ? xRight : xCenter;
+          const postId = postAt.get(`${px},${z}`)!;
+          const jointX = outward === 1 ? (W / 2 - s) : (xCenter + s);
           addJoint({ position: [jointX, y, z], beamAxis: 'x', outward, ySide,
             beamMemberId: rightBeamId, postMemberId: postId });
         }
