@@ -199,16 +199,17 @@ console.log(failures ? `\n== 4. archetype 意图回归（跳过） ==` : '== 4. 
 
 console.log(failures ? `\n== 5. 中柱拓扑（跳过） ==` : '== 5. 中柱拓扑 ==');
 {
-  // 工具柜双列分区：670×400×815，2020 系列，中柱将内腔分为左右双列（随构/21 案例拓扑骨架）
+  // 工具柜双列分区：670×400×815，2020 系列，中柱偏置（左425+右185）
   const dual = generateFrame({
     width: 670, depth: 400, height: 815, scene: 'diy-furniture', shelfCount: 2,
-    sectionId: 'eu-2020', connectorId: 'internal-slot-20', centerColumn: true,
+    sectionId: 'eu-2020', connectorId: 'internal-slot-20',
+    centerColumn: { offsetRatio: 0.67, left: { type: 'drawer', count: 4 }, right: { type: 'shelf', count: 2 } },
     loadKg: 15, loadType: 'distributed', highRisk: false, mobility: 'leveling-feet',
     topPanel: 'wood', shelfPanel: 'wood', bottomPanel: 'wood', backPanel: 'none',
     leftPanel: 'none', rightPanel: 'none', brace: false,
   }, kb);
   const posts = dual.members.filter((m) => m.role === 'post');
-  const centerPosts = posts.filter((p) => p.position[0] === 0);   // 中柱 x=0
+  const centerPosts = posts.filter((p) => p.position[0] > -5 && p.position[0] < 5);   // 中柱（允许小误差）
   if (centerPosts.length !== 2) fail(`中柱应为 2 根（前后各一），实际 ${centerPosts.length}`);
   if (posts.length !== 6) fail(`中柱柜总立柱应为 6（4 角+2 中），实际 ${posts.length}`);
   // 横梁在中柱处断开：每层 4 根 beam-x（左半×前后 + 右半×前后）；层数=底框+2隔板+顶框=4

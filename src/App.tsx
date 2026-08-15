@@ -642,10 +642,45 @@ export default function App() {
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                   <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><input type="checkbox" checked={spec.brace} onChange={(e) => set({ brace: e.target.checked })} style={{ margin: 0 }} /> 斜撑</label>
-                  <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><input type="checkbox" checked={spec.centerColumn ?? false} onChange={(e) => set({ centerColumn: e.target.checked })} style={{ margin: 0 }} /> 中柱</label>
+                  <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><input type="checkbox" checked={!!spec.centerColumn} onChange={(e) => set({ centerColumn: e.target.checked ? { offsetRatio: 0.5, left: { type: 'drawer', count: 3 }, right: { type: 'drawer', count: 3 } } : undefined })} style={{ margin: 0 }} /> 中柱</label>
                   <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><input type="checkbox" checked={spec.highRisk} onChange={(e) => set({ highRisk: e.target.checked })} style={{ margin: 0 }} /> 高风险</label>
                 </div>
               </Section>
+
+              {/* 中柱分区配置（勾选中柱后显示） */}
+              {spec.centerColumn && (() => {
+                const cc = spec.centerColumn;
+                const update = (patch: Partial<typeof cc>) => set({ centerColumn: { ...cc, ...patch } });
+                return (
+                  <Section title="中柱分区" icon="▐▌" defaultOpen={true}>
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                        <span style={{ fontSize: 10, color: '#6b7280' }}>中柱位置</span>
+                        <span style={{ fontSize: 11, color: '#3769b2', fontWeight: 600 }}>{Math.round(cc.offsetRatio * 100)}%</span>
+                      </div>
+                      <input type="range" min={20} max={80} step={1} value={Math.round(cc.offsetRatio * 100)} onChange={(e) => update({ offsetRatio: Number(e.target.value) / 100 })} style={{ width: '100%', height: 3 }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <label style={{ flex: 1 }}>
+                        <span style={{ fontSize: 10, color: '#8a90a0' }}>左列</span>
+                        <select value={cc.left.type} onChange={(e) => update({ left: { type: e.target.value as 'drawer' | 'shelf', count: cc.left.count } })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+                          <option value="drawer">抽屉</option>
+                          <option value="shelf">搁板</option>
+                        </select>
+                        <input type="number" min={1} max={6} value={cc.left.count} onChange={(e) => update({ left: { ...cc.left, count: Number(e.target.value) || 1 } })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }} />
+                      </label>
+                      <label style={{ flex: 1 }}>
+                        <span style={{ fontSize: 10, color: '#8a90a0' }}>右列</span>
+                        <select value={cc.right.type} onChange={(e) => update({ right: { type: e.target.value as 'drawer' | 'shelf', count: cc.right.count } })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+                          <option value="drawer">抽屉</option>
+                          <option value="shelf">搁板</option>
+                        </select>
+                        <input type="number" min={1} max={6} value={cc.right.count} onChange={(e) => update({ right: { ...cc.right, count: Number(e.target.value) || 1 } })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }} />
+                      </label>
+                    </div>
+                  </Section>
+                );
+              })()}
 
               {/* 高级 */}
               <Section title="高级" icon="⚙️" defaultOpen={false}>
