@@ -16,6 +16,8 @@ export interface RenderMember {
   axis: Axis;
   /** 斜撑倾角（绕Z） */
   tilt?: number;
+  /** 件号（切割清单联动高亮用） */
+  partNo?: string;
 }
 
 export interface RenderJoint {
@@ -101,6 +103,8 @@ interface ViewerProps {
   warnMemberIds?: string[];
   /** 型材颜色：silver/black/gold → 轮廓材质颜色 */
   profileColor?: 'silver' | 'black' | 'gold';
+  /** 高亮件号（切割清单点击联动）→ 对应构件发光 */
+  highlightedPartNo?: string | null;
 }
 
 const SELECT_COLOR = 0x1e6fff;
@@ -239,7 +243,7 @@ const PANEL_TEX: Record<string, () => TexSet> = {
   pegboard: pegboardTextures, 'wire-mesh': wireMeshTextures,
 };
 
-export function Viewer({ items, joints, machining, panels, accessories, mountPoints, dims, drawing, bubbles, viewRequest, focusY, onSelect, selection, warnMemberIds, profileColor }: ViewerProps) {
+export function Viewer({ items, joints, machining, panels, accessories, mountPoints, dims, drawing, bubbles, viewRequest, focusY, onSelect, selection, warnMemberIds, profileColor, highlightedPartNo }: ViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const ctxRef = useRef<{
     scene: THREE.Scene;
@@ -475,9 +479,10 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
         cached = { geom, edges: new THREE.EdgesGeometry(geom, 25) };
         geomCache.set(key, cached);
       }
+      const highlighted = highlightedPartNo != null && item.partNo === highlightedPartNo;
       const alu = drawing
         ? new THREE.MeshStandardMaterial({ color: baseColor, metalness: 0, roughness: 1 })
-        : new THREE.MeshStandardMaterial({ color: baseColor, metalness: 0.9, roughness: 0.38, envMapIntensity: 0.9 });
+        : new THREE.MeshStandardMaterial({ color: baseColor, metalness: 0.9, roughness: 0.38, envMapIntensity: 0.9, emissive: highlighted ? 0x1e6fff : 0x000000, emissiveIntensity: highlighted ? 0.4 : 0 });
       const mesh = new THREE.Mesh(cached.geom, alu);
       if (item.axis === 'x') mesh.rotation.y = Math.PI / 2;
       else if (item.axis === 'y') mesh.rotation.x = -Math.PI / 2;

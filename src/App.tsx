@@ -173,7 +173,7 @@ export default function App() {
     if (!result.model) return [];
     return result.model.members.map((m) => ({
       id: m.id, role: m.role, section: kb.sections.find((s) => s.section.id === m.sectionId)!.section,
-      length: m.length, position: m.position, axis: m.axis, tilt: m.tilt,
+      length: m.length, position: m.position, axis: m.axis, tilt: m.tilt, partNo: m.partNo,
     }));
   }, [result, kb]);
 
@@ -310,6 +310,7 @@ export default function App() {
   }, [mode, model]);
 
   const [partDetail, setPartDetail] = useState<string | null>(null);
+  const [highlightedPartNo, setHighlightedPartNo] = useState<string | null>(null);
 
   const commitLength = (raw: string) => {
     if (!selectedMember || !model) return;
@@ -639,7 +640,7 @@ export default function App() {
 
         {/* ── 3D 画布（主导区域） ── */}
         <main style={{ flex: 1, position: 'relative', background: '#f5f6f8' }}>
-          <Viewer items={items} joints={mode === 'structure' ? joints : []} machining={mode !== 'appearance' ? machining : []} panels={panels} accessories={accessories} mountPoints={mode === 'structure' ? mountPoints : []} dims={dims} drawing={mode === 'drawing'} bubbles={bubbles} focusY={spec.height / 2} onSelect={setSelection} selection={selection} warnMemberIds={warnMemberIds} profileColor={spec.profileColor} />
+          <Viewer items={items} joints={mode === 'structure' ? joints : []} machining={mode !== 'appearance' ? machining : []} panels={panels} accessories={accessories} mountPoints={mode === 'structure' ? mountPoints : []} dims={dims} drawing={mode === 'drawing'} bubbles={bubbles} focusY={spec.height / 2} onSelect={setSelection} selection={selection} warnMemberIds={warnMemberIds} profileColor={spec.profileColor} highlightedPartNo={highlightedPartNo} />
           {/* 视图模式工具条 */}
           <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 3, background: 'rgba(255,255,255,.92)', padding: 3, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
             {([['appearance', '外观'], ['structure', '结构'], ['drawing', '图纸']] as const).map(([m, name]) => (
@@ -697,7 +698,7 @@ export default function App() {
                     <thead><tr style={{ borderBottom: '1px solid #d8dce2', color: '#666' }}><th style={{ padding: '3px 0' }}>件号</th><th style={{ textAlign: 'right' }}>长度</th><th style={{ textAlign: 'right' }}>数量</th></tr></thead>
                     <tbody>
                       {model.cutList.map((c) => (
-                        <tr key={c.partNo} onClick={() => setPartDetail(c.partNo)} title="点击查看单件加工图" style={{ borderBottom: '1px solid #f0f2f5', cursor: 'pointer' }}>
+                        <tr key={c.partNo} onClick={() => setHighlightedPartNo((p) => (p === c.partNo ? null : c.partNo))} title="点击高亮对应构件" style={{ borderBottom: '1px solid #f0f2f5', cursor: 'pointer', background: highlightedPartNo === c.partNo ? '#e8f4ff' : 'transparent' }}>
                           <td style={{ padding: '3px 0', color: '#1e6fff', textDecoration: 'underline' }}>{c.partNo}</td><td style={{ textAlign: 'right' }}>{c.length}</td><td style={{ textAlign: 'right' }}>×{c.qty}</td>
                         </tr>
                       ))}
