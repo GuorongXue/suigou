@@ -303,19 +303,19 @@ export default function App() {
         offset: off, label: `${selectedMember.length} mm`,
       });
     }
-    // 面板选中时显示尺寸（长×宽两条尺寸线）
+    // 面板选中时显示尺寸（长×宽两条尺寸线，统一偏移 60mm）
     if (selectedPanel) {
       const sp = selectedPanel.position;
       const sx = selectedPanel.boxSize[0], sy = selectedPanel.boxSize[1], sz = selectedPanel.boxSize[2];
-      // 根据面板方向确定长和宽的显示
+      const off = 60;   // 统一偏移距离，与主尺寸链一致
       if (sy < sx && sy < sz) {
-        // 水平板（厚度沿 Y）：显示长(X)和宽(Z）
-        out.push({ a: [sp[0] - sx / 2, sp[1], sp[2] - sz / 2], b: [sp[0] + sx / 2, sp[1], sp[2] - sz / 2], offset: [0, 0, -Math.max(40, sz * 0.3)], label: `${sx} mm` });
-        out.push({ a: [sp[0] - sx / 2, sp[1], sp[2] - sz / 2], b: [sp[0] - sx / 2, sp[1], sp[2] + sz / 2], offset: [-Math.max(40, sx * 0.3), 0, 0], label: `${sz} mm` });
+        // 水平板（厚度沿 Y）：长(X)前伸、宽(Z)左伸
+        out.push({ a: [sp[0] - sx / 2, sp[1], sp[2] - sz / 2], b: [sp[0] + sx / 2, sp[1], sp[2] - sz / 2], offset: [0, 0, -off], label: `${sx}` });
+        out.push({ a: [sp[0] - sx / 2, sp[1], sp[2] - sz / 2], b: [sp[0] - sx / 2, sp[1], sp[2] + sz / 2], offset: [-off, 0, 0], label: `${sz}` });
       } else {
-        // 竖直板（厚度沿 Z）：显示高(Y)和宽(X)
-        out.push({ a: [sp[0] - sx / 2, sp[1] - sy / 2, sp[2]], b: [sp[0] + sx / 2, sp[1] - sy / 2, sp[2]], offset: [0, 0, Math.max(40, sz * 2)], label: `${sx} mm` });
-        out.push({ a: [sp[0] - sx / 2, sp[1] - sy / 2, sp[2]], b: [sp[0] - sx / 2, sp[1] + sy / 2, sp[2]], offset: [-Math.max(40, sx * 0.3), 0, 0], label: `${sy} mm` });
+        // 竖直板（厚度沿 Z）：宽(X)右伸、高(Y)上伸
+        out.push({ a: [sp[0] - sx / 2, sp[1] - sy / 2, sp[2]], b: [sp[0] + sx / 2, sp[1] - sy / 2, sp[2]], offset: [off, 0, 0], label: `${sx}` });
+        out.push({ a: [sp[0] - sx / 2, sp[1] - sy / 2, sp[2]], b: [sp[0] - sx / 2, sp[1] + sy / 2, sp[2]], offset: [0, off, 0], label: `${sy}` });
       }
     }
     return out;
