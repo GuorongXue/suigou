@@ -242,7 +242,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     throw new Error('抽屉层数必须是有限数值');
   }
 
-  if (drawerCount > 0 && spec.scene !== 'workbench') {
+  if (drawerCount > 0 && spec.scene !== 'workbench' && !spec.centerColumn) {
     const pitch = (H - 2 * s) / drawerCount;
     if (pitch < 120) {
       throw new Error(`总高 ${H}mm 装不下 ${drawerCount} 层抽屉（节距 ${Math.round(pitch)} < 120mm；案例档位 160~230）`);
@@ -366,7 +366,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         }
         addPanel(spec.shelfPanel, y, false, { depthRatio: 1, align: 'center' });
       }
-      const dw = colWidth;                 // 门宽 = 立柱中心距（门覆盖立柱，消除缝隙）
+      const dw = colWidth + 2 * s;         // 门宽 = 立柱中心距 + 2×立柱宽（门覆盖立柱并重叠s，消除缝隙）
       const dh = H - 2 * s;                // 门高 = 立柱间净高
       if (dw > 50 && dh > 50) {
         const doorMaterial = spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood';
@@ -396,7 +396,22 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
             addJoint({ position: [x, y, z], beamAxis: 'z', outward, ySide: -1, beamMemberId: beamId, postMemberId: postId });
           }
         }
-        addPanel(spec.shelfPanel, y, false, { depthRatio: 1, align: 'center' });
+        // 隔板面板：居中于所在列（colCenterX），而非框架中心
+        if (spec.shelfPanel !== 'none') {
+          const ps = PANEL_SPEC[spec.shelfPanel];
+          const pw = colWidth - s;           // 列内净宽
+          const pd = D - 2 * s + 30;         // 搭梁四边各 15mm
+          const panelId = `pn-${++pn}`;
+          panels.push({ id: panelId, material: spec.shelfPanel, size: [pw, pd, ps.thickness], boxSize: [pw, ps.thickness, pd],
+            position: [colCenterX, y + ps.thickness / 2, 0], mode: 'shelf-overlap',
+            mountNote: `隔板(${ps.name})：列内搭梁式，列宽 ${colWidth}mm`, holes: [] });
+          const inset = 7.5;
+          const px = pw / 2 - inset;
+          const pz = pd / 2 - inset;
+          mounts.push({ id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId, method: ps.mount, note: ps.mountNote,
+            fasteners: mountFasteners(ps.mount),
+            points: [[colCenterX - px, y, -pz], [colCenterX + px, y, -pz], [colCenterX - px, y, pz], [colCenterX + px, y, pz]] });
+        }
       }
     }
   };
