@@ -335,7 +335,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     if (colWidth <= 0) return;
     const leftInnerX = colXLeft + s / 2;
     const rightInnerX = colXRight - s / 2;
-    const colCenterX = colXLeft + colWidth / 2;
+    // 列中心 = 两立柱中心的中点（colWidth 是柱间净宽=中心距−s，不能直接 colXLeft+colWidth/2，否则偏 s/2）
+    const colCenterX = (colXLeft + colXRight) / 2;
     if (col.type === 'drawer') {
       const pitch = (H - 2 * s) / col.count;
       for (let d = 0; d < col.count; d++) {
