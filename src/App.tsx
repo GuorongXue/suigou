@@ -122,6 +122,8 @@ export default function App() {
   });
   const [selection, setSelection] = useState<Selection | null>(null);
   const [mode, setMode] = useState<ViewMode>('appearance');
+  // 爆炸图系数 0~1：从形心乘性外扩（CAD 标准做法），图纸模式不可用
+  const [explodeK, setExplodeK] = useState(0);
   const [aiText, setAiText] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -244,6 +246,19 @@ export default function App() {
     }));
   }, [result, kb]);
 
+  // 爆炸位移：newPos = center + (pos - center) × (1 + k)，Y 向加权拉开层次
+  const explode = explodeK > 0 && mode !== 'drawing' ? explodeK : 0;
+  const explodePos = useMemo(() => {
+    const cy = spec.height / 2;
+    return (p: [number, number, number]): [number, number, number] => explode === 0 ? p : [
+      p[0] * (1 + explode * 0.9),
+      cy + (p[1] - cy) * (1 + explode * 1.5),
+      p[2] * (1 + explode * 0.9),
+    ];
+  }, [explode, spec.height]);
+  const shownItems = useMemo(() => explode === 0 ? items
+    : items.map((m) => ({ ...m, position: explodePos(m.position) })), [items, explode, explodePos]);
+
   const joints: RenderJoint[] = useMemo(() => {
     if (!result.model) return [];
     const sec = kb.sections.find((s) => s.section.id === result.model!.spec.sectionId)!.section;
@@ -263,11 +278,15 @@ export default function App() {
     if (!result.model) return [];
     return result.model.panels.map((p) => ({ id: p.id, material: p.material, boxSize: p.boxSize, position: p.position, mode: p.mode }));
   }, [result]);
+  const shownPanels = useMemo(() => explode === 0 ? panels
+    : panels.map((p) => ({ ...p, position: explodePos(p.position) })), [panels, explode, explodePos]);
 
   const accessories: RenderAccessory[] = useMemo(() => {
     if (!result.model) return [];
     return result.model.accessories.map((a) => ({ kind: a.kind, position: a.position, lengthMm: a.lengthMm, boxSize: a.boxSize }));
   }, [result]);
+  const shownAccessories = useMemo(() => explode === 0 ? accessories
+    : accessories.map((a) => ({ ...a, position: explodePos(a.position) })), [accessories, explode, explodePos]);
 
   const mountPoints: RenderMountPoint[] = useMemo(() => {
     if (!result.model) return [];
@@ -758,7 +777,7 @@ export default function App() {
 
         {/* ── 3D 画布（主导区域） ── */}
         <main style={{ flex: 1, position: 'relative', background: '#f5f6f8' }}>
-          <Viewer items={items} joints={mode === 'structure' ? joints : []} machining={mode !== 'appearance' ? machining : []} panels={panels} accessories={accessories} mountPoints={mode === 'structure' ? mountPoints : []} dims={dims} drawing={mode === 'drawing'} bubbles={bubbles} focusY={spec.height / 2} onSelect={setSelection} selection={selection} warnMemberIds={warnMemberIds} profileColor={spec.profileColor} highlightedPartNo={highlightedPartNo} />
+          <Viewer items={shownItems} joints={mode === 'structure' && explode === 0 ? joints : []} machining={mode !== 'appearance' && explode === 0 ? machining : []} panels={shownPanels} accessories={shownAccessories} mountPoints={mode === 'structure' && explode === 0 ? mountPoints : []} dims={explode === 0 ? dims : []} drawing={mode === 'drawing'} bubbles={explode === 0 ? bubbles : []} focusY={spec.height / 2} onSelect={setSelection} selection={selection} warnMemberIds={warnMemberIds} profileColor={spec.profileColor} highlightedPartNo={highlightedPartNo} />
           {/* 视图模式工具条 — 三模式明确分工 */}
           <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', textAlign: 'center' }}>
             <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,.92)', padding: 3, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
@@ -777,6 +796,14 @@ export default function App() {
                 </button>
               ))}
             </div>
+            {mode !== 'drawing' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, background: 'rgba(255,255,255,.92)', padding: '4px 10px', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,.08)', fontSize: 11, color: '#555' }}>
+                <span style={{ whiteSpace: 'nowrap' }}>💥 爆炸 {Math.round(explodeK * 100)}%</span>
+                <input type="range" min={0} max={100} step={5} value={Math.round(explodeK * 100)}
+                  onChange={(e) => setExplodeK(Number(e.target.value) / 100)} style={{ width: 110 }} />
+                {explodeK > 0 && <button onClick={() => setExplodeK(0)} style={{ border: 'none', background: 'transparent', color: '#1e6fff', cursor: 'pointer', fontSize: 11 }}>复位</button>}
+              </div>
+            )}
           </div>
           {selectedMember && (
             <div style={{ position: 'absolute', top: 56, right: 12, width: 220, background: 'rgba(255,255,255,.95)', borderRadius: 8, padding: '10px 12px', boxShadow: '0 4px 16px rgba(0,0,0,.12)', fontSize: 12, lineHeight: 1.8 }}>
