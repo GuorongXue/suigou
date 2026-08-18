@@ -183,7 +183,8 @@ export default function App() {
     setChat((c) => [...c, { role: 'user', text: userMsg }]);
     setAiText('');
     try {
-      const history = chat.slice(-6).map((m) => ({
+      // 多句记忆：近10轮对话 + 完整方案状态（含抽屉/中柱/颜色）+ 降级历史，模型可跨轮指代
+      const history = chat.slice(-10).map((m) => ({
         role: (m.role === 'ai' ? 'assistant' : 'user') as 'assistant' | 'user',
         content: m.text,
       }));
@@ -191,14 +192,20 @@ export default function App() {
         width: spec.width, depth: spec.depth, height: spec.height,
         loadKg: spec.loadKg, loadType: spec.loadType, mobility: spec.mobility,
         layers: spec.shelfCount + 1, topPanel: spec.topPanel, shelfPanel: spec.shelfPanel,
+        drawerCount: spec.drawerCount, drawerKind: spec.drawerKind,
+        centerColumn: spec.centerColumn ? `双列分区(左${spec.centerColumn.left?.type ?? '空'}/右${spec.centerColumn.right?.type ?? '空'})` : undefined,
+        profileColor: spec.profileColor, archetype: spec.archetype,
         workbenchDeskTopHeightMm: spec.workbenchDeskTopHeightMm,
         workbenchLowerZoneRatio: spec.workbenchLowerZoneRatio,
         workbenchUpperShelfDepthRatio: spec.workbenchUpperShelfDepthRatio,
       })}` : '';
+      const unsupNote = unsupportedSaved.length > 0
+        ? `\n[此前已降级记录（用户再提及时告知仍不支持或按新能力生成）：${unsupportedSaved.join('，')}]`
+        : '';
       const manualNote = manualChanges.size > 0
         ? `\n[用户手动锁定项，除非本轮明确改口否则保持：${[...manualChanges.values()].join('，')}]`
         : '';
-      const extraction = await extractIntent(userMsg + stateJson + manualNote, history);
+      const extraction = await extractIntent(userMsg + stateJson + unsupNote + manualNote, history);
       const result = intentToSpec(extraction, kb);
       const explicit = new Set(extraction._explicitFields ?? []);
       const guarded = { ...result.spec };
