@@ -527,7 +527,7 @@ export default function App() {
         <span style={{ color: '#9ca3af', fontSize: 11 }}>参数化铝材设计</span>
         <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
           {(['💻 电脑桌', '📦 置物架', '🗄️ 工具柜'] as const).map((label) => (
-            <button key={label} onClick={() => set(presetSpec(label))} style={{ padding: '3px 8px', border: '1px solid #e2e5ea', borderRadius: 12, background: '#f8f9fa', cursor: 'pointer', fontSize: 11, color: '#555', whiteSpace: 'nowrap' }}>{label}</button>
+            <button key={label} onClick={() => { setSpec(presetSpec(label)); setSelection(null); }} style={{ padding: '3px 8px', border: '1px solid #e2e5ea', borderRadius: 12, background: '#f8f9fa', cursor: 'pointer', fontSize: 11, color: '#555', whiteSpace: 'nowrap' }}>{label}</button>
           ))}
         </div>
         <div style={{ flex: 1 }} />

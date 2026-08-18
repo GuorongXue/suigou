@@ -6,3 +6,5 @@ archive/
 *.tsbuildinfo
 
 out/
+
+.claude/settings.local.json

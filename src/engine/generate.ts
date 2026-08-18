@@ -160,7 +160,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         for (const outward of [1, -1] as const) {
           const px = outward === -1 ? xLeft : xCenter;
           const postId = postAt.get(`${px},${z}`)!;
-          const jointX = outward === -1 ? -(W / 2 - s) : (xCenter - s);
+          const jointX = outward === -1 ? -(W / 2 - s) : (xCenter - s / 2);
           addJoint({ position: [jointX, y, z], beamAxis: 'x', outward, ySide,
             beamMemberId: leftBeamId, postMemberId: postId });
         }
@@ -172,7 +172,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         for (const outward of [1, -1] as const) {
           const px = outward === 1 ? xRight : xCenter;
           const postId = postAt.get(`${px},${z}`)!;
-          const jointX = outward === 1 ? (W / 2 - s) : (xCenter + s);
+          const jointX = outward === 1 ? (W / 2 - s) : (xCenter + s / 2);
           addJoint({ position: [jointX, y, z], beamAxis: 'x', outward, ySide,
             beamMemberId: rightBeamId, postMemberId: postId });
         }
@@ -337,8 +337,28 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const rightInnerX = colXRight - s / 2;
     // 列中心 = 两立柱中心的中点（colWidth 是柱间净宽=中心距−s，不能直接 colXLeft+colWidth/2，否则偏 s/2）
     const colCenterX = (colXLeft + colXRight) / 2;
+    // 列内隔板：按列宽自建（cabinet/shelf 共用），绝不用全宽 addPanel 避免横穿中柱
+    const addColShelfPanel = (y: number) => {
+      if (spec.shelfPanel === 'none') return;
+      const ps = PANEL_SPEC[spec.shelfPanel];
+      const pw = colWidth - s;
+      const pd = D - 2 * s + 30;
+      const panelId = `pn-${++pn}`;
+      panels.push({ id: panelId, material: spec.shelfPanel, size: [pw, pd, ps.thickness], boxSize: [pw, ps.thickness, pd],
+        position: [colCenterX, y + ps.thickness / 2, 0], mode: 'shelf-overlap',
+        mountNote: `隔板(${ps.name})：列内搭梁式，列宽 ${colWidth}mm`, holes: [] });
+      const inset = 7.5;
+      const px = pw / 2 - inset;
+      const pz = pd / 2 - inset;
+      mounts.push({ id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId, method: ps.mount, note: ps.mountNote,
+        fasteners: mountFasteners(ps.mount),
+        points: [[colCenterX - px, y, -pz], [colCenterX + px, y, -pz], [colCenterX - px, y, pz], [colCenterX + px, y, pz]] });
+    };
     if (col.type === 'drawer') {
       const pitch = (H - 2 * s) / col.count;
+      if (pitch < 120) {
+        throw new Error(`中柱列总高 ${H}mm 装不下 ${col.count} 层抽屉（节距 ${Math.round(pitch)} < 120mm；案例档位 160~230）`);
+      }
       for (let d = 0; d < col.count; d++) {
         const y = s + d * pitch + 20;
         for (const x of [leftInnerX, rightInnerX]) {
@@ -365,7 +385,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
             addJoint({ position: [x, y, z], beamAxis: 'z', outward, ySide: -1, beamMemberId: beamId, postMemberId: postId });
           }
         }
-        addPanel(spec.shelfPanel, y, false, { depthRatio: 1, align: 'center' });
+        addColShelfPanel(y);
       }
       const dw = colWidth + 2 * s;         // 门宽 = 立柱中心距 + 2×立柱宽（门覆盖立柱并重叠s，消除缝隙）
       const dh = H - 2 * s;                // 门高 = 立柱间净高
@@ -398,21 +418,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
           }
         }
         // 隔板面板：居中于所在列（colCenterX），而非框架中心
-        if (spec.shelfPanel !== 'none') {
-          const ps = PANEL_SPEC[spec.shelfPanel];
-          const pw = colWidth - s;           // 列内净宽
-          const pd = D - 2 * s + 30;         // 搭梁四边各 15mm
-          const panelId = `pn-${++pn}`;
-          panels.push({ id: panelId, material: spec.shelfPanel, size: [pw, pd, ps.thickness], boxSize: [pw, ps.thickness, pd],
-            position: [colCenterX, y + ps.thickness / 2, 0], mode: 'shelf-overlap',
-            mountNote: `隔板(${ps.name})：列内搭梁式，列宽 ${colWidth}mm`, holes: [] });
-          const inset = 7.5;
-          const px = pw / 2 - inset;
-          const pz = pd / 2 - inset;
-          mounts.push({ id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId, method: ps.mount, note: ps.mountNote,
-            fasteners: mountFasteners(ps.mount),
-            points: [[colCenterX - px, y, -pz], [colCenterX + px, y, -pz], [colCenterX - px, y, pz], [colCenterX + px, y, pz]] });
-        }
+        addColShelfPanel(y);
       }
     }
   };
