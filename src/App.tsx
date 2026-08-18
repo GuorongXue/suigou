@@ -143,6 +143,35 @@ export default function App() {
     location.reload();
   };
 
+  /** 样例预设：返回完整 FrameSpec（替换而非合并，确保解耦） */
+  const presetSpec = (label: string): FrameSpec => {
+    const base = {
+      sectionId: 'eu-3030', connectorId: 'corner-bracket-30', loadKg: 30, loadType: 'distributed' as const,
+      highRisk: false, mobility: 'fixed' as const, topPanel: 'none' as const, shelfPanel: 'none' as const,
+      bottomPanel: 'none' as const, backPanel: 'none' as const, leftPanel: 'none' as const, rightPanel: 'none' as const,
+      brace: false,
+    };
+    switch (label) {
+      case '💻 电脑桌':
+        return {
+          ...base, scene: 'workbench' as const, width: 1200, depth: 600, height: 740, shelfCount: 1,
+          workbenchDeskTopHeightMm: 740, workbenchLowerZoneRatio: 0.62, workbenchUpperShelfDepthRatio: 0.55,
+          sectionId: 'eu-3030', connectorId: 'corner-bracket-30',
+        };
+      case '📦 置物架':
+        return { ...base, scene: 'diy-furniture' as const, width: 800, depth: 400, height: 1500, shelfCount: 3 };
+      case '🗄️ 工具柜':
+        return {
+          ...base, scene: 'diy-furniture' as const, width: 670, depth: 400, height: 815, shelfCount: 0,
+          drawerCount: 3, drawerKind: 'turnover-box',
+          sectionId: 'eu-2020', connectorId: 'internal-slot-20', mobility: 'leveling-feet' as const,
+          topPanel: 'wood' as const, shelfPanel: 'wood' as const, bottomPanel: 'wood' as const,
+        };
+      default:
+        return { ...base, scene: 'workbench' as const, width: 700, depth: 650, height: 1100, shelfCount: 1 };
+    }
+  };
+
   const runIntent = async () => {
     if (!aiText.trim() || aiBusy) return;
     const userMsg = aiText.trim();
@@ -497,12 +526,8 @@ export default function App() {
         <b style={{ fontSize: 15, color: '#1a1a2e' }}>随构</b>
         <span style={{ color: '#9ca3af', fontSize: 11 }}>参数化铝材设计</span>
         <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
-          {([
-            ['💻 电脑桌', { scene: 'workbench', width: 1200, depth: 600, height: 740, shelfCount: 1 }],
-            ['📦 置物架', { scene: 'diy-furniture', width: 800, depth: 400, height: 1500, shelfCount: 3 }],
-            ['🗄️ 工具柜', { scene: 'diy-furniture', width: 670, depth: 400, height: 815, drawerCount: 3, drawerKind: 'turnover-box' }],
-          ] as const).map(([label, preset]) => (
-            <button key={label} onClick={() => set(preset as Partial<FrameSpec>)} style={{ padding: '3px 8px', border: '1px solid #e2e5ea', borderRadius: 12, background: '#f8f9fa', cursor: 'pointer', fontSize: 11, color: '#555', whiteSpace: 'nowrap' }}>{label}</button>
+          {(['💻 电脑桌', '📦 置物架', '🗄️ 工具柜'] as const).map((label) => (
+            <button key={label} onClick={() => set(presetSpec(label))} style={{ padding: '3px 8px', border: '1px solid #e2e5ea', borderRadius: 12, background: '#f8f9fa', cursor: 'pointer', fontSize: 11, color: '#555', whiteSpace: 'nowrap' }}>{label}</button>
           ))}
         </div>
         <div style={{ flex: 1 }} />
@@ -512,7 +537,7 @@ export default function App() {
           </span>
         )}
         {model && <span style={{ color: '#888', fontSize: 11 }}>{model.totals.memberCount} 根 · {model.totals.weightKg != null && `${model.totals.weightKg.toFixed(1)} kg`} · ¥{model.totals.priceCny?.toFixed(0) ?? '?'}</span>}
-        {(chat.length > 0 || manualChanges.size > 0) && <button onClick={resetDraft} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: '#666', cursor: 'pointer' }}>新方案</button>}
+        <button onClick={resetDraft} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: '#666', cursor: 'pointer' }}>新建</button>
         <button onClick={exportCutList} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: !model || model.status === 'invalid' ? '#ccc' : '#555', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>切割</button>
         <button onClick={exportAssembly} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: !model || model.status === 'invalid' ? '#ccc' : '#555', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>装配</button>
         <button onClick={exportBom} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: 'none', borderRadius: 5, background: !model || model.status === 'invalid' ? '#e5e7eb' : '#1e6fff', color: !model || model.status === 'invalid' ? '#9ca3af' : '#fff', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer', fontWeight: 600 }}>BOM</button>
