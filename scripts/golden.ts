@@ -394,5 +394,24 @@ console.log(failures ? `\n== 12. 黄金锚点①工具柜（跳过） ==` : '== 
   if (!failures) ok(`黄金锚点①对齐通过：${posts.length} 立柱（含 ${centerPosts.length} 中柱）· 左列 4 抽屉 + 右列 2 搁板`);
 }
 
+console.log(failures ? `\n== 13. DXF 导出（跳过） ==` : '== 13. DXF 导出 ==');
+{
+  const { cutListToDxf } = await import('../src/engine/dxf');
+  const m = generateFrame({
+    width: 800, depth: 650, height: 1500, sectionId: 'eu-3030', connectorId: 'anchor-30',
+    shelfCount: 2, loadKg: 15, loadType: 'distributed', scene: 'workbench', highRisk: false,
+    mobility: 'caster', topPanel: 'wood', shelfPanel: 'glass', backPanel: 'pegboard',
+    bottomPanel: 'none', leftPanel: 'none', rightPanel: 'none', brace: true,
+  }, kb);
+  const dxf = cutListToDxf(m.cutList, 30);
+  if (!dxf.startsWith('0\nSECTION') || !dxf.endsWith('EOF')) fail('DXF 结构头尾不完整');
+  const circles = (dxf.match(/\nCIRCLE\n/g) ?? []).length;
+  const holeOps = m.cutList.reduce((sum, c) => sum + c.ops.length, 0);
+  if (circles < holeOps) fail(`DXF 圆实体 ${circles} < 加工孔数 ${holeOps}`);
+  const texts = (dxf.match(/\nTEXT\n/g) ?? []).length;
+  if (texts !== m.cutList.length) fail(`DXF 件号标注 ${texts} ≠ 件号数 ${m.cutList.length}`);
+  if (!failures) ok(`DXF 导出通过：${m.cutList.length} 件号 · ${circles} 孔标记 · 头尾完整`);
+}
+
 console.log(failures ? `\n✖ 失败 ${failures} 项` : '\n✓ 全部通过');
 process.exit(failures ? 1 : 0);

@@ -6,6 +6,7 @@ import { selectSectionFixedPoint } from './engine/select';
 import { extractIntent, getApiKey, setApiKey } from './engine/extract';
 import { intentToSpec, type IntentResult } from './engine/intent';
 import { nestCutList } from './engine/nesting';
+import { cutListToDxf } from './engine/dxf';
 import { buildAssemblySteps } from './engine/assembly';
 import type { FrameSpec, CenterColumnType } from './engine/types';
 import { Viewer, type RenderMember, type RenderJoint, type RenderMachining, type RenderPanel, type RenderAccessory, type RenderMountPoint, type RenderDim, type RenderBubble, type Selection } from './viewer/Viewer';
@@ -341,6 +342,18 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  const exportDxf = () => {
+    if (!model || !exportGate()) return;
+    const secW = kb.sections.find((s) => s.section.id === spec.sectionId)?.section.size[0] ?? 30;
+    const dxf = cutListToDxf(model.cutList, secW);
+    const url = URL.createObjectURL(new Blob([dxf], { type: 'application/dxf' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '加工图.dxf';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const set = (patch: Partial<FrameSpec>) => {
     setSpec((s) => {
       const next = normalizeWorkbenchSpec({ ...s, ...patch });
@@ -558,6 +571,7 @@ export default function App() {
         {model && <span style={{ color: '#888', fontSize: 11 }}>{model.totals.memberCount} 根 · {model.totals.weightKg != null && `${model.totals.weightKg.toFixed(1)} kg`} · ¥{model.totals.priceCny?.toFixed(0) ?? '?'}</span>}
         <button onClick={resetDraft} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: '#666', cursor: 'pointer' }}>新建</button>
         <button onClick={exportCutList} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: !model || model.status === 'invalid' ? '#ccc' : '#555', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>切割</button>
+        <button onClick={exportDxf} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: !model || model.status === 'invalid' ? '#ccc' : '#555', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>DXF</button>
         <button onClick={exportAssembly} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: !model || model.status === 'invalid' ? '#ccc' : '#555', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>装配</button>
         <button onClick={exportBom} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: 'none', borderRadius: 5, background: !model || model.status === 'invalid' ? '#e5e7eb' : '#1e6fff', color: !model || model.status === 'invalid' ? '#9ca3af' : '#fff', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer', fontWeight: 600 }}>BOM</button>
       </header>
