@@ -42,6 +42,11 @@ function CenterColumnConfig({ cc, onChange }: { cc: NonNullable<FrameSpec['cente
             <option value="cabinet">柜门</option>
           </select>
           {cc.left && <input type="number" min={1} max={6} value={cc.left.count} onChange={(e) => onChange({ left: { ...cc.left, count: Number(e.target.value) || 1 } as CenterColumnType })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }} />}
+          {cc.left?.type === 'cabinet' && (
+            <select value={cc.left.hinge ?? 'left'} onChange={(e) => onChange({ left: { ...cc.left, hinge: e.target.value as 'left' | 'right' } as CenterColumnType })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+              <option value="left">左铰右开</option><option value="right">右铰左开</option>
+            </select>
+          )}
         </label>
         <label style={{ flex: 1 }}>
           <span style={{ fontSize: 10, color: '#8a90a0' }}>右列</span>
@@ -52,6 +57,11 @@ function CenterColumnConfig({ cc, onChange }: { cc: NonNullable<FrameSpec['cente
             <option value="cabinet">柜门</option>
           </select>
           {cc.right && <input type="number" min={1} max={6} value={cc.right.count} onChange={(e) => onChange({ right: { ...cc.right, count: Number(e.target.value) || 1 } as CenterColumnType })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }} />}
+          {cc.right?.type === 'cabinet' && (
+            <select value={cc.right.hinge ?? 'left'} onChange={(e) => onChange({ right: { ...cc.right, hinge: e.target.value as 'left' | 'right' } as CenterColumnType })} style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+              <option value="left">左铰右开</option><option value="right">右铰左开</option>
+            </select>
+          )}
         </label>
       </div>
     </Section>

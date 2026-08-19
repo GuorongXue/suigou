@@ -67,7 +67,7 @@ export interface FrameSpec {
 export type CenterColumnType =
   | { type: 'drawer'; count: number; kind?: 'turnover-box' | 'ready-made' }
   | { type: 'shelf'; count: number }
-  | { type: 'cabinet'; count: number };   // 封闭柜门：内可选搁板层数，正面有门板+把手+铰链
+  | { type: 'cabinet'; count: number; hinge?: 'left' | 'right' };   // 封闭柜门：内可选搁板层数；hinge=铰链侧（默认左铰右开）
 
 export type MemberRole = 'post' | 'beam-x' | 'beam-z' | 'brace';
 

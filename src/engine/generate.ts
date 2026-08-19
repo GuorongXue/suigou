@@ -436,12 +436,14 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         const panelId = `pn-${++pn}`;
         panels.push({ id: panelId, material: doorMaterial, size: [dw, dh, ps.thickness], boxSize: [dw, dh, ps.thickness],
           position: [colCenterX, H / 2, D / 2 + ps.thickness / 2], mode: 'door-front',
-          mountNote: `柜门(左铰右开)：合页×2 + 把手 + 磁吸`,
+          mountNote: `柜门(${(col.hinge ?? 'left') === 'left' ? '左铰右开' : '右铰左开'})：合页×2 + 把手 + 磁吸`,
           holes: [{ x: dw / 2 - 40, y: dh / 2 - 48, diameter: 5 }, { x: dw / 2 - 40, y: dh / 2 + 48, diameter: 5 }] });
-        const hingeX = colXLeft + s / 2;  // 铰链装在前左立柱
-        const catchX = colXRight - s / 2;  // 磁吸装在前右立柱
+        const hingeLeft = (col.hinge ?? 'left') === 'left';
+        const hingeX = hingeLeft ? colXLeft + s / 2 : colXRight - s / 2;   // 铰链侧立柱
+        const catchX = hingeLeft ? colXRight - s / 2 : colXLeft + s / 2;   // 磁吸在开启侧立柱
+        const handleX = colCenterX + (hingeLeft ? 1 : -1) * (dw / 2 - 40); // 把手在开启侧门缘
         mounts.push({ id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId, method: 'hinge',
-          note: '柜门合页×2 入左柱槽 + 磁吸扣右柱中部 + 把手孔距96',
+          note: `柜门合页×2 入${hingeLeft ? '左' : '右'}柱槽 + 磁吸扣${hingeLeft ? '右' : '左'}柱中部 + 把手孔距96`,
           fasteners: [{ sku: 'hinge-slot-30', qty: 2 }, { sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l12', qty: 4 }, { sku: 'magnetic-catch', qty: 1 }, { sku: 'handle-96', qty: 1 }],
           points: [[hingeX, s + dh / 5, D / 2], [hingeX, s + dh * 4 / 5, D / 2], [catchX, H / 2, D / 2]] });
         // 硬件实体（sku 空串：计价已走上方 mount fasteners，避免重计）
@@ -450,7 +452,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
             position: [hingeX, hy, D / 2 + 2], boxSize: [40, 55, 10] });
         }
         accessories.push({ id: `${panelId}-hd`, kind: 'handle', sku: '', weightKg: 0.12,
-          position: [colCenterX + dw / 2 - 40, H / 2, D / 2 + ps.thickness], lengthMm: 96, boxSize: [14, 136, 14] });
+          position: [handleX, H / 2, D / 2 + ps.thickness], lengthMm: 96, boxSize: [14, 136, 14] });
         accessories.push({ id: `${panelId}-mc`, kind: 'magnetic-catch', sku: '', weightKg: 0.03,
           position: [catchX, H / 2, D / 2 - 7], boxSize: [30, 16, 14] });
       }
@@ -723,19 +725,19 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         fasteners: [{ sku: boxSku, qty: 1 }, { sku: slideSku, qty: 1 }, { sku: 'screw-m4-10-pan', qty: 8 }, { sku: 't-nut-m4', qty: 8 }],
         points: [[-W / 2 + s, y, 0], [W / 2 - s, y, 0]],
       });
-      // 成品抽屉前脸板：与柜门共面，底缘齐层底，上缘留 20mm 指拉缝（无拉手可拉可按压反弹）
+      // 成品抽屉前脸板：与柜门共面，居中于层区间，层间既有 4mm 工艺缝（反弹轨按压开启）
       if (kind === 'ready-made') {
         const fMat = spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood';
         const fs = PANEL_SPEC[fMat];
         const fw = (colWidth ?? W - 2 * s) + s - 3;   // 柱中线到柱中线 − 3mm 缝
-        const fh = pitch - 22;                         // 上缘指拉缝 20mm（+2 底缝）
-        const fy = (y - 20) + 2 + fh / 2;              // 底缘贴层底
+        const fh = pitch - 4;                          // 上下各 2mm 工艺缝
+        const fy = (y - 20) + pitch / 2;               // 居中于层区间
         const panelId = `pn-${++pn}`;
         panels.push({ id: panelId, material: fMat, size: [fw, fh, fs.thickness], boxSize: [fw, fh, fs.thickness],
           position: [xCenter ?? 0, fy, D / 2 + fs.thickness / 2], mode: 'drawer-front',
-          mountNote: '抽屉前脸板：盒内 M4 螺丝反锁前脸，与柜门共面；上缘留 20mm 指拉缝', holes: [] });
+          mountNote: '抽屉前脸板：盒内 M4 螺丝反锁前脸，与柜门共面；层间 4mm 工艺缝，反弹轨按压开启', holes: [] });
         mounts.push({ id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId, method: 't-nut-screw',
-          note: '前脸板盒内反锁 M4×4（家具标准做法），上缘指拉缝开启或反弹轨按压',
+          note: '前脸板盒内反锁 M4×4（家具标准做法），反弹轨按压开启',
           fasteners: [{ sku: 'screw-m4-10-pan', qty: 4 }],
           points: [[(xCenter ?? 0) - fw / 4, fy, D / 2], [(xCenter ?? 0) + fw / 4, fy, D / 2]] });
       }
