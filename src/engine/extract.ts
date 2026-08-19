@@ -63,11 +63,11 @@ Schema：
   "_riskFlags": []
 }`;
 
-// 浏览器走 vite 代理；Node CLI（M5 跑批）直连并从环境变量取 Key
+// 浏览器开发期走 vite 代理；生产静态站（GitHub Pages）直连；Node CLI（M5 跑批）直连并从环境变量取 Key
 const IS_NODE = typeof localStorage === 'undefined';
-const ENDPOINT = IS_NODE
-  ? 'https://api.longcat.chat/openai/v1/chat/completions'
-  : '/api/longcat/openai/v1/chat/completions';
+const DIRECT = 'https://api.longcat.chat/openai/v1/chat/completions';
+const ENDPOINT = IS_NODE ? DIRECT
+  : (import.meta.env?.DEV ? '/api/longcat/openai/v1/chat/completions' : DIRECT);
 const MODEL = 'LongCat-2.0';
 
 export function getApiKey(): string | null {
@@ -98,11 +98,17 @@ export async function extractIntent(
     ],
   };
 
-  let resp = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  let resp: Response;
+  try {
+    resp = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch (e) {
+    // 静态站直连被 CORS/网络拦截：参数面板与样例不受影响
+    throw new Error(`无法连接 LLM 服务（${(e as Error).message}）。若在线版访问受限，AI 理解功能请在本地运行使用；手动参数面板与样例不受影响`);
+  }
   if (resp.status === 400) {   // 平台不支持 response_format 时降级
     delete payload.response_format;
     resp = await fetch(ENDPOINT, {
