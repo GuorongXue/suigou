@@ -635,15 +635,19 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
         ctx.group.add(hinge);
         continue;
       }
-      if (a.kind === 'handle') {   // 把手：竖 U 形（横杆+两脚）
-        const grip = new THREE.Mesh(new THREE.CylinderGeometry(6, 6, a.boxSize?.[1] ?? 130, 12), forkMat);
+      if (a.kind === 'handle') {   // 拉手 U 形：boxSize 宽>高 横置（抽屉），否则竖置（门）
+        const [bw2, bh2] = a.boxSize ?? [14, 130, 14];
+        const horizontal = bw2 > bh2;
+        const gripLen = horizontal ? bw2 : bh2;
+        const grip = new THREE.Mesh(new THREE.CylinderGeometry(6, 6, gripLen, 12), forkMat);
+        if (horizontal) grip.rotation.z = Math.PI / 2;
         grip.position.set(a.position[0], a.position[1], a.position[2] + 22);
         ctx.group.add(grip);
         const span = a.lengthMm ?? 96;
-        for (const dy of [-span / 2, span / 2]) {
+        for (const dd of [-span / 2, span / 2]) {
           const leg = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 22, 10), forkMat);
           leg.rotation.x = Math.PI / 2;
-          leg.position.set(a.position[0], a.position[1] + dy, a.position[2] + 11);
+          leg.position.set(a.position[0] + (horizontal ? dd : 0), a.position[1] + (horizontal ? 0 : dd), a.position[2] + 11);
           ctx.group.add(leg);
         }
         continue;
