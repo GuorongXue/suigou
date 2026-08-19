@@ -200,7 +200,7 @@ export interface MountItem {
 /** 附件：脚轮/LED灯条等（进模型/重量/价格/BOM） */
 export interface AccessoryItem {
   id: string;
-  kind: 'caster' | 'led-strip' | 'leveling-foot' | 'drawer-box';
+  kind: 'caster' | 'led-strip' | 'leveling-foot' | 'drawer-box' | 'drawer-slide' | 'hinge' | 'handle' | 'magnetic-catch';
   sku: string;
   position: [number, number, number];
   weightKg: number;

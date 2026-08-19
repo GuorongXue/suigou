@@ -556,6 +556,7 @@ export default function App() {
         rows.push(['附件', `LED灯条套件 ${m}m+电源`, 1, ((kb.fasteners['led-strip-m']?.price ?? 0) * m + (kb.fasteners['led-psu-24w']?.price ?? 0)).toFixed(2)]);
         continue;
       }
+      if (!a.sku) continue;   // 视觉硬件（合页/把手/磁吸）：计价已在 mount 紧固件行
       rows.push(['附件', a.sku, 1, (kb.fasteners[a.sku]?.price ?? 0).toFixed(2)]);
     }
     rows.push(['加工费', '型材打孔/攻牙/斜切合计', '', model.totals.cost.machining.toFixed(2)]);

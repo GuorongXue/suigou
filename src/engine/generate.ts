@@ -67,6 +67,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   const joints: Joint[] = [];
   const panels: PanelItem[] = [];
   const mounts: MountItem[] = [];
+  const accessories: AccessoryItem[] = [];
   const PANEL_SPEC = kb.panels;   // knowledge/panels.yaml：厚度/面密度/单价/固定方式/孔径
   let n = 0;
   let jn = 0;
@@ -443,6 +444,15 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
           note: '柜门合页×2 入左柱槽 + 磁吸扣右柱中部 + 把手孔距96',
           fasteners: [{ sku: 'hinge-slot-30', qty: 2 }, { sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l12', qty: 4 }, { sku: 'magnetic-catch', qty: 1 }, { sku: 'handle-96', qty: 1 }],
           points: [[hingeX, s + dh / 5, D / 2], [hingeX, s + dh * 4 / 5, D / 2], [catchX, H / 2, D / 2]] });
+        // 硬件实体（sku 空串：计价已走上方 mount fasteners，避免重计）
+        for (const [hi, hy] of [[1, s + dh / 5], [2, s + dh * 4 / 5]] as const) {
+          accessories.push({ id: `${panelId}-hg${hi}`, kind: 'hinge', sku: '', weightKg: 0.06,
+            position: [hingeX, hy, D / 2 + 2], boxSize: [40, 55, 10] });
+        }
+        accessories.push({ id: `${panelId}-hd`, kind: 'handle', sku: '', weightKg: 0.12,
+          position: [colCenterX + dw / 2 - 40, H / 2, D / 2 + ps.thickness], lengthMm: 96, boxSize: [14, 136, 14] });
+        accessories.push({ id: `${panelId}-mc`, kind: 'magnetic-catch', sku: '', weightKg: 0.03,
+          position: [catchX, H / 2, D / 2 - 7], boxSize: [30, 16, 14] });
       }
     } else {
       const shelfPitch = (H - 2 * s) / (col.count + 1);
@@ -647,7 +657,6 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   }
 
   // 脚轮附件（9.2.4 修复：进模型/BOM/重量；丝杆脚轮 → 柱底端面攻牙加工）
-  const accessories: AccessoryItem[] = [];
   // 调平地脚（真实案例高频：三抽屉柜/展示柜）：落地柱底端 M8 拧入
   if (spec.mobility === 'leveling-feet') {
     let fn = 0;
@@ -699,6 +708,12 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         position: [xCenter ?? 0, y + 10 + bh / 2, 0], weightKg: kind === 'turnover-box' ? 1.2 : 3.0,
         boxSize: [bw, bh, bd],
       });
+      // 滑轨一副（左右两条，渲染对称）：计价走本 accessory（drawer-slide mount 的 fasteners 已被排除避免重计）
+      accessories.push({
+        id: `${accId}-sl`, kind: 'drawer-slide', sku: slideSku,
+        position: [xCenter ?? 0, y + 22, 0], weightKg: 0.5,
+        boxSize: [bw + 26, 35, Math.min(350, bd)],
+      });
       mounts.push({
         id: `mt-${++mtn}`, targetType: 'accessory', targetId: accId,
         method: 'drawer-slide',
@@ -708,19 +723,19 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         fasteners: [{ sku: boxSku, qty: 1 }, { sku: slideSku, qty: 1 }, { sku: 'screw-m4-10-pan', qty: 8 }, { sku: 't-nut-m4', qty: 8 }],
         points: [[-W / 2 + s, y, 0], [W / 2 - s, y, 0]],
       });
-      // 成品抽屉前脸板：与柜门共面（凸出正面 D/2），宽按柱中线规则与门无缝对接，无拉手反弹开启
+      // 成品抽屉前脸板：与柜门共面，底缘齐层底，上缘留 20mm 指拉缝（无拉手可拉可按压反弹）
       if (kind === 'ready-made') {
         const fMat = spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood';
         const fs = PANEL_SPEC[fMat];
         const fw = (colWidth ?? W - 2 * s) + s - 3;   // 柱中线到柱中线 − 3mm 缝
-        const fh = pitch - 3;
-        const fy = y - 20 + pitch / 2;                 // 层底 + 半节距
+        const fh = pitch - 22;                         // 上缘指拉缝 20mm（+2 底缝）
+        const fy = (y - 20) + 2 + fh / 2;              // 底缘贴层底
         const panelId = `pn-${++pn}`;
         panels.push({ id: panelId, material: fMat, size: [fw, fh, fs.thickness], boxSize: [fw, fh, fs.thickness],
           position: [xCenter ?? 0, fy, D / 2 + fs.thickness / 2], mode: 'drawer-front',
-          mountNote: '抽屉前脸板：盒内 M4 螺丝反锁前脸，与柜门共面，缝落柱中线', holes: [] });
+          mountNote: '抽屉前脸板：盒内 M4 螺丝反锁前脸，与柜门共面；上缘留 20mm 指拉缝', holes: [] });
         mounts.push({ id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId, method: 't-nut-screw',
-          note: '前脸板盒内反锁 M4×4（家具标准做法），无拉手按压开启',
+          note: '前脸板盒内反锁 M4×4（家具标准做法），上缘指拉缝开启或反弹轨按压',
           fasteners: [{ sku: 'screw-m4-10-pan', qty: 4 }],
           points: [[(xCenter ?? 0) - fw / 4, fy, D / 2], [(xCenter ?? 0) + fw / 4, fy, D / 2]] });
       }

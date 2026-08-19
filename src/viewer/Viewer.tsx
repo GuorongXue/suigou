@@ -616,16 +616,47 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
         ctx.group.add(bar);
         continue;
       }
-      if (a.kind === 'drawer-box') {   // 抽屉盒：箱体+前面板
+      if (a.kind === 'drawer-box') {   // 抽屉盒：箱体（前脸板/箱面由 panel 层或箱体自带，不再重复画）
         const [bw, bh, bd] = a.boxSize ?? [200, 140, 300];
         const body = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd),
           new THREE.MeshStandardMaterial({ color: 0xcfc4ae, roughness: 0.8 }));
         body.position.set(...a.position);
         ctx.group.add(body);
-        const face = new THREE.Mesh(new THREE.BoxGeometry(bw + 16, bh + 10, 12),
-          new THREE.MeshStandardMaterial({ color: 0x9a7b56, roughness: 0.6 }));
-        face.position.set(a.position[0], a.position[1], a.position[2] + bd / 2 + 7);
-        ctx.group.add(face);
+        continue;
+      }
+      if (a.kind === 'drawer-slide') {   // 滑轨一副：左右两条金属轨
+        const [tw, th, tl] = a.boxSize ?? [400, 35, 350];
+        for (const sx of [-1, 1] as const) {
+          const rail = new THREE.Mesh(new THREE.BoxGeometry(12, th, tl), forkMat);
+          rail.position.set(a.position[0] + sx * (tw / 2 - 6), a.position[1], a.position[2]);
+          ctx.group.add(rail);
+        }
+        continue;
+      }
+      if (a.kind === 'hinge') {   // 合页：金属小块跨门缝
+        const [hw, hh, hd] = a.boxSize ?? [40, 55, 10];
+        const hinge = new THREE.Mesh(new THREE.BoxGeometry(hw, hh, hd), forkMat);
+        hinge.position.set(...a.position);
+        ctx.group.add(hinge);
+        continue;
+      }
+      if (a.kind === 'handle') {   // 把手：竖 U 形（横杆+两脚）
+        const grip = new THREE.Mesh(new THREE.CylinderGeometry(6, 6, a.boxSize?.[1] ?? 130, 12), forkMat);
+        grip.position.set(a.position[0], a.position[1], a.position[2] + 22);
+        ctx.group.add(grip);
+        const span = a.lengthMm ?? 96;
+        for (const dy of [-span / 2, span / 2]) {
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 22, 10), forkMat);
+          leg.rotation.x = Math.PI / 2;
+          leg.position.set(a.position[0], a.position[1] + dy, a.position[2] + 11);
+          ctx.group.add(leg);
+        }
+        continue;
+      }
+      if (a.kind === 'magnetic-catch') {   // 磁吸扣：深灰小块
+        const mc = new THREE.Mesh(new THREE.BoxGeometry(...(a.boxSize ?? [30, 16, 14])), wheelMat);
+        mc.position.set(...a.position);
+        ctx.group.add(mc);
         continue;
       }
       if (a.kind === 'leveling-foot') {   // 调平地脚：圆盘垫+丝杆
