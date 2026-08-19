@@ -471,5 +471,41 @@ console.log(failures ? `\n== 14. 2040 矩形梁（跳过） ==` : '== 14. 2040 �
   if (!failures) ok(`2040 矩形梁通过：柱2020+梁2040 顶对齐720 · 撑杆不升级 · 切割清单分截面 · 1342跨挠度通过 · 两类非法组合阻断`);
 }
 
+console.log(failures ? `\n== 15. 意图防线：柜类场景修正与中柱双列映射（跳过） ==` : '== 15. 意图防线：柜类场景修正与中柱双列映射 ==');
+{
+  const { intentToSpec } = await import('../src/engine/intent');
+  // 真实翻车案例（工具柜带滑轮 1000×400×900 两抽屉+柜门+挂架侧板）：LLM 场景误判 workbench
+  const base = {
+    productType: 'cabinet', dimensions: { width: 1000, depth: 400, height: 900, unit: 'mm' },
+    load: { totalKg: null, type: 'unknown' as const, description: '' }, scene: 'workbench',
+    mobility: 'caster' as const, stiffnessNeed: 'normal', environment: { humid: null, outdoor: null, vibration: null },
+    panels: [
+      { material: 'wood', position: 'drawer' }, { material: 'wood', position: 'drawer' },
+      { material: 'wood', position: 'door' }, { material: 'pegboard', position: 'side' },
+    ],
+    appearance: { color: null, hiddenConnectorsPreferred: null },
+    budgetSensitivity: 'unknown', layers: null, _missing: [], _assumptions: [], _riskFlags: [],
+  };
+  const r = intentToSpec(base, kb);
+  // 防线①：柜类产品即使 LLM scene 误判 workbench 也必须修正
+  if (r.spec.scene === 'workbench') fail('cabinet 产品类型不应进 workbench 场景（确定性防线失效）');
+  if (r.spec.depth !== 400) fail(`柜深应保留 400（不被 workbench 语义抬到 550），实际 ${r.spec.depth}`);
+  // 防线②：抽屉+柜门 → 中柱双列（左抽屉/右柜门），不再降级门板
+  if (!r.spec.centerColumn) fail('抽屉+柜门组合应映射为中柱双列分区');
+  if (r.spec.centerColumn?.left?.type !== 'drawer') fail(`左列应为抽屉，实际 ${r.spec.centerColumn?.left?.type}`);
+  if (r.spec.centerColumn?.right?.type !== 'cabinet') fail(`右列应为柜门，实际 ${r.spec.centerColumn?.right?.type}`);
+  if (r.spec.drawerCount != null) fail('中柱分区时不应再有普通抽屉塔计数（双重生成）');
+  if (r.unsupported.length) fail(`不应有降级项，实际：${r.unsupported.join('、')}`);
+  // 防线③：洞洞板侧挂
+  if (r.spec.leftPanel !== 'pegboard') fail(`挂架侧板应为洞洞板侧挂，实际 ${r.spec.leftPanel}`);
+  // 端到端可生成
+  const m = generateFrame(r.spec, kb);
+  const posts = m.members.filter((x) => x.role === 'post');
+  if (posts.length !== 6) fail(`中柱双列应 6 立柱，实际 ${posts.length}`);
+  const door = m.panels.find((p) => p.mode === 'door-front');
+  if (!door) fail('右列柜门未生成');
+  if (!failures) ok(`意图防线通过：柜类场景修正 ✓ 中柱双列(左2抽屉/右柜门) ✓ 洞洞板侧挂 ✓ 6柱+门板端到端生成 ✓`);
+}
+
 console.log(failures ? `\n✖ 失败 ${failures} 项` : '\n✓ 全部通过');
 process.exit(failures ? 1 : 0);

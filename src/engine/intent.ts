@@ -70,7 +70,14 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
 
   const scene: FrameSpec['scene'] = ex.productType === 'workbench'
     ? 'workbench'
-    : (SCENE_MAP[ex.scene] ?? 'diy-furniture');
+    : (() => {
+      const s = SCENE_MAP[ex.scene] ?? 'diy-furniture';
+      // 确定性防线：柜/架类产品绝不进 workbench（电脑桌）语义，LLM 场景误判时纠正
+      return s === 'workbench' ? 'diy-furniture' : s;
+    })();
+  if (ex.productType !== 'workbench' && SCENE_MAP[ex.scene] === 'workbench') {
+    assumptions.push('产品类型为柜/架，场景修正为家具（桌面操作台语义仅限桌类）');
+  }
   if (ex.productType === 'workbench' && SCENE_MAP[ex.scene] !== 'workbench') {
     assumptions.push('产品类型为桌子（workbench），场景按电脑桌/工作台语义处理');
   }
@@ -275,10 +282,24 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
       assumptions.push(`抽屉层数未说明，按总高 ${height}mm ÷ 节距≈205 估 ${est} 层（可改）`);
     }
   }
+  // 抽屉+柜门组合 → 中柱双列分区（工具柜实证拓扑，锚点①）：左列抽屉，右列带门柜体
+  let centerColumn: FrameSpec['centerColumn'];
+  const doorCount = (ex.panels ?? []).filter((p) => p.position === 'door' && p.material !== 'none').length;
+  if (drawerCountFinal > 0 && doorCount > 0 && isCabinet) {
+    centerColumn = {
+      offsetRatio: 0.4,
+      left: { type: 'drawer', count: Math.min(5, drawerCountFinal), kind: 'ready-made' },
+      right: { type: 'cabinet', count: 1 },
+    };
+    assumptions.push(`抽屉×${drawerCountFinal}+柜门 → 中柱双列分区（左列抽屉/右列柜门，工具柜实证拓扑）`);
+    drawerCountFinal = 0;   // 抽屉由分区列生成，避免普通抽屉塔双重计数
+    doorPanel = 'none';     // 门由 cabinet 列生成
+  }
   const shelfCount = drawerCountFinal > 0 ? 0
     : (ex.layers != null ? Math.max(0, Math.min(4, ex.layers - 1)) : 1);
   if (ex.layers == null && drawerCountFinal === 0) assumptions.push('层数未说明，按 1 层隔板假设');
-  const deskShelfCount = scene === 'workbench' ? Math.max(1, shelfCount) : shelfCount;
+  const shelfCountAdj = centerColumn ? 0 : shelfCount;
+  const deskShelfCount = scene === 'workbench' ? Math.max(1, shelfCountAdj) : shelfCountAdj;
   // productType 超纲 / 附件类需求降级
   if (ex.productType === 'other') {
     unsupported.push('非框架类主体结构');
@@ -307,6 +328,7 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
       backPanel, leftPanel, rightPanel: 'none',
       drawerCount: drawerCountFinal > 0 ? Math.min(5, drawerCountFinal) : undefined,
       drawerKind: drawerCountFinal > 0 ? 'ready-made' : undefined,
+      centerColumn,
       brace: false,
     },
     assumptions,
