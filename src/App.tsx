@@ -275,6 +275,17 @@ export default function App() {
       return { id: j.id, connectorId: j.connectorId, position: j.position, beamAxis: j.beamAxis, outward: j.outward, ySide: j.ySide, hidden: conn.visibility === 'hidden', size: sec.size[0] };
     });
   }, [result, kb]);
+  // 爆炸时连接件跟随所属梁位移（角码装在梁端的装配语义）
+  const shownJoints = useMemo(() => {
+    if (explode === 0 || !result.model) return joints;
+    const memberPos = new Map(result.model.members.map((m) => [m.id, m.position]));
+    return joints.map((j, i) => {
+      const bp = memberPos.get(result.model!.joints[i].beamMemberId);
+      if (!bp) return j;
+      const ep = explodePos(bp);
+      return { ...j, position: [j.position[0] + ep[0] - bp[0], j.position[1] + ep[1] - bp[1], j.position[2] + ep[2] - bp[2]] as [number, number, number] };
+    });
+  }, [joints, explode, explodePos, result]);
 
   const machining: RenderMachining[] = useMemo(() => {
     if (!result.model) return [];
@@ -810,7 +821,7 @@ export default function App() {
 
         {/* ── 3D 画布（主导区域） ── */}
         <main style={{ flex: 1, position: 'relative', background: '#f5f6f8' }}>
-          <Viewer items={shownItems} joints={mode === 'structure' && explode === 0 ? joints : []} machining={mode !== 'appearance' && explode === 0 ? machining : []} panels={shownPanels} accessories={shownAccessories} mountPoints={mode === 'structure' && explode === 0 ? mountPoints : []} dims={explode === 0 ? dims : []} drawing={mode === 'drawing'} bubbles={explode === 0 ? bubbles : []} focusY={spec.height / 2} onSelect={setSelection} selection={selection} warnMemberIds={warnMemberIds} profileColor={spec.profileColor} highlightedPartNo={highlightedPartNo} />
+          <Viewer items={shownItems} joints={mode === 'structure' ? shownJoints : []} machining={mode !== 'appearance' && explode === 0 ? machining : []} panels={shownPanels} accessories={shownAccessories} mountPoints={mode === 'structure' && explode === 0 ? mountPoints : []} dims={explode === 0 ? dims : []} drawing={mode === 'drawing'} bubbles={explode === 0 ? bubbles : []} focusY={spec.height / 2} onSelect={setSelection} selection={selection} warnMemberIds={warnMemberIds} profileColor={spec.profileColor} highlightedPartNo={highlightedPartNo} />
           {/* 视图模式工具条 — 三模式明确分工 */}
           <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', textAlign: 'center' }}>
             <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,.92)', padding: 3, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
