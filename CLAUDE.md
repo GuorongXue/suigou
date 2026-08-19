@@ -57,6 +57,7 @@ AI 驱动的铝型材参数化设计平台：用户一句话 → 抽取参数 �
 - ~~DXF 导出~~ ✅ R12 ASCII 全件号平铺（轮廓+孔位+件号标注，golden 第13节断言）
 - ~~多句对话记忆~~ ✅ 10轮窗口+完整spec状态+降级历史回传
 - ~~变高立柱~~ ✅ 中柱 = H−顶板厚−梁高（锚点①真实BOM 810×4/775×2 精确对齐，顶梁通长架中柱顶，仅 centerColumn+recessed 场景触发）
-- ~~2040 矩形梁~~ ✅ 梁柱双截面 `beamSectionId`：层框梁 2040 立放（宽=柱宽槽对齐），底框底对齐/其余层顶对齐（beamDrop=(bh−s)/2），撑杆不升级，切割清单按件截面分组；非法组合阻断（梁宽≠柱宽、2040+抽屉/中柱）
+- ~~2040 矩形梁~~ ✅ 梁柱双截面 `beamSectionId`：层框梁 2040 立放（宽=柱宽槽对齐），底框底对齐/其余层顶对齐（beamDrop=(bh−s)/2），撑杆不升级，切割清单按件截面分组；内部结构 y 基准 = 梁高 bh（innerBottomY/innerClearH），抽屉/分区组合已解锁；仅剩阻断：梁宽≠柱宽
+- 多列分区 `partitions`：N 列 = N−1 中柱（centerColumn 为两列特例自动归一）；分区中柱是通长梁支点——val-001/002 有效跨度 = 最大列净跨
 - 中柱分区几何：列中心必须用 `(colXLeft+colXRight)/2`（不能 `colXLeft+colWidth/2`，偏 s/2）；门宽 `colWidth+2s` 居中真正中点（commit 7722d7d）
 - ~~STEP 导出~~ ✅ replicad v1.0 Worker 惰性加载 wasm：src/engine/sectionOutline.ts 共享轮廓（THREE/STEP 同源）→ draw→extrude→compound→blobSTEP（Y-up 转 Z-up）；3dviewer.net 实测 3.08MB、外包尺寸与设计精确一致、每根型材独立实体
