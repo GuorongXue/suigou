@@ -208,6 +208,8 @@ export interface AccessoryItem {
   lengthMm?: number;
   /** 盒体类附件渲染尺寸（抽屉盒）：[X, Y, Z] */
   boxSize?: [number, number, number];
+  /** 宿主构件 id（panel/accessory）：爆炸图时跟随宿主位移（合页跟门、拉手跟前脸、滑轨跟盒） */
+  hostId?: string;
 }
 
 /** 板材下料清单行（按件号聚合） */

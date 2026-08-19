@@ -449,12 +449,12 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
           points: [[hingeX, s + dh / 5, D / 2], [hingeX, s + dh * 4 / 5, D / 2], [catchX, H / 2, D / 2]] });
         // 硬件实体（sku 空串：计价已走上方 mount fasteners，避免重计）
         for (const [hi, hy] of [[1, s + dh / 5], [2, s + dh * 4 / 5]] as const) {
-          accessories.push({ id: `${panelId}-hg${hi}`, kind: 'hinge', sku: '', weightKg: 0.06,
+          accessories.push({ id: `${panelId}-hg${hi}`, kind: 'hinge', sku: '', weightKg: 0.06, hostId: panelId,
             position: [hingeX, hy, D / 2 + 2], boxSize: [40, 55, 10] });
         }
-        accessories.push({ id: `${panelId}-hd`, kind: 'handle', sku: '', weightKg: 0.12,
+        accessories.push({ id: `${panelId}-hd`, kind: 'handle', sku: '', weightKg: 0.12, hostId: panelId,
           position: [handleX, H / 2, D / 2 + ps.thickness], lengthMm: 96, boxSize: [14, 136, 14] });
-        accessories.push({ id: `${panelId}-mc`, kind: 'magnetic-catch', sku: '', weightKg: 0.03,
+        accessories.push({ id: `${panelId}-mc`, kind: 'magnetic-catch', sku: '', weightKg: 0.03, hostId: panelId,
           position: [catchX, H / 2, D / 2 - 7], boxSize: [30, 16, 14] });
       }
     } else {
@@ -713,7 +713,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       });
       // 滑轨一副（左右两条，渲染对称）：计价走本 accessory（drawer-slide mount 的 fasteners 已被排除避免重计）
       accessories.push({
-        id: `${accId}-sl`, kind: 'drawer-slide', sku: slideSku,
+        id: `${accId}-sl`, kind: 'drawer-slide', sku: slideSku, hostId: accId,
         position: [xCenter ?? 0, y + 22, 0], weightKg: 0.5,
         boxSize: [bw + 26, 35, Math.min(350, bd)],
       });
@@ -744,7 +744,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
           fasteners: [{ sku: 'screw-m4-10-pan', qty: 4 }, { sku: 'handle-96', qty: 1 }],
           points: [[(xCenter ?? 0) - fw / 4, fy, D / 2], [(xCenter ?? 0) + fw / 4, fy, D / 2]] });
         // 横拉手实体（前脸正中）：计价已走上方 mount fasteners
-        accessories.push({ id: `${panelId}-hd`, kind: 'handle', sku: '', weightKg: 0.12,
+        accessories.push({ id: `${panelId}-hd`, kind: 'handle', sku: '', weightKg: 0.12, hostId: panelId,
           position: [xCenter ?? 0, fy, D / 2 + fs.thickness], lengthMm: 96, boxSize: [136, 14, 14] });
       }
     }

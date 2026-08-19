@@ -323,8 +323,20 @@ export default function App() {
     if (!result.model) return [];
     return result.model.accessories.map((a) => ({ kind: a.kind, position: a.position, lengthMm: a.lengthMm, boxSize: a.boxSize }));
   }, [result]);
-  const shownAccessories = useMemo(() => explode === 0 ? accessories
-    : accessories.map((a) => ({ ...a, position: explodePos(a.position) })), [accessories, explode, explodePos]);
+  const shownAccessories = useMemo(() => {
+    if (explode === 0 || !result.model) return accessories;
+    // 爆炸时附件跟随宿主位移（合页/把手/磁吸跟门，拉手跟前脸，滑轨跟抽屉盒）
+    const centers = new Map<string, [number, number, number]>();
+    for (const p of result.model.panels) centers.set(p.id, p.position);
+    for (const a of result.model.accessories) centers.set(a.id, a.position);
+    return accessories.map((a, i) => {
+      const hostId = result.model!.accessories[i]?.hostId;
+      const hc = hostId ? centers.get(hostId) : undefined;
+      if (!hc) return { ...a, position: explodePos(a.position) };
+      const ep = explodePos(hc);
+      return { ...a, position: [a.position[0] + ep[0] - hc[0], a.position[1] + ep[1] - hc[1], a.position[2] + ep[2] - hc[2]] as [number, number, number] };
+    });
+  }, [accessories, explode, explodePos, result]);
 
   const mountPoints: RenderMountPoint[] = useMemo(() => {
     if (!result.model) return [];
