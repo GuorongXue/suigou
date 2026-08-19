@@ -498,13 +498,20 @@ console.log(failures ? `\n== 15. 意图防线：柜类场景修正与中柱双�
   if (r.unsupported.length) fail(`不应有降级项，实际：${r.unsupported.join('、')}`);
   // 防线③：洞洞板侧挂
   if (r.spec.leftPanel !== 'pegboard') fail(`挂架侧板应为洞洞板侧挂，实际 ${r.spec.leftPanel}`);
+  // 防线④：柜体封闭语义——带门柜子四周自动围板，柜门列无多余内部搁板
+  if (r.spec.topPanel === 'none' || r.spec.bottomPanel === 'none' || r.spec.backPanel === 'none' || r.spec.rightPanel === 'none') {
+    fail(`带门柜体应四周封板，实际 顶${r.spec.topPanel}/底${r.spec.bottomPanel}/背${r.spec.backPanel}/右${r.spec.rightPanel}`);
+  }
+  if (r.spec.centerColumn?.right?.type === 'cabinet' && r.spec.centerColumn.right.count !== 0) {
+    fail(`用户未提内部搁板，柜门列 count 应为 0，实际 ${r.spec.centerColumn?.right?.count}`);
+  }
   // 端到端可生成
   const m = generateFrame(r.spec, kb);
   const posts = m.members.filter((x) => x.role === 'post');
   if (posts.length !== 6) fail(`中柱双列应 6 立柱，实际 ${posts.length}`);
   const door = m.panels.find((p) => p.mode === 'door-front');
   if (!door) fail('右列柜门未生成');
-  if (!failures) ok(`意图防线通过：柜类场景修正 ✓ 中柱双列(左2抽屉/右柜门) ✓ 洞洞板侧挂 ✓ 6柱+门板端到端生成 ✓`);
+  if (!failures) ok(`意图防线通过：柜类场景修正 ✓ 中柱双列(左2抽屉/右柜门) ✓ 洞洞板侧挂 ✓ 柜体四周封板 ✓ 6柱+门板端到端生成 ✓`);
 }
 
 console.log(failures ? `\n✖ 失败 ${failures} 项` : '\n✓ 全部通过');

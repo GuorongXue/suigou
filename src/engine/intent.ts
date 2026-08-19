@@ -200,6 +200,7 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   let doorPanel: FrameSpec['topPanel'] = 'none';
   let backPanel: FrameSpec['topPanel'] = 'none';
   let leftPanel: FrameSpec['topPanel'] = 'none';
+  let rightPanel: FrameSpec['topPanel'] = 'none';
   let drawerCount = 0;
   for (const p of ex.panels ?? []) {
     if (p.material === 'none') continue;
@@ -289,11 +290,21 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     centerColumn = {
       offsetRatio: 0.4,
       left: { type: 'drawer', count: Math.min(5, drawerCountFinal), kind: 'ready-made' },
-      right: { type: 'cabinet', count: 1 },
+      right: { type: 'cabinet', count: 0 },   // 用户未提内部隔板则纯空柜
     };
     assumptions.push(`抽屉×${drawerCountFinal}+柜门 → 中柱双列分区（左列抽屉/右列柜门，工具柜实证拓扑）`);
     drawerCountFinal = 0;   // 抽屉由分区列生成，避免普通抽屉塔双重计数
     doorPanel = 'none';     // 门由 cabinet 列生成
+  }
+  // 柜体封闭语义：带门的柜子四周必须围板（背/两侧/顶/底），已指定材质的面保留
+  if ((centerColumn?.right?.type === 'cabinet' || centerColumn?.left?.type === 'cabinet' || doorPanel !== 'none') && isCabinet) {
+    const added: string[] = [];
+    if (topPanel === 'none') { topPanel = 'wood'; added.push('顶板'); }
+    if (bottomPanel === 'none') { bottomPanel = 'wood'; added.push('底板'); }
+    if (backPanel === 'none') { backPanel = 'wood'; added.push('背板'); }
+    if (leftPanel === 'none') { leftPanel = 'wood'; added.push('左侧板'); }
+    if (rightPanel === 'none') { rightPanel = 'wood'; added.push('右侧板'); }
+    if (added.length) assumptions.push(`柜体封闭语义：自动补齐 ${added.join('/')}（木板），带门柜子四周围板`);
   }
   const shelfCount = drawerCountFinal > 0 ? 0
     : (ex.layers != null ? Math.max(0, Math.min(4, ex.layers - 1)) : 1);
@@ -325,7 +336,7 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
       workbenchLowerZoneRatio, workbenchDeskTopHeightMm, workbenchUpperShelfDepthRatio,
       loadKg, loadType, scene, highRisk, mobility, vibration,
       topPanel, shelfPanel, bottomPanel, doorPanel,
-      backPanel, leftPanel, rightPanel: 'none',
+      backPanel, leftPanel, rightPanel,
       drawerCount: drawerCountFinal > 0 ? Math.min(5, drawerCountFinal) : undefined,
       drawerKind: drawerCountFinal > 0 ? 'ready-made' : undefined,
       centerColumn,
