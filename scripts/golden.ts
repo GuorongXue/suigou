@@ -457,18 +457,19 @@ console.log(failures ? `\n== 14. 2040 矩形梁（跳过） ==` : '== 14. 2040 �
     }, kb);
   } catch { widthBlocked = true; }
   if (!widthBlocked) fail('3030 柱 + 2040 梁（宽不等）应阻断');
-  // 约束②：2040 + 抽屉塔 → 诚实降级阻断
-  let drawerBlocked = false;
-  try {
-    generateFrame({
-      width: 350, depth: 400, height: 490, scene: 'diy-furniture', shelfCount: 0, drawerCount: 3,
-      sectionId: 'eu-2020', beamSectionId: 'eu-2040', connectorId: 'internal-slot-20', mobility: 'fixed',
-      topPanel: 'wood', shelfPanel: 'none', bottomPanel: 'none', backPanel: 'none', leftPanel: 'none', rightPanel: 'none',
-      loadKg: 10, loadType: 'distributed', highRisk: false,
-    }, kb);
-  } catch { drawerBlocked = true; }
-  if (!drawerBlocked) fail('2040 梁 + 抽屉塔组合应诚实阻断');
-  if (!failures) ok(`2040 矩形梁通过：柱2020+梁2040 顶对齐720 · 撑杆不升级 · 切割清单分截面 · 1342跨挠度通过 · 两类非法组合阻断`);
+  // 组合解锁：2040 + 抽屉塔（内部 y 基准=梁高 bh）——轨道首层在底梁顶上方，无碰撞
+  const comboDrawer = generateFrame({
+    width: 350, depth: 400, height: 520, scene: 'diy-furniture', shelfCount: 0, drawerCount: 2,
+    sectionId: 'eu-2020', beamSectionId: 'eu-2040', connectorId: 'internal-slot-20', mobility: 'fixed',
+    topPanel: 'wood', shelfPanel: 'none', bottomPanel: 'none', backPanel: 'none', leftPanel: 'none', rightPanel: 'none',
+    loadKg: 10, loadType: 'distributed', highRisk: false,
+  }, kb);
+  const rails = comboDrawer.members.filter((m) => m.role === 'beam-z' && m.sectionId === 'eu-2020' && m.position[1] > 40 && m.position[1] < 300);
+  if (comboDrawer.status === 'invalid') fail('2040+抽屉塔组合应可生成（y 基准已扩展）');
+  const firstRailY = Math.min(...comboDrawer.members.filter((m) => m.role === 'beam-z' && m.position[1] > 41).map((m) => m.position[1]));
+  if (firstRailY < 40 + 20 - 1) fail(`首层轨道梁应在底框梁顶(40)上方 20mm，实际 y=${firstRailY}`);
+  if (!rails.length) fail('2040+抽屉塔应生成 2020 轨道梁');
+  if (!failures) ok(`2040 矩形梁通过：柱2020+梁2040 顶对齐720 · 撑杆不升级 · 切割清单分截面 · 1342跨挠度通过 · 宽度约束阻断 · 抽屉组合解锁(首轨y=${Math.round(firstRailY)})`);
 }
 
 console.log(failures ? `\n== 15. 意图防线：柜类场景修正与中柱双列映射（跳过） ==` : '== 15. 意图防线：柜类场景修正与中柱双列映射 ==');

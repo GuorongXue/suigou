@@ -25,9 +25,6 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   }
   const bh = beamSec.size[1];             // 梁高（立放）
   const beamDrop = (bh - s) / 2;          // 顶/底对齐时梁中心偏移（方形梁为 0）
-  if (beamDrop > 0 && ((spec.drawerCount ?? 0) > 0 || spec.centerColumn || spec.partitions)) {
-    throw new Error('矩形梁（2040）暂不支持抽屉塔/中柱分区组合：内部结构 y 基准待扩展（诚实降级）');
-  }
 
   const connectorRecord = kb.connectors.find((c) => c.connector.id === spec.connectorId);
   if (!connectorRecord) throw new Error(`知识库中不存在连接件 ${spec.connectorId}`);
@@ -41,6 +38,9 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   }
 
   const { width: W, depth: D, height: H } = spec;
+  // 内部结构 y 基准：底框梁顶 = bh（底对齐），顶框梁底 = H − bh（顶对齐）；方形梁时退化为 s/H−s
+  const innerBottomY = bh;
+  const innerClearH = H - 2 * bh;
   if (![W, D, H, spec.loadKg].every(Number.isFinite)) {
     throw new Error('尺寸与载荷必须是有限数值');
   }
@@ -174,7 +174,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   if (partitions) {
     const innerW = W - 2 * s;
     let acc = 0;
-    const centerPostTop = centerTopBeamY - s / 2;
+    const centerPostTop = centerTopBeamY - s / 2 - 2 * beamDrop;   // 中柱顶 = 顶梁底（2040 顶对齐时梁底下沉 2·beamDrop）
     for (let i = 0; i < partitions.ratios.length - 1; i++) {
       acc += partitions.ratios[i];
       const xc = -W / 2 + s + innerW * acc;
@@ -287,12 +287,12 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   }
 
   if (drawerCount > 0 && spec.scene !== 'workbench' && !partitions) {
-    const pitch = (H - 2 * s) / drawerCount;
+    const pitch = innerClearH / drawerCount;
     if (pitch < 120) {
       throw new Error(`总高 ${H}mm 装不下 ${drawerCount} 层抽屉（节距 ${Math.round(pitch)} < 120mm；案例档位 160~230）`);
     }
     for (let i = 0; i < drawerCount; i++) {
-      const y = s + i * pitch + 20;   // 轨道梁在每层底部上方（案例：角码固定于柱）
+      const y = innerBottomY + i * pitch + 20;   // 轨道梁在每层底部上方（案例：角码固定于柱）
       for (const x of [xLeft, xRight]) {
         add({ role: 'beam-z', sectionId: sec.id, length: beamZ, position: [x, y, 0], axis: 'z' });
         mounts.push({
@@ -408,12 +408,12 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         points: [[colCenterX - px, y, -pz], [colCenterX + px, y, -pz], [colCenterX - px, y, pz], [colCenterX + px, y, pz]] });
     };
     if (col.type === 'drawer') {
-      const pitch = (H - 2 * s) / col.count;
+      const pitch = innerClearH / col.count;
       if (pitch < 120) {
         throw new Error(`中柱列总高 ${H}mm 装不下 ${col.count} 层抽屉（节距 ${Math.round(pitch)} < 120mm；案例档位 160~230）`);
       }
       for (let d = 0; d < col.count; d++) {
-        const y = s + d * pitch + 20;
+        const y = innerBottomY + d * pitch + 20;
         for (const x of [leftInnerX, rightInnerX]) {
           add({ role: 'beam-z', sectionId: sec.id, length: D - 2 * s + 2 * conn.lengthOffset, position: [x, y, 0], axis: 'z' });
           const beamId = `m-${n}`;
@@ -426,9 +426,9 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         drawerBoxes.push({ y, pitch, colWidth, xCenter: colCenterX });
       }
     } else if (col.type === 'cabinet') {
-      const shelfPitch = (H - 2 * s) / (col.count + 1);
+      const shelfPitch = innerClearH / (col.count + 1);
       for (let sh = 0; sh < col.count; sh++) {
-        const y = s + (sh + 1) * shelfPitch;
+        const y = innerBottomY + (sh + 1) * shelfPitch;
         for (const x of [leftInnerX, rightInnerX]) {
           add({ role: 'beam-z', sectionId: sec.id, length: D - 2 * s + 2 * conn.lengthOffset, position: [x, y, 0], axis: 'z' });
           const beamId = `m-${n}`;
@@ -470,9 +470,9 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
           position: [catchX, H / 2, D / 2 - 7], boxSize: [30, 16, 14] });
       }
     } else {
-      const shelfPitch = (H - 2 * s) / (col.count + 1);
+      const shelfPitch = innerClearH / (col.count + 1);
       for (let sh = 0; sh < col.count; sh++) {
-        const y = s + (sh + 1) * shelfPitch;
+        const y = innerBottomY + (sh + 1) * shelfPitch;
         for (const x of [leftInnerX, rightInnerX]) {
           add({ role: 'beam-z', sectionId: sec.id, length: D - 2 * s + 2 * conn.lengthOffset, position: [x, y, 0], axis: 'z' });
           const beamId = `m-${n}`;
