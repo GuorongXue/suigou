@@ -55,26 +55,32 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
     : spec.height - beamH / 2;
   const topBeams = members.filter((m) => m.role !== 'post' && Math.abs(m.position[1] - loadBeamY) < 1);
   const longest = topBeams.reduce((a, b) => (b.length > a.length ? b : a), topBeams[0]);
+  // 分区中柱是横梁的中间支点：有效跨度 = 最大列净跨（val-001/002 共用）
+  const parts = spec.partitions ?? (spec.centerColumn
+    ? { ratios: [spec.centerColumn.offsetRatio, 1 - spec.centerColumn.offsetRatio] } : null);
+  const innerW = spec.width - 2 * sec.size[0];
+  const maxColSpan = parts ? Math.max(...parts.ratios.map((r) => innerW * r)) : Infinity;
   if (longest) {
-    const L = longest.length;
+    const L = Math.min(longest.length, maxColSpan);
+    const spanNote = parts ? '（分区中柱支承，按最大列跨）' : '';
     const P = designLoadN / 2;   // 两根同向梁分担
     const deflection = spec.loadType === 'concentrated'
       ? (P * L ** 3) / (48 * E * I)                 // 集中：δ=PL³/48EI
       : (5 * (P / L) * L ** 4) / (384 * E * I);     // 均布：δ=5qL⁴/384EI
     const limit = L / limitRatio;
-    const affected = topBeams.filter((m) => m.length === L).map((m) => m.id);
+    const affected = topBeams.filter((m) => m.length === longest.length).map((m) => m.id);
     if (deflection > limit) {
       checks.push({
         level: 'error', ruleId: 'val-002', memberIds: affected,
-        message: `挠度超限：估算 ${deflection.toFixed(2)}mm > 允许 ${limit.toFixed(2)}mm（${spec.scene} 档 L/${limitRatio}）。建议升级截面、缩短跨度或加中柱`,
+        message: `挠度超限：估算 ${deflection.toFixed(2)}mm > 允许 ${limit.toFixed(2)}mm（${spec.scene} 档 L/${limitRatio}）${spanNote}。建议升级截面、缩短跨度或加中柱`,
       });
     } else if (deflection > limit * 0.7) {
       checks.push({
         level: 'warn', ruleId: 'val-002', memberIds: affected,
-        message: `挠度接近限值：估算 ${deflection.toFixed(2)}mm / 允许 ${limit.toFixed(2)}mm（余量不足30%）`,
+        message: `挠度接近限值：估算 ${deflection.toFixed(2)}mm / 允许 ${limit.toFixed(2)}mm（余量不足30%）${spanNote}`,
       });
     } else {
-      checks.push({ level: 'pass', ruleId: 'val-002', message: `挠度校验通过：${deflection.toFixed(2)}mm ≤ ${limit.toFixed(2)}mm（L/${limitRatio}）` });
+      checks.push({ level: 'pass', ruleId: 'val-002', message: `挠度校验通过：${deflection.toFixed(2)}mm ≤ ${limit.toFixed(2)}mm（L/${limitRatio}）${spanNote}` });
     }
   }
 
@@ -221,7 +227,7 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
     'eu-3030': (kg) => (kg <= 50 ? 1000 : kg <= 80 ? 800 : 0),
     'eu-4040-s8': () => 1500,
   };
-  const maxBeam = Math.max(...members.filter((m) => m.role !== 'post').map((m) => m.length));
+  const maxBeam = Math.min(Math.max(...members.filter((m) => m.role !== 'post').map((m) => m.length)), maxColSpan);
   const effLoad = spec.loadKg * safetyFactor * impactFactor;
   const allowSpan = (maxSpanTable[sec.id]?.(effLoad) ?? 0) * spanFactor;
   if (allowSpan === 0) {

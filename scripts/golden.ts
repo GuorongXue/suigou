@@ -514,5 +514,41 @@ console.log(failures ? `\n== 15. 意图防线：柜类场景修正与中柱双�
   if (!failures) ok(`意图防线通过：柜类场景修正 ✓ 中柱双列(左2抽屉/右柜门) ✓ 洞洞板侧挂 ✓ 柜体四周封板 ✓ 6柱+门板端到端生成 ✓`);
 }
 
+console.log(failures ? `\n== 16. 三列分区（跳过） ==` : '== 16. 三列分区 ==');
+{
+  // 真实工具柜三列拓扑：左列3抽屉 + 中列开放 + 右列柜门（1200×400×900）
+  const m = generateFrame({
+    width: 1200, depth: 400, height: 900, scene: 'diy-furniture', shelfCount: 0,
+    sectionId: 'eu-2020', connectorId: 'internal-slot-20', mobility: 'leveling-feet',
+    topPanel: 'wood', bottomPanel: 'wood', shelfPanel: 'wood', backPanel: 'wood', leftPanel: 'none', rightPanel: 'none',
+    loadKg: 20, loadType: 'distributed', highRisk: false,
+    partitions: {
+      ratios: [0.35, 0.3, 0.35],
+      cols: [
+        { type: 'drawer', count: 3, kind: 'ready-made' },
+        null,
+        { type: 'cabinet', count: 0, hinge: 'right' },
+      ],
+    },
+  }, kb);
+  const posts = m.members.filter((x) => x.role === 'post');
+  if (posts.length !== 8) fail(`三列应 8 立柱（4角+2×2中柱），实际 ${posts.length}`);
+  // 每层 beam-x 断 3 段：底层 z=±185 各 3 段 = 6 根短 beam-x
+  const bottomX = m.members.filter((x) => x.role === 'beam-x' && x.position[1] < 30);
+  if (bottomX.length !== 6) fail(`底层横梁应断为 3 段×2 深位 = 6 根，实际 ${bottomX.length}`);
+  // 左列 3 抽屉盒 + 前脸 + 拉手；右列门（door-front 中心在右列）
+  const boxes = m.accessories.filter((a) => a.kind === 'drawer-box');
+  if (boxes.length !== 3) fail(`左列应 3 抽屉盒，实际 ${boxes.length}`);
+  const door = m.panels.find((p) => p.mode === 'door-front');
+  if (!door) fail('右列柜门未生成');
+  else if (door.position[0] < 200) fail(`门应在右列（x>200），实际 x=${Math.round(door.position[0])}`);
+  const fronts = m.panels.filter((p) => p.mode === 'drawer-front');
+  if (fronts.length !== 3) fail(`抽屉前脸应 3 块，实际 ${fronts.length}`);
+  if (fronts.some((p) => p.position[0] > -100)) fail('前脸应全部位于左列（x<-100）');
+  // 中列开放：无结构件落在中列（除框梁）——门/前脸/盒不在中列
+  if (m.status === 'invalid') fail('三列分区生成 invalid');
+  if (!failures) ok(`三列分区通过：8柱 · 每层3段梁 · 左列3抽屉(盒+前脸+拉手) · 右列右铰门 · 中列开放`);
+}
+
 console.log(failures ? `\n✖ 失败 ${failures} 项` : '\n✓ 全部通过');
 process.exit(failures ? 1 : 0);

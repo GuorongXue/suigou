@@ -25,7 +25,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   }
   const bh = beamSec.size[1];             // 梁高（立放）
   const beamDrop = (bh - s) / 2;          // 顶/底对齐时梁中心偏移（方形梁为 0）
-  if (beamDrop > 0 && ((spec.drawerCount ?? 0) > 0 || spec.centerColumn)) {
+  if (beamDrop > 0 && ((spec.drawerCount ?? 0) > 0 || spec.centerColumn || spec.partitions)) {
     throw new Error('矩形梁（2040）暂不支持抽屉塔/中柱分区组合：内部结构 y 基准待扩展（诚实降级）');
   }
 
@@ -151,18 +151,37 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
 
   const drawerBoxes: { y: number; pitch: number; colWidth?: number; xCenter?: number }[] = [];  // 抽屉盒位置（分区塔/普通抽屉塔共用）
 
-  // 中柱分区（工具柜/异构柜）：在框架内部加立柱，将内腔分为左右双列
+  // 多列分区归一：centerColumn（两列特例）→ partitions；N 列 = N−1 根中柱
+  const partitions = spec.partitions
+    ?? (spec.centerColumn ? {
+      ratios: [spec.centerColumn.offsetRatio, 1 - spec.centerColumn.offsetRatio],
+      cols: [spec.centerColumn.left ?? null, spec.centerColumn.right ?? null],
+    } : null);
+  if (partitions) {
+    if (partitions.ratios.length !== partitions.cols.length || partitions.ratios.length < 2) {
+      throw new Error('分区配置非法：ratios 与 cols 长度必须一致且至少 2 列');
+    }
+    const sum = partitions.ratios.reduce((a, b) => a + b, 0);
+    if (Math.abs(sum - 1) > 0.01) throw new Error(`分区宽度占比和应为 1，实际 ${sum.toFixed(2)}`);
+  }
+
+  // 中柱分区（工具柜/异构柜）：在框架内部加立柱，将内腔分列
   // 变高立柱（锚点①实证 810外/775中）：顶梁通长架中柱顶，中柱高 = H − 顶板厚 − 梁高
-  const centerTopPanelT = spec.centerColumn && spec.topPanel !== 'none' && spec.topPanelMode === 'recessed'
+  const centerTopPanelT = partitions && spec.topPanel !== 'none' && spec.topPanelMode === 'recessed'
     ? PANEL_SPEC[spec.topPanel].thickness : 0;
   const centerTopBeamY = H - centerTopPanelT - s / 2;
-  let xCenter: number | null = null;
-  if (spec.centerColumn) {
+  const xCenters: number[] = [];
+  if (partitions) {
     const innerW = W - 2 * s;
-    xCenter = -W / 2 + s + innerW * spec.centerColumn.offsetRatio;
+    let acc = 0;
     const centerPostTop = centerTopBeamY - s / 2;
-    addPost(xCenter, zBack, 0, centerPostTop);
-    addPost(xCenter, zFront, 0, centerPostTop);
+    for (let i = 0; i < partitions.ratios.length - 1; i++) {
+      acc += partitions.ratios[i];
+      const xc = -W / 2 + s + innerW * acc;
+      xCenters.push(xc);
+      addPost(xc, zBack, 0, centerPostTop);
+      addPost(xc, zFront, 0, centerPostTop);
+    }
   }
 
   const addRectLayer = (y: number, outerDepth: number, centerZ = 0, opts?: { split?: boolean }) => {
@@ -172,33 +191,26 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const layerBeamZ = outerDepth - 2 * s + 2 * conn.lengthOffset;
     const layerBack = centerZ - outerDepth / 2 + s / 2;
     const layerFront = centerZ + outerDepth / 2 - s / 2;
-    const split = (opts?.split ?? true) && !!spec.centerColumn && xCenter != null;
+    const split = (opts?.split ?? true) && xCenters.length > 0;
     for (const z of [layerBack, layerFront]) {
-      if (split && xCenter != null) {
-        // 中柱：横梁在中心处断开为左右两段，各连接角柱与中柱
-        // 左半段：左角柱 → 中柱
-        const leftLen = xCenter - xLeft - s + 2 * conn.lengthOffset;
-        const leftCenter = (xLeft + xCenter) / 2;
-        add({ role: 'beam-x', sectionId: beamSec.id, length: leftLen, position: [leftCenter, yB, z], axis: 'x' });
-        const leftBeamId = `m-${n}`;
-        for (const outward of [1, -1] as const) {
-          const px = outward === -1 ? xLeft : xCenter;
-          const postId = postAt.get(`${px},${z}`)!;
-          const jointX = outward === -1 ? -(W / 2 - s) : (xCenter - s / 2);
-          addJoint({ position: [jointX, yB, z], beamAxis: 'x', outward, ySide,
-            beamMemberId: leftBeamId, postMemberId: postId });
-        }
-        // 右半段：中柱 → 右角柱
-        const rightLen = xRight - xCenter - s + 2 * conn.lengthOffset;
-        const rightCenter = (xCenter + xRight) / 2;
-        add({ role: 'beam-x', sectionId: beamSec.id, length: rightLen, position: [rightCenter, yB, z], axis: 'x' });
-        const rightBeamId = `m-${n}`;
-        for (const outward of [1, -1] as const) {
-          const px = outward === 1 ? xRight : xCenter;
-          const postId = postAt.get(`${px},${z}`)!;
-          const jointX = outward === 1 ? (W / 2 - s) : (xCenter + s / 2);
-          addJoint({ position: [jointX, yB, z], beamAxis: 'x', outward, ySide,
-            beamMemberId: rightBeamId, postMemberId: postId });
+      if (split) {
+        // 中柱：横梁在每根中柱处断开为 N 段，段两端各连接相邻立柱
+        const cuts = [xLeft, ...xCenters, xRight];
+        for (let i = 0; i < cuts.length - 1; i++) {
+          const segLen = cuts[i + 1] - cuts[i] - s + 2 * conn.lengthOffset;
+          const segCenter = (cuts[i] + cuts[i + 1]) / 2;
+          add({ role: 'beam-x', sectionId: beamSec.id, length: segLen, position: [segCenter, yB, z], axis: 'x' });
+          const beamId = `m-${n}`;
+          // 左端（outward=-1）与右端（outward=1）：角柱缝在框缘、中柱缝在柱面
+          const ends: [number, 1 | -1, number][] = [
+            [cuts[i], -1, i === 0 ? -(W / 2 - s) : cuts[i] + s / 2],
+            [cuts[i + 1], 1, i === cuts.length - 2 ? (W / 2 - s) : cuts[i + 1] - s / 2],
+          ];
+          for (const [px, outward, jointX] of ends) {
+            const postId = postAt.get(`${px},${z}`)!;
+            addJoint({ position: [jointX, yB, z], beamAxis: 'x', outward, ySide,
+              beamMemberId: beamId, postMemberId: postId });
+          }
         }
       } else {
         add({ role: 'beam-x', sectionId: beamSec.id, length: beamX, position: [0, yB, z], axis: 'x' });
@@ -259,7 +271,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   } else {
     const topY = H - s / 2;
     for (const y of levels) {
-      if (spec.centerColumn && y === topY) {
+      if (partitions && y === topY) {
         // 顶层：通长梁架中柱顶上（不断开），有凹陷顶板时梁下沉板厚
         addRectLayer(centerTopBeamY, D, 0, { split: false });
       } else {
@@ -274,7 +286,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     throw new Error('抽屉层数必须是有限数值');
   }
 
-  if (drawerCount > 0 && spec.scene !== 'workbench' && !spec.centerColumn) {
+  if (drawerCount > 0 && spec.scene !== 'workbench' && !partitions) {
     const pitch = (H - 2 * s) / drawerCount;
     if (pitch < 120) {
       throw new Error(`总高 ${H}mm 装不下 ${drawerCount} 层抽屉（节距 ${Math.round(pitch)} < 120mm；案例档位 160~230）`);
@@ -477,11 +489,15 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   };
 
   // 中柱分区：左右两列独立结构（可为空=开放空间）
-  if (spec.centerColumn && xCenter != null) {
-    const leftW = xCenter - xLeft - s;
-    const rightW = xRight - xCenter - s;
-    if (spec.centerColumn.left) addCenterColStructure(xLeft, xCenter, leftW, spec.centerColumn.left);
-    if (spec.centerColumn.right) addCenterColStructure(xCenter, xRight, rightW, spec.centerColumn.right);
+  // 多列分区：各列独立结构（可为空=开放空间），列边界 = [角柱, 中柱..., 角柱]
+  if (partitions) {
+    const cuts = [xLeft, ...xCenters, xRight];
+    for (let i = 0; i < partitions.cols.length; i++) {
+      const col = partitions.cols[i];
+      if (!col) continue;
+      const colW = cuts[i + 1] - cuts[i] - s;
+      addCenterColStructure(cuts[i], cuts[i + 1], colW, col);
+    }
   }
 
   if (!isPureDesk) addPanel(spec.topPanel, H - centerTopPanelT, true, spec.scene === 'workbench'

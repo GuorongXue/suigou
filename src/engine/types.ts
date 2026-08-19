@@ -46,7 +46,7 @@ export interface FrameSpec {
   /** 背面对角斜撑（val-005 解药） */
   brace: boolean;
   /** 中柱：在框架中心(x=0)加前后两根立柱，将内腔分为左右双列（均匀双列，工具柜/分区柜拓扑） */
-  /** 中柱分区（工具柜/异构柜）：将内腔分为左右两列，可独立配置 */
+  /** 中柱分区（工具柜/异构柜）：将内腔分为左右两列，可独立配置；三列及以上用 partitions */
   centerColumn?: {
     /** 中柱偏移比（0.5=居中，0.67=左列占2/3，0.33=左列占1/3） */
     offsetRatio: number;
@@ -54,6 +54,11 @@ export interface FrameSpec {
     left?: CenterColumnType;
     /** 右列结构：空/抽屉/隔板/柜门 */
     right?: CenterColumnType;
+  };
+  /** 多列分区（N 列 = N−1 根中柱）：ratios 为各列内腔宽占比（和=1）；优先于 centerColumn */
+  partitions?: {
+    ratios: number[];
+    cols: (CenterColumnType | null)[];
   };
   /** 型材颜色：silver=阳极氧化银白（默认）/ black=哑光黑（工具柜常见）/ gold=香槟金 */
   profileColor?: 'silver' | 'black' | 'gold';
