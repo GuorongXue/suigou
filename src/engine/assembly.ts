@@ -55,9 +55,10 @@ export function buildAssemblySteps(model: FrameModel, kb: KnowledgeBase): Assemb
   if (ys.length) {
     const layer = (y: number) => model.joints.filter((j) => Math.round(j.position[1]) === y);
     const bj = layer(ys[0]);
+    const postCount = model.members.filter((m) => m.role === 'post').length;
     add('底框与立柱', [...partOf(uniq(bj.map((j) => j.beamMemberId))), ...partOf(uniq(bj.map((j) => j.postMemberId)))],
       connFast(bj.length), connTools,
-      `4 根立柱平放，底层横梁用${conn?.name ?? '连接件'}连接（接点×${bj.length}）${usesTnut ? '——⚠ 滑块(T型螺母)必须在校装前从梁端面滑入槽内，连接封闭后无法补装' : ''}；先不完全拧紧，留校方余地`);
+      `${postCount} 根立柱平放，底层横梁用${conn?.name ?? '连接件'}连接（接点×${bj.length}）${usesTnut ? '——⚠ 滑块(T型螺母)必须在校装前从梁端面滑入槽内，连接封闭后无法补装' : ''}；先不完全拧紧，留校方余地`);
     for (const y of ys.slice(1, -1)) {
       const js = layer(y);
       add(`隔板层横梁（高 ${y}mm）`, partOf(uniq(js.map((j) => j.beamMemberId))),
@@ -97,6 +98,11 @@ export function buildAssemblySteps(model: FrameModel, kb: KnowledgeBase): Assemb
   if (drawers.length) {
     add('抽屉与轨道', [`抽屉×${drawers.length}`], aggFast(drawers), ['十字螺丝刀', '内六角扳手 3mm'],
       drawers[0].note + '；先装轨道外轨于梁槽，抽屉带内轨推入；逐层试拉顺畅后锁紧');
+  }
+  const fronts = pm(['drawer-front']);
+  if (fronts.length) {
+    add('抽屉前脸与拉手', partOf(fronts.map((m) => m.targetId)), aggFast(fronts), ['十字螺丝刀'],
+      '前脸板从盒内 M4 反锁（先点固调缝：与邻列门板共面、层间缝均匀后锁紧）；横拉手穿前脸 Φ5 孔孔距96 螺丝固定');
   }
   const casters = model.mounts.filter((m) => m.method === 'caster-stem');
   if (casters.length) {
