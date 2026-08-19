@@ -80,6 +80,7 @@ interface Draft {
   chat: ChatMsg[];
   manual: [string, string][];
   unsupported: string[];
+  productType?: string;
 }
 const normalizeWorkbenchSpec = (s: FrameSpec): FrameSpec => {
   const next = { ...s };
@@ -132,14 +133,15 @@ export default function App() {
   const [chat, setChat] = useState<ChatMsg[]>(draft?.chat ?? []);
   const [manualChanges, setManualChanges] = useState<Map<string, string>>(new Map(draft?.manual ?? []));
   const [unsupportedSaved, setUnsupportedSaved] = useState<string[]>(draft?.unsupported ?? []);
+  const [lastProductType, setLastProductType] = useState<string | null>(draft?.productType ?? null);
   const [hasKey, setHasKey] = useState(() => !!getApiKey());
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
 
   useEffect(() => {
     const unsupported = aiResult?.unsupported ?? unsupportedSaved;
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ spec, chat, manual: [...manualChanges], unsupported } satisfies Draft));
-  }, [spec, chat, manualChanges, aiResult, unsupportedSaved]);
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ spec, chat, manual: [...manualChanges], unsupported, productType: lastProductType ?? undefined } satisfies Draft));
+  }, [spec, chat, manualChanges, aiResult, unsupportedSaved, lastProductType]);
 
   const resetDraft = () => {
     localStorage.removeItem(DRAFT_KEY);
@@ -207,23 +209,30 @@ export default function App() {
         : '';
       const extraction = await extractIntent(userMsg + stateJson + unsupNote + manualNote, history);
       const result = intentToSpec(extraction, kb);
+      // 新物件判定：产品类型变化 = 全新方案，解除旧锁定/降级历史，防止旧手动值污染新方案
+      const newProduct = lastProductType != null && extraction.productType !== 'other'
+        && !!extraction.productType && extraction.productType !== lastProductType;
+      if (extraction.productType && extraction.productType !== 'other') setLastProductType(extraction.productType);
       const explicit = new Set(extraction._explicitFields ?? []);
       const guarded = { ...result.spec };
-      const nextManual = new Map(manualChanges);
-      for (const key of manualChanges.keys()) {
-        const path = FIELD_TO_PATH[key];
-        if (path && explicit.has(path)) {
-          nextManual.delete(key);
-        } else {
-          (guarded as unknown as Record<string, unknown>)[key] = spec[key as keyof FrameSpec];
+      const nextManual = newProduct ? new Map<string, string>() : new Map(manualChanges);
+      if (!newProduct) {
+        for (const key of manualChanges.keys()) {
+          const path = FIELD_TO_PATH[key];
+          if (path && explicit.has(path)) {
+            nextManual.delete(key);
+          } else {
+            (guarded as unknown as Record<string, unknown>)[key] = spec[key as keyof FrameSpec];
+          }
         }
       }
       setManualChanges(nextManual);
       setSpec(guarded);
       setAiResult(result);
-      if (result.unsupported.length) setUnsupportedSaved(result.unsupported);
+      if (newProduct || result.unsupported.length) setUnsupportedSaved(result.unsupported);
       const aiReply = [
         `已更新方案：宽${guarded.width}×深${guarded.depth}×高${guarded.height}mm，${guarded.sectionId}，载荷${guarded.loadKg}kg`,
+        newProduct && manualChanges.size > 0 ? '🔓 检测到新物件类型，已解除此前手动锁定项' : '',
         result.unsupported.length ? `🚧 已存入方案草稿但当前版本暂不支持：${result.unsupported.join('、')}` : '',
         result.riskFlags.length ? `⚠ ${result.riskFlags[0]}` : '',
         result.questions.length ? `❓ ${result.questions[0]}` : '参数已齐，可微调或导出清单',

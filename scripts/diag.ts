@@ -4,7 +4,7 @@ import { intentToSpec } from '../src/engine/intent';
 import { generateFrame } from '../src/engine/generate';
 import { loadKbNode } from './kb-node';
 
-const RAW = '铝型材电脑桌架子 双层加中间立面洞洞板设计 上方置物展览架 中间放27寸超杀pro的显示器带移动可调节支架 桌子长1.5m进深90cm';
+const RAW = process.argv[2] ?? '铝型材电脑桌架子 双层加中间立面洞洞板设计 上方置物展览架 中间放27寸超杀pro的显示器带移动可调节支架 桌子长1.5m进深90cm';
 
 const kb = loadKbNode();
 const ex = await extractIntent(RAW, []);

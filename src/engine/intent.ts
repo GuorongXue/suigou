@@ -186,7 +186,7 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     wood: 'wood', glass: 'glass', acrylic: 'acrylic', pegboard: 'pegboard',
   };
   const MAT_NAME: Record<string, string> = { wood: '木板', glass: '玻璃', acrylic: '亚克力', pegboard: '洞洞板', other: '板材' };
-  const POS_NAME: Record<string, string> = { side: '侧板', door: '门板', drawer: '抽屉' };
+  const POS_NAME: Record<string, string> = { top: '顶面板', shelf: '隔板', bottom: '底板', side: '侧板', door: '门板', drawer: '抽屉' };
   let topPanel: FrameSpec['topPanel'] = 'none';
   let shelfPanel: FrameSpec['topPanel'] = 'none';
   let bottomPanel: FrameSpec['topPanel'] = 'none';
@@ -208,10 +208,10 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
       assumptions.push('洞洞板：按立面收纳背板处理（电脑桌常见形态）');
       continue;
     }
-    // 电脑桌桌面/隔板材质未收录（海洋板等）→ 按木板处理而非降级丢弃
-    const effMat = (scene === 'workbench' && !mat && (p.position === 'top' || p.position === 'shelf')) ? 'wood' as const : mat;
-    if (scene === 'workbench' && !mat && effMat) {
-      assumptions.push(`${p.position === 'top' ? '桌面' : '隔板'}材质未收录，按木板（多层实木）处理`);
+    // 未收录材质（海洋板等）全场景兜底木板，不再降级丢弃（门板除外，需精确材质）
+    const effMat = mat ?? (['top', 'shelf', 'side', 'bottom'].includes(p.position) ? 'wood' as const : undefined);
+    if (!mat && effMat) {
+      assumptions.push(`${POS_NAME[p.position] ?? p.position}材质未收录，按木板（多层实木）处理`);
     }
     if (p.position === 'top' && effMat) {
       topPanel = effMat;
@@ -219,19 +219,19 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
     } else if (p.position === 'shelf' && effMat) {
       shelfPanel = effMat;
       assumptions.push(`隔板：${MAT_NAME[p.material]}`);
-    } else if (p.position === 'bottom' && mat) {
-      bottomPanel = mat;
+    } else if (p.position === 'bottom' && effMat) {
+      bottomPanel = effMat;
       assumptions.push(`底板：${MAT_NAME[p.material]}（搭底框梁）`);
     } else if (p.position === 'door' && mat) {
       doorPanel = mat;
       assumptions.push(`门板：${MAT_NAME[p.material]}（正面单开，槽装合页+磁吸+把手）`);
-    } else if (p.position === 'side' && mat) {
+    } else if (p.position === 'side' && effMat) {
       // 洞洞板：侧挂语义（工具墙/工具柜常见形态），挂于左立面；其余材料按背板处理
       if (p.material === 'pegboard') {
-        leftPanel = mat;
+        leftPanel = effMat;
         assumptions.push('洞洞板：侧挂于左立面（工具墙收纳语义，案例高频）');
       } else {
-        backPanel = mat;
+        backPanel = effMat;
         assumptions.push(`侧/背板：${MAT_NAME[p.material]}（按背板处理，兼作抗侧向体系）`);
       }
     } else {
@@ -266,6 +266,14 @@ export function intentToSpec(ex: Extraction, kb: KnowledgeBase): IntentResult {
   if (drawerCount === 0 && (ex.layers ?? 0) > 1 && scene !== 'workbench' && isCabinet) {
     drawerCountFinal = Math.min(5, ex.layers ?? 0);
     assumptions.push(`层数 ${ex.layers} 按抽屉塔处理（${drawerCountFinal} 层抽屉）`);
+  }
+  // 抽屉柜层数未说明：按高度÷节距（案例档位 160~230 取 205）估计，避免"抽屉柜"只出 1 层
+  if (drawerCount === 1 && ex.layers == null && isCabinet) {
+    const est = Math.max(1, Math.min(5, Math.round(height / 205)));
+    if (est > drawerCountFinal) {
+      drawerCountFinal = est;
+      assumptions.push(`抽屉层数未说明，按总高 ${height}mm ÷ 节距≈205 估 ${est} 层（可改）`);
+    }
   }
   const shelfCount = drawerCountFinal > 0 ? 0
     : (ex.layers != null ? Math.max(0, Math.min(4, ex.layers - 1)) : 1);
