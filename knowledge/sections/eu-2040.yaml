@@ -1,0 +1,33 @@
+meta:
+  id: eu-2040
+  source: public-catalog-inferred
+  confidence: inferred
+  review: pending
+  version: 0.1.0
+  updated: 2026-08-19
+section:
+  id: eu-2040
+  name: 2040铝型材 欧标（矩形梁）
+  standard: eu
+  series: 20
+  size: [20, 40]                     # 宽20 × 高40：立放作横梁，强轴抗弯≈2020的8倍
+  slot: { type: T, width: 6 }
+  wallThickness: 1.4
+  slotWallThickness: 1.5
+  weightPerMeter: 0.94
+  coreHole: { diameter: 5.0, tapping: M6, tapDepth: 15 }
+  # 双芯孔：沿高度方向 ±10（截面局部坐标 [x, y]）
+  coreHolePositions: [[0, 10], [0, -10]]
+  faces:
+    # x± 为 40 宽面（各2槽，offset ±10）；y± 为 20 窄面（各1槽）
+    - { index: 0, normal: [1, 0, 0], slots: [{ offset: 10, width: 6 }, { offset: -10, width: 6 }] }
+    - { index: 1, normal: [-1, 0, 0], slots: [{ offset: 10, width: 6 }, { offset: -10, width: 6 }] }
+    - { index: 2, normal: [0, 1, 0], slots: [{ offset: 0, width: 6 }] }
+    - { index: 3, normal: [0, -1, 0], slots: [{ offset: 0, width: 6 }] }
+  outlineRef: dxf/eu-2040.dxf   # 待描摹
+  geometry: { lipDepth: 1.5, cavityWidth: 11, cavityDepth: 4 }
+  price: { perMeter: 25.00, currency: CNY, tax: false }
+  mechanics:
+    # inferred：公开目录典型值；ix=强轴（立放抗竖直弯），iy=弱轴
+    momentOfInertia: { ix: 6.0e4, iy: 1.4e4, range: [5.5e4, 6.6e4] }
+    elasticModulus: 6.9e4    # MPa 6063-T5

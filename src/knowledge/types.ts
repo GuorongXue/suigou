@@ -36,6 +36,8 @@ export interface Section {
   slotWallThickness: number | null;  // 槽口壁厚 T（锚式公式 G=19-T+2 用）
   weightPerMeter: number | null;
   coreHole: { diameter: number; tapping: string; tapDepth: number };
+  /** 多芯孔位置（截面局部 [x,y]，矩形截面如 2040 有双芯孔）；缺省 = [[0,0]] */
+  coreHolePositions?: [number, number][];
   faces: FaceDef[];
   outlineRef: string;
   geometry: SectionGeometry;
