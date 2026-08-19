@@ -20,6 +20,53 @@ interface ChatMsg {
   text: string;
 }
 
+/** 多列分区配置（三列+）：各列宽%—类型—计数—铰链 */
+function PartitionsConfig({ pt, onChange }: { pt: NonNullable<FrameSpec['partitions']>; onChange: (next: FrameSpec['partitions']) => void }) {
+  const setRatio = (i: number, pct: number) => {
+    const r = Math.max(0.1, Math.min(0.8, pct / 100));
+    const others = pt.ratios.reduce((a, b, j) => (j === i ? a : a + b), 0);
+    const scale = others > 0 ? (1 - r) / others : 0;
+    onChange({ ...pt, ratios: pt.ratios.map((v, j) => (j === i ? r : v * scale)) });
+  };
+  const setCol = (i: number, col: CenterColumnType | null) =>
+    onChange({ ...pt, cols: pt.cols.map((c, j) => (j === i ? col : c)) });
+  const removeCol = (i: number) => {
+    const ratios = pt.ratios.filter((_, j) => j !== i);
+    const sum = ratios.reduce((a, b) => a + b, 0);
+    onChange({ ratios: ratios.map((v) => v / sum), cols: pt.cols.filter((_, j) => j !== i) });
+  };
+  const inputStyle = { width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 } as const;
+  return (
+    <Section title={`分区（${pt.cols.length} 列）`} icon="▐▌" defaultOpen={true}>
+      <div style={{ display: 'flex', gap: 4 }}>
+        {pt.cols.map((col, i) => (
+          <div key={i} style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 10, color: '#8a90a0' }}>列{i + 1}</span>
+              {pt.cols.length > 2 && <span onClick={() => removeCol(i)} title="移除此列" style={{ cursor: 'pointer', color: '#c0392b', fontSize: 11, fontWeight: 700 }}>×</span>}
+            </div>
+            <input type="number" min={10} max={80} value={Math.round(pt.ratios[i] * 100)} title="列宽占比 %"
+              onChange={(e) => setRatio(i, Number(e.target.value) || 33)} style={inputStyle} />
+            <select value={col?.type ?? ''} onChange={(e) => setCol(i, e.target.value === '' ? null : { type: e.target.value as 'drawer' | 'shelf' | 'cabinet', count: e.target.value === 'cabinet' ? 0 : (col?.count ?? 2) })} style={inputStyle}>
+              <option value="">空</option><option value="drawer">抽屉</option><option value="shelf">隔板</option><option value="cabinet">柜门</option>
+            </select>
+            {col && col.type !== 'cabinet' && <input type="number" min={1} max={6} value={col.count} onChange={(e) => setCol(i, { ...col, count: Number(e.target.value) || 1 } as CenterColumnType)} style={inputStyle} />}
+            {col?.type === 'cabinet' && (
+              <select value={col.hinge ?? 'left'} onChange={(e) => setCol(i, { ...col, hinge: e.target.value as 'left' | 'right' })} style={inputStyle}>
+                <option value="left">左铰右开</option><option value="right">右铰左开</option>
+              </select>
+            )}
+          </div>
+        ))}
+      </div>
+      {pt.cols.length < 4 && (
+        <button onClick={() => onChange({ ratios: Array(pt.cols.length + 1).fill(1 / (pt.cols.length + 1)), cols: [...pt.cols, null] })}
+          style={{ width: '100%', marginTop: 6, padding: '3px 0', border: '1px dashed #c9d2e0', borderRadius: 4, background: '#fff', color: '#3769b2', cursor: 'pointer', fontSize: 10 }}>＋ 加一列（均分）</button>
+      )}
+    </Section>
+  );
+}
+
 /** 中柱子组件 */
 function CenterColumnConfig({ cc, onChange }: { cc: NonNullable<FrameSpec['centerColumn']>; onChange: (patch: Partial<typeof cc>) => void }) {
   if (!cc?.left && !cc?.right) return null;
@@ -205,7 +252,8 @@ export default function App() {
         loadKg: spec.loadKg, loadType: spec.loadType, mobility: spec.mobility,
         layers: spec.shelfCount + 1, topPanel: spec.topPanel, shelfPanel: spec.shelfPanel,
         drawerCount: spec.drawerCount, drawerKind: spec.drawerKind,
-        centerColumn: spec.centerColumn ? `双列分区(左${spec.centerColumn.left?.type ?? '空'}/右${spec.centerColumn.right?.type ?? '空'})` : undefined,
+        centerColumn: spec.partitions ? `${spec.partitions.cols.length}列分区(${spec.partitions.cols.map((c) => c?.type ?? '空').join('/')})`
+          : spec.centerColumn ? `双列分区(左${spec.centerColumn.left?.type ?? '空'}/右${spec.centerColumn.right?.type ?? '空'})` : undefined,
         profileColor: spec.profileColor, archetype: spec.archetype,
         workbenchDeskTopHeightMm: spec.workbenchDeskTopHeightMm,
         workbenchLowerZoneRatio: spec.workbenchLowerZoneRatio,
@@ -830,13 +878,25 @@ export default function App() {
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                   <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><input type="checkbox" checked={spec.brace} onChange={(e) => set({ brace: e.target.checked })} style={{ margin: 0 }} /> 斜撑</label>
-                  <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><input type="checkbox" checked={!!spec.centerColumn} onChange={(e) => set({ centerColumn: e.target.checked ? { offsetRatio: 0.5, left: { type: 'drawer', count: 3 }, right: { type: 'drawer', count: 3 } } : undefined })} style={{ margin: 0 }} /> 中柱</label>
+                  <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><input type="checkbox" checked={!!spec.centerColumn || !!spec.partitions} onChange={(e) => set(e.target.checked ? { centerColumn: { offsetRatio: 0.5, left: { type: 'drawer', count: 3 }, right: { type: 'drawer', count: 3 } }, partitions: undefined } : { centerColumn: undefined, partitions: undefined })} style={{ margin: 0 }} /> 中柱</label>
                   <label style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><input type="checkbox" checked={spec.highRisk} onChange={(e) => set({ highRisk: e.target.checked })} style={{ margin: 0 }} /> 高风险</label>
                 </div>
               </Section>
 
               {/* 中柱分区配置（勾选中柱后显示） */}
-              {spec.centerColumn && <CenterColumnConfig cc={spec.centerColumn} onChange={(patch) => set({ centerColumn: { ...spec.centerColumn!, ...patch } })} />}
+              {spec.partitions
+                ? <PartitionsConfig pt={spec.partitions} onChange={(next) => set({ partitions: next })} />
+                : spec.centerColumn && (
+                  <>
+                    <CenterColumnConfig cc={spec.centerColumn} onChange={(patch) => set({ centerColumn: { ...spec.centerColumn!, ...patch } })} />
+                    <button onClick={() => set({
+                      partitions: {
+                        ratios: [0.35, 0.3, 0.35],
+                        cols: [spec.centerColumn!.left ?? null, null, spec.centerColumn!.right ?? null],
+                      }, centerColumn: undefined,
+                    })} style={{ width: '100%', marginTop: 4, padding: '3px 0', border: '1px dashed #c9d2e0', borderRadius: 4, background: '#fff', color: '#3769b2', cursor: 'pointer', fontSize: 10 }}>＋ 第三列（升级多列分区）</button>
+                  </>
+                )}
 
               {/* 高级 */}
               <Section title="高级" icon="⚙️" defaultOpen={false}>
