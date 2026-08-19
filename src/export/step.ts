@@ -21,9 +21,11 @@ export function exportStepBlob(model: FrameModel, kb: KnowledgeBase): Promise<Bl
   const req: StepRequest = {
     members: model.members.map((m) => {
       const { pts, holes } = outlineFor(m.sectionId);
-      return { pts, holes, length: m.length, position: m.position, axis: m.axis, tilt: m.tilt };
+      return { pts, holes, length: m.length, position: m.position, axis: m.axis, tilt: m.tilt,
+        name: `${m.partNo ?? m.id} ${m.sectionId} L${m.length}` };
     }),
-    panels: model.panels.map((p) => ({ boxSize: p.boxSize, position: p.position })),
+    panels: model.panels.map((p) => ({ boxSize: p.boxSize, position: p.position,
+      name: `${p.partNo ?? p.id} ${p.material} ${Math.round(p.size[0])}x${Math.round(p.size[1])}x${p.size[2]}` })),
   };
   return new Promise((resolve, reject) => {
     const w = worker!;

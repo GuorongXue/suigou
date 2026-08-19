@@ -5,7 +5,7 @@
  */
 import opencascade from 'replicad-opencascadejs';
 import wasmUrl from 'replicad-opencascadejs/wasm?url';
-import { setOC, draw, drawCircle, drawRoundedRectangle, compoundShapes, type AnyShape } from 'replicad';
+import { setOC, draw, drawCircle, drawRoundedRectangle, exportSTEP, type AnyShape } from 'replicad';
 
 export interface StepMember {
   pts: [number, number][];
@@ -14,10 +14,12 @@ export interface StepMember {
   position: [number, number, number];
   axis: 'x' | 'y' | 'z';
   tilt?: number;
+  name?: string;
 }
 export interface StepPanel {
   boxSize: [number, number, number];
   position: [number, number, number];
+  name?: string;
 }
 export interface StepRequest { members: StepMember[]; panels: StepPanel[] }
 
@@ -54,12 +56,13 @@ function buildPanel(p: StepPanel): AnyShape {
 self.onmessage = async (e: MessageEvent<StepRequest>) => {
   try {
     await init();
-    const shapes: AnyShape[] = [];
-    for (const m of e.data.members) shapes.push(buildMember(m));
-    for (const p of e.data.panels) shapes.push(buildPanel(p));
-    // 模型 Y-up → STEP 惯例 Z-up
-    const compound = compoundShapes(shapes).rotate(90, [0, 0, 0], [1, 0, 0]);
-    const blob = compound.blobSTEP();
+    // 逐件 Y-up → Z-up（STEP 惯例），带件号名称与基础色导出装配
+    const zUp = (s: AnyShape) => s.rotate(90, [0, 0, 0], [1, 0, 0]);
+    const configs = [
+      ...e.data.members.map((m) => ({ shape: zUp(buildMember(m)), name: m.name, color: '#c0c5cc' })),
+      ...e.data.panels.map((p) => ({ shape: zUp(buildPanel(p)), name: p.name, color: '#b58a52' })),
+    ];
+    const blob = exportSTEP(configs);
     const buf = await blob.arrayBuffer();
     (self as unknown as Worker).postMessage({ ok: true, buf }, [buf]);
   } catch (err) {
