@@ -59,4 +59,4 @@ AI 驱动的铝型材参数化设计平台：用户一句话 → 抽取参数 �
 - ~~变高立柱~~ ✅ 中柱 = H−顶板厚−梁高（锚点①真实BOM 810×4/775×2 精确对齐，顶梁通长架中柱顶，仅 centerColumn+recessed 场景触发）
 - ~~2040 矩形梁~~ ✅ 梁柱双截面 `beamSectionId`：层框梁 2040 立放（宽=柱宽槽对齐），底框底对齐/其余层顶对齐（beamDrop=(bh−s)/2），撑杆不升级，切割清单按件截面分组；非法组合阻断（梁宽≠柱宽、2040+抽屉/中柱）
 - 中柱分区几何：列中心必须用 `(colXLeft+colXRight)/2`（不能 `colXLeft+colWidth/2`，偏 s/2）；门宽 `colWidth+2s` 居中真正中点（commit 7722d7d）
-- 待启动：STEP 导出实施——评估已完成，选型 **replicad**（MIT，2026-08 刚发 v1.0.0 迁 OCCT v8，exportSTEP 现成）：Worker 惰性加载 wasm，型材 T 槽轮廓复用 faces 数据（与 profileGeometry 同源）drawing→extrude→compound→exportSTEP；occt-import-js 只读已排除，opencascade.js 停滞 3 年为次选
+- ~~STEP 导出~~ ✅ replicad v1.0 Worker 惰性加载 wasm：src/engine/sectionOutline.ts 共享轮廓（THREE/STEP 同源）→ draw→extrude→compound→blobSTEP（Y-up 转 Z-up）；3dviewer.net 实测 3.08MB、外包尺寸与设计精确一致、每根型材独立实体
