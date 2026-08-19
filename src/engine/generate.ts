@@ -315,13 +315,21 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     // 顶面板：overlay=覆盖整框（W×D 齐平框外缘）；recessed=凹陷嵌框内（W−2s×D−2s 坐落在框梁上）；隔板：四边各搭 15mm 在梁上表面
     const overlap = 15;
     const recessed = isTop && spec.topPanelMode === 'recessed';
+    // 搭接次序（家具封边工艺）：顶板盖住侧板/背板顶端面，接缝藏顶板底面
+    const coverT = (m: PanelMaterial) => (m !== 'none' ? PANEL_SPEC[m].thickness : 0);
+    const capSides = isTop && !recessed && spec.scene !== 'workbench';
+    const capL = capSides ? coverT(spec.leftPanel) : 0;
+    const capR = capSides ? coverT(spec.rightPanel) : 0;
+    const capB = capSides ? coverT(spec.backPanel) : 0;
     const ratio = clampRatio(opts?.depthRatio ?? 1, 0.35, 1);
     const fullPd = isTop && !recessed ? D : D - 2 * s + 2 * overlap;
-    const pw = isTop && !recessed ? W : (recessed ? W - 2 * s : W - 2 * s + 2 * overlap);
+    const pw = isTop && !recessed ? W + capL + capR : (recessed ? W - 2 * s : W - 2 * s + 2 * overlap);
     const pd = recessed ? D - 2 * s
-      : isTop && spec.scene !== 'workbench' ? D
+      : isTop && spec.scene !== 'workbench' ? D + capB
       : Math.min(fullPd, Math.max(Math.round(fullPd * ratio), Math.round(overlap + 120)));
+    const xShift = (capR - capL) / 2;
     const zShift = (() => {
+      if (capB) return -capB / 2;
       const free = Math.max(0, fullPd - pd);
       if (opts?.align === 'back') return -free / 2;
       if (opts?.align === 'front') return free / 2;
@@ -339,9 +347,10 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       id: panelId, material,
       size: [pw, pd, ps.thickness],
       boxSize: [pw, ps.thickness, pd],
-      position: [0, beamTopY + ps.thickness / 2, zShift],   // 底面落在梁上表面
+      position: [xShift, beamTopY + ps.thickness / 2, zShift],   // 底面落在梁上表面
       mode: recessed ? 'top-recessed' : isTop ? 'top-overlay' : 'shelf-overlap',
       mountNote: (recessed ? '顶部置物板(凹陷嵌框内)：' : isTop ? '顶部置物板：' : '隔板(搭梁式)：') + ps.mountNote
+        + (capL + capR + capB > 0 ? '；盖住侧/背板顶端面，接缝封边条或密封胶处理' : '')
         + (pd < fullPd ? `；浅搁板深度 ${Math.round((pd / fullPd) * 100)}%` : ''),
       holes,
     });
@@ -418,7 +427,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         }
         addColShelfPanel(y);
       }
-      const dw = colWidth + 2 * s;         // 门宽 = 立柱中心距 + 2×立柱宽（门覆盖立柱并重叠s，消除缝隙）
+      const dw = colWidth + s - 3;         // 门宽 = 立柱中心距 − 3mm 缝（缝落柱中线，与邻列抽屉前脸共面对接）
       const dh = H - 2 * s;                // 门高 = 立柱间净高
       if (dw > 50 && dh > 50) {
         const doorMaterial = spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood';
@@ -509,15 +518,16 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const ps = PANEL_SPEC[material];
     const panelId = `pn-${++pn}`;
     const isBack = side === 'back';
-    const pw = isBack ? W : D;   // 板面宽度（沿框架面）
+    const backT = !isBack && spec.backPanel !== 'none' ? PANEL_SPEC[spec.backPanel].thickness : 0;
+    const pw = isBack ? W : D + backT;   // 侧板向后延伸盖背板侧缘（竖角缝藏侧面）
     const partialWorkbenchBack = spec.scene === 'workbench' && isBack && material === 'pegboard';
     const deskTop = spec.workbenchDeskTopHeightMm ?? 740;
     const ph = partialWorkbenchBack ? H - deskTop : H;
     const boxSize: [number, number, number] = isBack
-      ? [W, H, ps.thickness] : [ps.thickness, H, D];
+      ? [W, H, ps.thickness] : [ps.thickness, H, D + backT];
     const position: [number, number, number] = isBack
       ? [0, partialWorkbenchBack ? (deskTop + H) / 2 : H / 2, -D / 2 - ps.thickness / 2]
-      : [side === 'left' ? -W / 2 - ps.thickness / 2 : W / 2 + ps.thickness / 2, H / 2, 0];
+      : [side === 'left' ? -W / 2 - ps.thickness / 2 : W / 2 + ps.thickness / 2, H / 2, -backT / 2];
     if (partialWorkbenchBack) boxSize[1] = ph;
     // 固定孔（板局部坐标，沿板宽×板高）：孔心落柱中心线，横向距边 s/2，纵向距上下边 s
     const holes = ps.mount === 't-nut-screw' || ps.mount === 'corner-flat'
@@ -698,6 +708,22 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         fasteners: [{ sku: boxSku, qty: 1 }, { sku: slideSku, qty: 1 }, { sku: 'screw-m4-10-pan', qty: 8 }, { sku: 't-nut-m4', qty: 8 }],
         points: [[-W / 2 + s, y, 0], [W / 2 - s, y, 0]],
       });
+      // 成品抽屉前脸板：与柜门共面（凸出正面 D/2），宽按柱中线规则与门无缝对接，无拉手反弹开启
+      if (kind === 'ready-made') {
+        const fMat = spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood';
+        const fs = PANEL_SPEC[fMat];
+        const fw = (colWidth ?? W - 2 * s) + s - 3;   // 柱中线到柱中线 − 3mm 缝
+        const fh = pitch - 3;
+        const fy = y - 20 + pitch / 2;                 // 层底 + 半节距
+        const panelId = `pn-${++pn}`;
+        panels.push({ id: panelId, material: fMat, size: [fw, fh, fs.thickness], boxSize: [fw, fh, fs.thickness],
+          position: [xCenter ?? 0, fy, D / 2 + fs.thickness / 2], mode: 'drawer-front',
+          mountNote: '抽屉前脸板：盒内 M4 螺丝反锁前脸，与柜门共面，缝落柱中线', holes: [] });
+        mounts.push({ id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId, method: 't-nut-screw',
+          note: '前脸板盒内反锁 M4×4（家具标准做法），无拉手按压开启',
+          fasteners: [{ sku: 'screw-m4-10-pan', qty: 4 }],
+          points: [[(xCenter ?? 0) - fw / 4, fy, D / 2], [(xCenter ?? 0) + fw / 4, fy, D / 2]] });
+      }
     }
   }
 
