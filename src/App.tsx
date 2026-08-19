@@ -403,6 +403,26 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  const [stepBusy, setStepBusy] = useState(false);
+  const exportStep = async () => {
+    if (!model || !exportGate() || stepBusy) return;
+    setStepBusy(true);
+    try {
+      const { exportStepBlob } = await import('./export/step');
+      const blob = await exportStepBlob(model, kb);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '方案模型.step';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(`STEP 导出失败：${(e as Error).message}`);
+    } finally {
+      setStepBusy(false);
+    }
+  };
+
   const set = (patch: Partial<FrameSpec>) => {
     setSpec((s) => {
       const next = normalizeWorkbenchSpec({ ...s, ...patch });
@@ -622,6 +642,7 @@ export default function App() {
         <button onClick={resetDraft} style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: '#666', cursor: 'pointer' }}>新建</button>
         <button onClick={exportCutList} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: !model || model.status === 'invalid' ? '#ccc' : '#555', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>切割</button>
         <button onClick={exportDxf} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: !model || model.status === 'invalid' ? '#ccc' : '#555', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>DXF</button>
+        <button onClick={exportStep} disabled={!model || model.status === 'invalid' || stepBusy} title="B-rep 实体模型（首次导出需加载几秒 CAD 内核）" style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: !model || model.status === 'invalid' || stepBusy ? '#ccc' : '#555', cursor: !model || model.status === 'invalid' || stepBusy ? 'not-allowed' : 'pointer' }}>{stepBusy ? 'STEP…' : 'STEP'}</button>
         <button onClick={exportAssembly} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e5ea', borderRadius: 5, background: '#fff', color: !model || model.status === 'invalid' ? '#ccc' : '#555', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer' }}>装配</button>
         <button onClick={exportBom} disabled={!model || model.status === 'invalid'} style={{ fontSize: 11, padding: '4px 8px', border: 'none', borderRadius: 5, background: !model || model.status === 'invalid' ? '#e5e7eb' : '#1e6fff', color: !model || model.status === 'invalid' ? '#9ca3af' : '#fff', cursor: !model || model.status === 'invalid' ? 'not-allowed' : 'pointer', fontWeight: 600 }}>BOM</button>
       </header>
@@ -657,8 +678,17 @@ export default function App() {
                   <button onClick={runIntent} disabled={aiBusy} style={{ width: '100%', marginTop: 4, padding: '6px 0', border: 'none', borderRadius: 5, background: aiBusy ? '#9db8e8' : '#1e6fff', color: '#fff', cursor: aiBusy ? 'wait' : 'pointer', fontSize: 12 }}>{aiBusy ? 'AI 理解中…' : chat.length ? '发送' : '✨ 生成方案'}</button>
                   {aiError && <div style={{ color: '#c0392b', fontSize: 11, marginTop: 4 }}>✖ {aiError}</div>}
                   {manualChanges.size > 0 && (
-                    <div style={{ color: '#8a7a3a', background: '#fdf9e8', padding: '4px 8px', borderRadius: 4, fontSize: 10, marginTop: 4 }}>
-                      🔒 已手动调整并锁定：{[...manualChanges.values()].join('，')}
+                    <div style={{ color: '#8a7a3a', background: '#fdf9e8', padding: '4px 8px', borderRadius: 4, fontSize: 10, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                      <span>🔒 已锁定：</span>
+                      {[...manualChanges.entries()].map(([key, label]) => (
+                        <span key={key} style={{ background: '#fff', border: '1px solid #e8dfb8', borderRadius: 8, padding: '1px 6px', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                          {label}
+                          <span onClick={() => setManualChanges((mc) => { const next = new Map(mc); next.delete(key); return next; })}
+                            title="解锁：下次 AI 理解可覆盖此项"
+                            style={{ cursor: 'pointer', color: '#b0a468', fontWeight: 700 }}>×</span>
+                        </span>
+                      ))}
+                      <span onClick={() => setManualChanges(new Map())} style={{ cursor: 'pointer', color: '#1e6fff', marginLeft: 'auto' }}>全部解锁</span>
                     </div>
                   )}
                 </div>
