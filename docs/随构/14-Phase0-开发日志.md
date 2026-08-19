@@ -569,3 +569,514 @@ status: Phase 0 收官（M1~M5.1 全过）· Phase 0.5 进行中
   - 回归：黄金锚点②（极简桌 1342×545×740）+ 锚点③（三抽屉柜 350×400×490）——生成 BOM 与真实产品完全对齐
   - 意图：抽屉不再降级
 - **发现的后续优化点**：req-005"5个抽屉"抽取只给 1 条 drawer panel（数量词未展开）→ drawerCount 应参考 layers/数量词；黄金锚点①双列分区、顶板 recessed、颜色维度、洞洞板 side、预装约束等见 21-案例库待办表。
+
+---
+
+### 2026-08-14 代码审查 + 全量修复 + 待办落地（16 commits）
+
+对全部核心流水线（extract→intent→generate→validate→select）+ 知识库 + 前端做了用户视角深度审查，修了 11 项审查发现 + 完成 4 项待办 + 1 项渲染修复。
+
+##### 审查修复（11 项，P0→P2）
+
+| # | commit | 内容 | 优先级 |
+|---|---|---|---|
+| 1 | `9626b44` | **调平地脚静默丢弃**——抽取提示词/intent/select 三处补全 leveling-feet，对话主入口终于能识别"调平/地脚" | P0 |
+| 2 | `1474247` | **上层搁板 0.58→0.55**——App 默认值对齐知识库，首次加载与 AI 生成不再矛盾 | P0 |
+| 3 | `a8339fb` | **选型跨度统一为固定点迭代**——新增 `selectSectionFixedPoint`，从小型材逐一校验真实净跨，物理正确且两处一致 | P1 |
+| 4 | `a2e4752` | **JSON.parse 加 try-catch**——LLM 坏 JSON 时给可操作提示+脱敏片段 | P1 |
+| 5 | `0745d8c` | **隔板滑杆 min=1**——workbench 场景与强制语义一致，消除"拖到 0 弹回"困惑 | P1 |
+| 6 | `22029d6` | **抽屉归零清除 drawerKind + 载荷 min=5**——边界语义清理 | P1 |
+| 7 | `bdaa69a` | **machining 改 discriminated union**——去掉 `as` 强转，switch 自动收窄类型安全 | P2 |
+| 8 | `7a29c78` | **dMin/dMax→deskTopMin/deskTopMax**——消除与深度变量的命名混淆 | P2 |
+| 9 | `a5b87d9` | **抽屉盒宽度公式澄清**——几何分析确认公式正确，加注释/命名常量 | P2 |
+| 10 | `99d940d` | **鱼缸系数注释拆分**——系数 1.5 与经验值 200kg 不再混为一谈 | P2 |
+| 11 | `229827f` | **数量词展开规则**——"5个抽屉"不再只抽出 1 条 | P1 |
+
+##### 待办落地（4 项）
+
+| # | commit | 内容 |
+|---|---|---|
+| 12 | `5b02b72` | **中柱 + 双列分区拓扑**（黄金锚点①骨架）——`centerColumn` 模式：中心 x=0 前后两根全高立柱，横梁断开为左右两段，将内腔分为左右双列；已加 UI 勾选框 + golden 测试 |
+| 13 | `30f64d7` | **顶板凹陷嵌框模式** `top-recessed`——`topPanelMode` 维度（overlay/recessed），储物柜顶板嵌框内坐落在框梁上，不悬挑 |
+| 14 | `8a8ae39` | **洞洞板 side 侧挂语义**——pegboard + position='side' 不再映射为背板，挂于左立面（工具墙收纳语义） |
+| 15 | `c3d4416` | **滑块/弹珠螺母预装约束**——装配说明的"识别与清点"和"底框与立柱"步骤，当连接件用 T 型螺母时加入预装提示与警告 |
+| 16 | `afc14bc` | **型材颜色三档**——silver/black/gold 阳极氧化调色板，Viewer 材质渲染 + UI 选择器 |
+
+##### 板材渲染修复（1 项，多轮迭代）
+
+| commit | 内容 |
+|---|---|
+| `5736f43` | 板材程序化纹理初版（洞洞板孔阵/围网网格/木纹）——反馈"效果差" |
+| `fc79f00` | 纹理真实化重写——基于真实规格（洞洞板 Φ5@25mm、木纹长程纤维） |
+| `5ce44cd` | 纹理按真实尺寸 repeat + 洞洞板孔透明（alphaMap） |
+| `0f7b1ff` | **UV 按物理尺寸编码**——废弃 BoxGeometry，自定义 `panelGeo()`，UV=物理位置/400mm，解决拉伸和朝向不一致 |
+| `8d43a41` | 木纹无缝平铺（sin 替代线性渐变）——反馈"全是缝子" |
+| `1a5076c` | **去掉木纹**——假纹理比无纹理难看，wood 改干净实木色 `#b58b54`；洞洞板/围网保留（功能性纹理） |
+
+##### 关键经验教训
+
+1. **程序化 Canvas 木纹极难做好**：在有限画布上用 2D 绘制模拟真实木纹，必然遇到接缝/拉伸/重复感三重问题。结论：Phase 0 不做木纹，靠材质参数（颜色/粗糙度/反射）体现质感；如需真实木纹，未来走贴图资源（需外部图片文件，不在 Phase 0 范围）。
+2. **BoxGeometry UV 不适合纹理面板**：其 UV 每面独立 0-1，同一 repeat 在不同朝向/大小面上纹理密度完全不同。改用自定义 BufferGeometry，UV 直接编码物理尺寸。
+3. **洞洞板必须透明**：孔是贯穿的，alphaMap 通道（孔=黑透明，板=白不透明）让孔真正透光。
+
+##### 当前状态
+
+- tsc ✓ / golden 全过（含中柱拓扑、顶板凹陷、洞洞板侧挂、装配预装、型材颜色、纹理渲染、数量词联动 7 个新测试）✓ / build ✓
+- 项目待办（CLAUDE.md 记录的"下一批"）**全部完成**：黄金锚点①骨架（中柱拓扑）、顶板 recessed、颜色维度、洞洞板 side、预装约束、数量词解析
+- 板材渲染现状：木板=干净实木色（无纹理）、洞洞板=孔阵+凹凸+孔透明、围网=钢丝网格+凸起、玻璃/亚克力=半透明
+
+---
+
+### 2026-08-14 渲染修复 + 数量词联动 + 锚点①评估（7 commits）
+
+##### 板材渲染多轮迭代（反馈驱动）
+
+| commit | 内容 | 反馈 |
+|---|---|---|
+| `5736f43` | 板材程序化纹理初版（洞洞板孔阵/围网网格/木纹） | "效果太差了，跟现实完全一点关系都没有" |
+| `fc79f00` | 纹理真实化（真实规格 Φ5@25mm、木纹长程纤维、seed 稳定） | — |
+| `5ce44cd` | 纹理按真实尺寸 repeat + 洞洞板孔透明（alphaMap） | — |
+| `0f7b1ff` | **UV 按物理尺寸编码**——废弃 BoxGeometry，自定义 panelGeo()，UV=位置/400mm | — |
+| `8d43a41` | 木纹无缝平铺（sin 替代线性渐变） | "现在全是缝子了" |
+| `1a5076c` | **去掉木纹**——假纹理比无纹理难看，wood 改干净实木色 | "做不到就把木纹去掉" |
+| `c332bcc` | 洞洞板去随机噪点（背板和侧板颜色一致） | "背板和侧板颜色不一致" |
+
+**最终方案**：木板=纯色实木感（无纹理）、洞洞板=规则孔阵+凹凸+孔透明、围网=规则钢丝网格
+
+##### 数量词与抽屉联动（commit `70d74ae`）
+
+- intent 层新增：cabinet + layers>1 + 无 drawer 条目 → layers 作为抽屉数
+- 有 drawer 面板条目 → shelfCount=0（抽屉塔不生成搁板）
+- golden 测试：5层→5抽屉 ✓；显式drawer→1抽屉+0搁板 ✓；3层架→2搁板 ✓
+
+##### 黄金锚点①评估（commit `84c5cd0`）
+
+从 [[21-真实案例库]] 提取工具柜 670×400×815 完整 BOM：
+- 非均匀双列：左列 425（周转箱抽屉）+ 右列 185（工具挂板）
+- 完整 BOM：630×4 / 185×2 / 810×4 / 775×2 / 360×14 + 内置角槽×30 + 周转箱×4
+- **差距**：当前中柱拓扑为对称均分（梁在中心断开为半段），真实产品需非均匀双列+通长横梁
+- 评估结论：Phase 0 后拓扑扩展项，中柱骨架已就绪
+
+##### 关键经验教训
+
+1. **程序化木纹不可行**：有限画布 2D 绘制无法模拟真实木纹（接缝/拉伸/重复感三重困境）。Phase 0 不做木纹，靠材质参数体现质感
+2. **BoxGeometry UV 不适合纹理面板**：每面独立 0-1，同一 repeat 在不同朝向面上密度不同。改用自定义 BufferGeometry，UV 编码物理尺寸
+3. **洞洞板必须透明**：孔是贯穿的，alphaMap（孔=黑透明，板=白不透明）让孔真正透光
+4. **非均匀双列是真实产品标配**：黄金锚点①实证——真实抽屉车是异构拓扑（不同列不同内部结构），不是均匀网格
+
+---
+
+### 2026-08-15~08-18 中柱分区拓扑 + 三种列类型 + 几何修正（10 commits）
+
+> 本轮目标：工具柜/异构柜的双列分区拓扑从骨架到完整可用，支持抽屉/隔板/柜门三种列类型任意组合。
+
+##### 中柱拓扑 v2——可偏置+左右异构（commit `4cea190` → `3fce277`）
+
+- `centerColumn` 模式在框架中心(x=0)加前后两根全高立柱，将内腔分为左右双列
+- 支持 `offsetRatio` 偏置（0.5=居中 / 0.67=左2/3 / 0.33=右2/3），非均匀双列
+- 横梁(beam-x)在中心处动态断开为左右两段，各连接角柱与中柱（commit `465fee2`）
+- 左右两列可独立配置异构结构（左抽屉+右柜门等）
+
+##### 分区抽屉盒宽度和位置按分区计算（commit `c8b016e`）
+
+- 抽屉盒不再用全宽 `W−2s`，改为按所在列净宽 `colWidth−DRAWER_SIDE_CLEARANCE` 计算
+- 位置锁定到列中心 `xCenter`，不再跨列
+
+##### 中柱分区支持三种列类型——抽屉/搁板/柜门（commit `be550ff`）
+
+- `CenterColumnType = drawer | shelf | cabinet`
+- `addCenterColStructure` 辅助函数统一处理三种列类型
+- `cabinet`（柜门）：内部可选搁板层数 + 正面门板（铰链×2+磁吸+把手，左铰右开）
+- UI 下拉新增"柜门"选项（App.tsx `CenterColumnConfig`）
+- types.ts：`left/right` 类型从联合类型改为 `CenterColumnType`
+
+##### 中柱分区解耦+隔板材质+柜门缝隙修复（commit `b35f805`）
+
+- 中柱模式跳过旧抽屉塔代码（`!spec.centerColumn`），双路径解耦
+- 隔板面板材质跟随 `spec.shelfPanel`
+- 柜门缝隙初步修复
+
+##### 中柱分区几何修正——柜门重叠立柱+隔板居中（commit `8b1ff30`）
+
+- 柜门宽度 `colWidth → colWidth + 2s`（两侧各重叠立柱 s，消除缝隙）
+- 隔板面板居中于所在列 `colCenterX`（非框架中心 x=0）
+- 隔板宽度=列内净宽 `colWidth−s`，深度=内深+30mm 搭梁
+- left/right 可选，支持空/抽屉/隔板/柜门任意组合
+
+##### 中柱分区列中心偏移 s/2 修正（commit `7722d7d`）
+
+- **Bug**：`colCenterX = colXLeft + colWidth/2` 偏移 s/2（2020 系=10mm）
+  - 因为 `colWidth` 是柱间净宽 = 立柱中心距 − s，直接加半宽会偏向立柱中心中点 s/2
+  - 后果：柜门重叠立柱不足（边缘只到柱中心，应到柱边+s，残留缝隙）；抽屉/隔板在列内不居中
+- **修复**：`colCenterX = (colXLeft + colXRight) / 2`（真正两立柱几何中点）
+- 修复后：门精确重叠立柱 s=20mm，抽屉/隔板居中于列
+- 用户反馈驱动："玻璃门仍然和中轴存在距离差异"+"抽屉占据全部没有分区"
+
+##### 诊断验证
+
+- 编写多场景诊断脚本（drawerCount×centerColumn 组合、门/抽屉/隔板几何）
+- 确认数据层分区逻辑正确（空列无抽屉、中柱模式跳过旧塔）
+- 三个反馈中仅"玻璃门偏移"为真实几何 bug；"抽屉占据全部"+"空列仍有抽屉"在数据层已正确（可能为旧版残留或视觉误判）
+
+##### 关键经验教训
+
+1. **净宽≠中心距**：柱间净宽 = 立柱中心距 − s，用净宽反推列中心时必须回到立柱中心坐标，不能 `colXLeft + colWidth/2`
+2. **门重叠立柱的精确几何**：门宽 = 柱间净宽 + 2s 时，必须居中于立柱中心中点，才能两侧各重叠 s；任一偏差都会残留缝隙
+3. **分区模式需彻底解耦**：中柱模式必须跳过旧的全宽抽屉塔代码路径，否则双路径会叠加出诡异结果
+
+##### 当前状态
+
+- tsc ✓ / golden 全过（含中柱拓扑、顶板凹陷、洞洞板侧挂、装配预装、型材颜色、纹理渲染、数量词联动、黄金锚点①对齐 8 个测试）✓
+- 中柱分区功能完整可用：三种列类型 × 左右异构 × 偏置非均匀双列
+
+
+##### 2026-08-18 Claude Code 迭代批质量审查 + 全量推送 ✅（commits c3c3b9b, b106349）
+
+- **背景**：用户用 Claude Code（LongCat-2.0 接管）本地迭代了 58 个提交——把上批待办全部做完：中柱分区拓扑（三列类型：抽屉/搁板/柜门、可偏置、左右异构）、黄金锚点①工具柜、数量词联动（5层→5抽屉）、顶板 recessed、洞洞板 side、颜色三档、板材纹理、预装约束。golden 已扩到 12 节全过。
+- **独立代码审查发现 3 个确定性问题并修复**（c3c3b9b）：
+  1. 柜门列内部隔板误用全宽 addPanel（横穿中柱侵入邻列）→ 抽出 `addColShelfPanel` 列宽自建板，cabinet/shelf 共用；
+  2. 中柱抽屉列节距无下限校验（负尺寸抽屉盒风险）→ pitch<120 阻断；
+  3. 样例按钮浅合并残留旧 centerColumn → `setSpec` 完整替换；
+  4. 顺手：中柱内端 joint 位置 xCenter±s → ±s/2。
+- **docs 导入**（b106349）：Obsidian 随构/ 22 份文档全量复制进 `docs/随构/`（推送前扫描无明文密钥）+ `.claude/plans/center-column-v2.md`；`.claude/settings.local.json` 加 gitignore。
+- **注意**：docs/ 是快照副本，Obsidian 仍是唯一事实源——后续改动需手动重新复制同步。
+- 回归：tsc + golden（12 节含三个黄金锚点）全过后推送，main @ b106349 与远端同步。
+
+
+##### 2026-08-18 待办三连清：爆炸图 + DXF 导出 + 多句记忆 ✅（commits 65f71c4, 5e6b751, fb8fdb6, a1b0129）
+
+- **爆炸图**（65f71c4）：视图工具条下新增"💥 爆炸"滑杆（0~100%），形心乘性外扩（Y 向 1.5 倍加权拉开层次），数据层实现 Viewer 零改动；爆炸时自动隐藏接点/孔位/标注/尺寸避免错位；图纸模式不可用。
+- **DXF 导出**（5e6b751）：新建 `src/engine/dxf.ts`，R12 ASCII 格式——切割清单全件号纵向平铺，每件轮廓矩形+孔位圆（端面攻丝画端部十字圆）+件号文字标注；顶栏新增 DXF 按钮（走导出闸门）；golden 第 13 节断言（头尾结构/圆数≥孔数/标注数=件号数）。
+- **多句对话记忆**（fb8fdb6）：历史窗口 6→10 轮；方案状态 JSON 补全 drawerCount/drawerKind/centerColumn 摘要/profileColor/archetype；**降级历史回传**（此前降级项列表注入上下文，用户再提及时模型可正确应答）。
+- 回归：tsc/golden（13 节）/build 全过；每项独立 commit 已推送，main @ a1b0129。
+- **剩余待启动**：STEP 导出（需 3D 内核，评估 occt-import-js）、变高立柱（锚点①真实产品外柱810/内柱775）、2040 矩形梁。
+
+
+## 2026-08-19（续4）：变高立柱落地——锚点①与真实 BOM 完全对齐
+
+**commit e8eacf8** `feat(engine): variable-height center posts with full-length top beams matching real cabinet BOM`
+
+### 规则反推（真实工具柜 BOM 810×4 + 775×2 实证）
+- 三视图标 815，BOM 立柱 810 → 取 **H=810** 为真实高度（5mm 视为量测差），公式随即精确成立：
+  - 外柱 = H 全高 = **810** ✓
+  - 顶梁**通长不断开**（架在中柱顶上），顶梁中心 = H − 板厚 − s/2
+  - **中柱 = H − 顶板厚(15) − 梁高(20) = 775** ✓
+  - 顶板上表面 = H，与外柱顶齐平（top-recessed 语义在中柱场景的自然延伸）
+
+### 实现（generate.ts）
+- `centerTopPanelT`：仅 centerColumn + topPanel≠none + topPanelMode='recessed' 时 = 板厚，否则 0
+- 中柱 addPost 到 `H − centerTopPanelT − s`；`centerTopBeamY = H − centerTopPanelT − s/2`
+- `addRectLayer` 增加 `{split}` 选项：顶层梁强制通长（不在中柱处断开），底层/中间层照旧断开
+- 顶板 recessed 落在下沉后的梁顶（`H − centerTopPanelT`）
+
+### 锚点①断言升级（golden 第12节）
+- 输入：height 815→**810**，增加 `topPanelMode: 'recessed'`
+- 断言：外柱 **810×4**、中柱 **≈775×2**（wood 18mm 时 772，容差±5）、顶层通长 **630×2** 横梁、总柱仍 6
+- tsc ✓ / golden 13节全过 ✓ / build ✓
+
+### 待办更新
+- ~~变高立柱~~ ✅ 剩：2040 矩形梁、STEP 导出评估
+
+
+## 2026-08-19（续5）：2040 矩形梁——梁柱双截面落地
+
+**4 个提交**：ad0aea0（知识库）→ 2374dc3（矩形渲染）→ e523bfb（生成器/校验）→ 0866254（UI+golden第14节）
+
+### 设计：梁柱双截面（方案 A）
+- FrameSpec 新增 `beamSectionId?`：柱保持 2020 方形，**层框梁**可选 eu-2040 立放（宽20=柱宽槽对齐，高40 强轴抗弯 ix 6.0e4 ≈ 2020 的 8.6 倍）
+- **对齐规则**：底框底对齐（梁底=0，底板改坐梁顶=40）；其余层顶对齐（梁顶/板位不变，中心下移 beamDrop=(bh−s)/2）——方形梁 beamDrop=0 全兼容
+- 特殊撑杆（桌底双撑/后撑/抽屉轨道梁）**不升级**，保持柱截面
+- 两类非法组合诚实阻断：梁宽≠柱宽（3030柱+2040梁）；2040+抽屉塔/中柱分区（内部 y 基准待扩展）
+
+### 知识库
+- `eu-2040.yaml`（inferred）：size [20,40]、40宽面双槽 offset±10、双芯孔 coreHolePositions [[0,±10]]、ix 6.0e4/iy 1.4e4、25元/m
+- 20系连接件（corner-cube-20/internal-slot-20/vertical-bracket-20）compatible.series 加 eu-2040
+
+### 渲染（profileGeometry 重写）
+- buildSectionShape 矩形化：**数据驱动 faces 槽位**（每边按 offsets 生成 T 槽锯齿）+ 多芯孔；梁 axis 旋转天然使"截面高方向=世界Y"立放，Viewer 零改动
+
+### 工程链路
+- 切割清单按件截面分组（partKey 加 sectionId，去掉硬编码 sec.id）——BOM/DXF 自动正确
+- validate 挠度用 beamSec.ix + loadBeamY 用梁高；UI 加"梁截面"下拉（柱下拉过滤掉矩形截面）
+- golden 第14节：1342 跨 60kg 用 2040 挠度通过、顶对齐 y=720、撑杆不升级、清单分截面、两类阻断
+
+### 待办更新
+- ~~2040 矩形梁~~ ✅ 剩：STEP 导出评估
+
+
+## 2026-08-19（续6）：STEP 导出方案评估（调研完成，待实施）
+
+### 候选对比（GitHub 实查 2026-08）
+| 方案 | 结论 | 依据 |
+|---|---|---|
+| occt-import-js | ❌ 排除 | 只有 ReadStepFile/ReadIgesFile/ReadBrepFile，**纯导入无导出**；且 2 年未更新 |
+| opencascade.js 直接绑定 | ⚠️ 次选 | 完整 OCCT 绑定含 STEPControl_Writer，但停滞 3 年（v2.0.0-beta，OCCT 7.6.2），减体积需 Docker 自定义 build，维护风险高 |
+| **replicad** | ✅ **首选** | MIT；**4 天前刚发 v1.0.0**（迁 OCCT v8 绑定）；高层 API（drawing→sketch→extrude→exportSTEP）；专为浏览器集成设计（Web Worker 友好）；672★ 活跃 |
+| 后端转换（pythonocc/cadquery） | ❌ Phase 0 无后端 | 留作 Phase 1+ 备选 |
+| glTF/STL（three.js 内置 exporter） | 💡 廉价过渡 | 零成本 mesh 导出可先行，但加工厂要 B-rep STEP，不可替代 |
+
+### 实施蓝图（下一任务）
+1. `npm i replicad replicad-opencascadejs`；wasm（~10-15MB gzip）**惰性 import()**——点"导出 STEP"才加载，Web Worker 中初始化避免卡 UI
+2. FrameModel → STEP：型材件复用 faces 数据驱动的 T 槽轮廓点列（与 profileGeometry 同源）→ replicad drawing → extrude 长度 → 按 member position/axis 平移旋转；板材 = box；全部 compound → exportSTEP blob 下载
+3. 孔位 Phase 0 第一版可只给外形+槽（钻孔信息已有 DXF 单件图承载）；后续可 boolean 减孔
+4. 复用 exportGate（invalid/incomplete 禁止导出）
+5. 风险：wasm 加载失败降级提示"用 DXF+切割清单"；公司网络离线缓存（HTTP cache/IndexedDB）
+
+
+## 2026-08-19（续7）：爆炸图连接件跟随修复
+
+**commit 0bc4791** `fix(ui): exploded view moves joints with their beams instead of hiding them`
+
+- 问题：爆炸时连接件（角码/joint）直接被隐藏（joints 传空数组），装配爆炸图缺少连接件层次
+- 修复：`shownJoints` = joint 位置 + 所属梁（`beamMemberId`）的爆炸位移增量——**角码装在梁端的装配语义**，随梁一起飞出，与柱脱开
+- 标注类（machining/mounts/dims/bubbles）爆炸时仍隐藏（合理，非实体件）
+- tsc ✓ golden ✓
+
+
+## 2026-08-19（续8）："AI 生成和描述完全不沾边"诊断修复
+
+**commit cf1e6c2** `fix(ai): new product type resets manual locks; unlisted materials fall back to wood; drawer cabinet estimates tiers by height`
+
+### 复现（diag.ts 支持命令行句子后）
+输入"45立方极简美学铝型材海洋板亚克力抽屉柜 H,D,W:45CM"→ 抽取层其实**正确**（cabinet 450³ + side:other + drawer:acrylic），断在下游三处：
+
+### 三个断点与修复
+1. **手动锁定污染（主因）**：用户此前手动调过 8 项板材（wire-mesh/glass 门板等），锁定项持久化在 localStorage 草稿；新描述没显式提到的字段全部回填旧值 → 展示出与描述无关的大杂烩。修复：**productType 变化 = 全新物件** → 自动清空 manualChanges + unsupportedSaved，不做回填，回复加"🔓 已解除此前手动锁定"（lastProductType 持久化到草稿）
+2. **未收录材质降级丢弃**：海洋板(other) 侧板在非 workbench 场景直接进 unsupported。修复：top/shelf/side/bottom 未收录材质**全场景兜底木板**+假设说明（门板除外，需精确材质）
+3. **"抽屉柜"只出 1 层**：一条 drawer 记录=1 层。修复：层数未说明时按 高度÷节距205（案例档位 160~230 中值）估层，450→2 层
+
+### 修复后
+降级=[]、backPanel=wood、抽屉 2 层、状态 valid。golden 14 节全过。
+diag.ts 现支持 `npx tsx scripts/diag.ts "任意句子"`。
+
+
+## 2026-08-19（续9）：工具柜案例翻车修复——柜类场景防线 + 中柱双列映射
+
+**commit 2d64175**（golden 新增第 15 节意图防线）
+
+### 案例
+"铝型材工具柜带滑轮 整体大小约为 1m*40 高度为90 两个抽屉 一个大的柜子侧开门 侧板带挂架功能"
+→ 修复前：LLM 把 scene 判成 workbench → 整柜按电脑桌语义：抽屉×2 全降级、门板/侧板被开放式清空、深 400 被强制 550、高 900 落进电脑桌 801~1099 死区直接报错。
+
+### 三处修复
+1. **确定性防线（intent.ts）**：productType ≠ workbench 时 scene=workbench 一律修正为 diy-furniture——柜/架类绝不进电脑桌语义，LLM 误判无法穿透
+2. **中柱双列映射（intent.ts 新路径）**：drawer×N + door + cabinet → `centerColumn{offsetRatio 0.4, 左列抽屉×N, 右列柜门}`（锚点①实证拓扑），普通抽屉塔计数归零防双重生成、doorPanel 交分区列
+3. **提示词强化（extract.ts）**：规则5 显式"工具柜/收纳柜/抽屉柜等一切柜类=diy-furniture（柜类绝不是 workbench）"；规则15 补"挂架/挂钩/挂工具立面=pegboard"
+
+### 修复后 diag
+scene=diy-furniture ✓ 深 400 保留 ✓ 6 立柱（2 中柱 870 变高）✓ 左列 2 抽屉+右列 door-front 609 宽 ✓ 洞洞板侧挂 ✓ 降级=[] ✓
+golden 15 节全过（第 15 节 = 本案例 mock 抽取端到端断言，防回退）。
+
+
+## 2026-08-19（续10）：柜体封闭语义修复（用户截图指出两处硬伤）
+
+**commit f6bbf3c** `fix(ai): door cabinets enclose all sides automatically; cabinet column defaults to no internal shelf`
+
+### 用户指出（完全正确）
+1. "门板就是一个门板"——门是一块悬空板，门后柜腔无背板/顶板/底板/侧板，不是封闭空间
+2. "门板后面为什么还有隔板用的边横柱"——intent 映射写死 cabinet count=1，生成了没人要的内部搁板+横梁
+
+### 修复（intent.ts）
+- **柜体封闭语义**：带门柜（centerColumn cabinet 列或 doorPanel）自动补齐 顶/底/背/左侧/右侧 板（木板，已指定材质的面保留如洞洞板）+ 假设记录；rightPanel 从硬编码 'none' 变量化全链路打通
+- **柜门列 count 1→0**：用户未提内部搁板则纯空柜（cabinet count=0 → 无搁板横梁）
+
+### 浏览器端到端验证（同句重发）
+正面：右列大门（带把手，门后干净无横梁）+ 左列 2 层抽屉面板；背面/侧面/顶面全封闭；左侧洞洞板保留；6 脚轮。板材清单：门 612×820 + 顶 1000×400 + 底 950×350 + 背 1000×900 + 右侧 400×900 + 洞洞板 400×900，合计 ¥992。
+golden 第 15 节补断言：柜体四周封板 + 柜门列 count=0。15 节全过。
+
+
+## 2026-08-19（续11）：板材接缝工艺 + 门/抽屉前脸共面
+
+**commit 66c2cca** `feat(engine): panel joinery - top caps side/back edges, sides cap back, coplanar drawer fronts and doors`
+
+### 用户问题
+1. 板材与板材连接处的缝子怎么处理？（顶板与侧板台阶缝、背板与侧板竖角开缝）
+2. 门板和抽屉不在一个平面（门凸出正面 D/2，抽屉盒缩在框内 D/2−s）
+
+### 搭接次序（家具封边工艺，generate.ts）
+- **顶板盖全**：overlay 顶板尺寸扩为 (W+左侧厚+右侧厚)×(D+背板厚)，盖住侧板/背板顶端面——接缝藏顶板底面，防尘防水
+- **侧板盖背板**：侧板深度 D+背板厚 向后延伸，竖角缝转到侧面藏住
+- mountNote 注明"接缝封边条或密封胶处理"
+- workbench 场景不参与（桌类无围板）
+
+### 前脸共面（正面一张脸）
+- **成品抽屉（ready-made）新增前脸板** mode `drawer-front`：z = D/2+t/2 与柜门完全共面，盒内 M4×4 反锁（家具标准），无拉手按压反弹开启
+- **缝落柱中线**：门宽/前脸宽统一改"柱中心距 −3mm 缝"（原门宽 colWidth+2s 会与邻列重叠 s）——相邻面板中缝正对立柱中线，缝后有柱不透光
+- 周转箱（turnover-box）保持开放无前脸（工具场景）
+
+### 浏览器验证（同句重发）
+正面=一张平整脸：左列上下两块前脸板+右列大门带把手，三块板共面、缝均匀；顶板 1023×418 盖侧背、侧板 418 深含背板厚；BOM 新增 B7 前脸 385×407×2。golden 15 节全过。
+
+
+## 2026-08-19（续12）：五金硬件真实化（用户要求"真实能用"）
+
+**commit 15bb6f7** `feat(hardware): real drawer slides, hinges, handle, magnetic catch as 3D entities`
+
+### 用户指出缺失
+抽屉与前脸怎么连接、抽屉怎么打开（要指拉缝）、门把手位置、门合页、抽屉滑轨——全都没有实体
+
+### 落地内容
+1. **抽屉前脸修正**：底缘齐层底、**上缘留 20mm 指拉缝**（无拉手可指拉可反弹按压）；盒内 M4×4 反锁前脸（家具标准）；修正前脸中心与盒体错位 22mm 的 bug
+2. **滑轨实体**：每抽屉一副（accessory kind `drawer-slide`，渲染左右两条金属轨）；顺带修复滑轨漏计价（drawer-slide mount fasteners 被排除计价后 accessory sku 补上）
+3. **合页×2**：门左缘上下 1/5、4/5 处金属块实体（计价仍走 mount fasteners，accessory sku 空防重计）
+4. **把手**：门右缘竖 U 形（孔距 96 两脚+横杆圆柱），位置与 mount 孔位一致
+5. **磁吸扣**：右柱中部小块
+6. **删除 drawer-box 渲染自带的假前面板**（就是"那个小板"，之前与真前脸重复且不共面）
+7. BOM 附件行跳过空 sku 视觉硬件
+
+### 坑：TDZ
+accessories 数组声明在 addCenterColStructure 之后，门硬件 push 报 "Cannot access before initialization" → 声明提前到 panels/mounts 处。
+
+### 浏览器截图验证
+门带竖把手 ✓ 前脸×2 带指拉缝 ✓ 面板共面 ✓ 滑轨/合页在结构内 ✓。golden 15 节全过。
+
+
+## 2026-08-19（续13）：门开向可调 + 撤指拉缝
+
+**commit 5743e42** `feat(door): adjustable hinge side; drawer front uses natural 4mm inter-tier gaps`
+
+- **门开向**：CenterColumnType cabinet 加 `hinge?: 'left'|'right'`（默认左铰右开）；生成器按开向镜像布置合页/磁吸/把手（把手永远在开启侧门缘）；UI 中柱分区面板列类型=柜门时出现"左铰右开/右铰左开"下拉
+- **撤 20mm 指拉缝**（用户指正：层间本来就有缝）：前脸恢复居中于层区间，高 pitch−4（上下各 2mm 工艺缝），开启方式=反弹轨按压
+- tsc ✓ golden 15 节 ✓
+
+
+## 2026-08-19（续14）：右铰左开双把手 bug 修复
+
+**commit e745dae** `fix(door): remove legacy hardcoded right-edge handle in viewer; handle holes follow hinge side`
+
+- 用户切"右铰左开"后出现两根把手：新 accessory 把手正确移到左缘，但 Viewer 里 door-front 板渲染残留**旧的写死右缘内置把手**（上一代实现）→ 删除，把手统一由 accessory 渲染（随开向镜像）
+- 门板把手加工孔（Φ5×2 孔距96）同步随开向镜像（原写死右缘）
+- 浏览器截图确认：单把手在开启侧、合页在铰链侧 ✓
+
+
+## 2026-08-19（续15）：抽屉横拉手（"下面的抽屉怎么开"）
+
+**commit 569affd** `feat(drawer): horizontal pull handles on drawer fronts (96mm pitch, in BOM)`
+
+- 用户追问：底层抽屉怎么开——4mm 层间缝伸不进手指，反弹轨视觉上不可见，不可用
+- 每个抽屉前脸加**横向拉手**（孔距 96 标准）：实体渲染 + 前脸板 Φ5×2 拉手孔 + BOM（handle-96 计入前脸 mount fasteners）
+- Viewer handle 渲染按 boxSize 宽高比自适应横置（抽屉）/竖置（门）
+- 截图确认：左列两抽屉各带横拉手、右列门左缘竖把手（右铰左开）——完整可用工具柜形态
+
+
+## 2026-08-19（续16）：爆炸图硬件跟随宿主
+
+**commit 2410a24** `fix(explode): hardware accessories follow their host panel/box via hostId`
+
+- 问题：爆炸时门飞出，但把手/合页/磁吸按自身坐标独立乘性外扩（把手 x≈0 几乎不动）→ 与门视觉分离
+- 修复：AccessoryItem 加 `hostId?`（宿主 panel/accessory id），生成时挂宿主（合页/把手/磁吸→门板、抽屉拉手→前脸板、滑轨→抽屉盒）；App 爆炸位移 = 宿主中心位移增量（与 joints 跟随梁同款方案）；脚轮/地脚/LED 无宿主保持原逻辑
+- 截图确认：门带着把手+合页×2 整体飞出、前脸带拉手、盒带滑轨 ✓
+
+
+## 2026-08-19（续17）：STEP 导出落地（replicad）+ 第三方验证
+
+**commit 6b25952** `feat(export): STEP export via replicad worker`
+
+### 实现
+- `npm i replicad replicad-opencascadejs`（v1.0.0，wasm 单文件 dist/replicad_single.wasm）
+- **共享轮廓模块** src/engine/sectionOutline.ts：从 profileGeometry 提取纯数据轮廓点列+芯孔（THREE 渲染与 STEP 导出同源，消除双份维护）
+- **Worker**（src/export/stepWorker.ts）：`opencascade({locateFile: wasm?url})` 惰性初始化 → 每根型材 draw(pts).close().cut(芯孔圆) → sketchOnPlane('XY').extrude(length) → 按 axis/tilt 旋转 → translate；板材 drawRoundedRectangle 挤出；`compoundShapes(...).rotate(90,X)`（Y-up→Z-up）→ `blobSTEP()`
+- 主线程 src/export/step.ts：Worker 惰性创建、轮廓按截面缓存、Promise 封装
+- App"STEP"按钮：exportGate + stepBusy 防重入，动态 import 不进主包
+
+### 验证
+- 工具柜方案导出 3.08MB application/step
+- **3dviewer.net 第三方验证**：OCCT 8.0 translator 正常解析；单位毫米；外包 1023×436×918mm 与设计精确一致（1000+洞洞板5+侧板18 / 400+背18+门18 / 900+顶18）；每根型材独立实体（点选单件 4040×320）；正面视图抽屉前脸/门板分缝清晰
+- 首次导出需加载 wasm 数秒（OCCT Transfer Write 日志可见），此后秒出
+
+### 待办
+- CLAUDE.md 三大待办全部清空（变高立柱/2040梁/STEP导出）
+
+
+## 2026-08-19（续18）：M5 回归 + 装配说明补硬件步骤
+
+### M5 AI 链路回归（今日改提示词+意图层后的纪律性验证）
+- `npm run m5` 10 条全部完成 → out/m5-report.{json,md}，无回归
+- req-008（今日工具柜句）在测试集内跑通；req-010（45立方抽屉柜）valid；req-006（三段式歧义数字）正确保持 null+追问
+- 校验以 pass 为主，无 error 阻断
+
+### 装配说明补硬件（commit 35972de）
+- 新增"抽屉前脸与拉手"步骤（drawer-front mount 此前不进任何步骤）：先点固调缝（与门共面、层缝均匀）再 M4 反锁 + 拉手孔距96 安装
+- "4 根立柱"硬编码 → 实际柱数（中柱场景 6 根）
+- tsc ✓ golden 15 节 ✓
+
+### 后续建议清单（已与用户对齐优先级）
+1. ~~M5 回归~~ ✅ 2. ~~装配说明硬件步骤~~ ✅ 3. 部署试用（Vercel/Pages 收真实反馈）
+4. STEP 零件命名（exportSTEP ShapeConfig）5. 手动锁定单项解锁 UI 6. 三列分区 7. 2040×抽屉/中柱组合解锁 8. 案例库剩余锚点（鱼缸架/衣柜）9. 洞洞板挂钩 SKU
+
+
+## 2026-08-19（续19）：GitHub Pages 部署
+
+**commits d94a722**（生产端点+base 路径）+ gh-pages 分支（构建产物 7.25MB 含 replicad wasm）
+
+### 决策与实现
+- 平台：GitHub Pages（用户选定，仓库公开）
+- vite base：`process.env.GITHUB_ACTIONS ? '/suigou/' : '/'`；本地发布用 `$env:GITHUB_ACTIONS='true'; npm run build` 后 dist 内 git init + force push 到 gh-pages
+- LLM 端点：生产静态站直连 https://api.longcat.chat（dev 仍走 vite 代理）；fetch 网络/CORS 失败给友好提示（"AI 理解请本地运行；手动面板与样例不受影响"）；key 仍由访问者自填 localStorage，不进构建产物
+- **坑：PAT 无 workflow scope** → 无法推 .github/workflows/deploy.yml，Actions 自动部署挂起（文件改名 .github/deploy.yml.pending 保留）。将来给 PAT 加 workflow 权限后改回即可启用（含 golden 门禁的自动部署）
+- 用户待办：Settings→Pages 选 gh-pages 分支；地址 https://guorongxue.github.io/suigou/
+
+### 手动发布流程（记录）
+```powershell
+$env:GITHUB_ACTIONS='true'; npm run build; $env:GITHUB_ACTIONS=$null
+cd dist; git init; git add -A; git commit -m deploy
+git push -f https://github.com/GuorongXue/suigou.git HEAD:gh-pages; cd ..
+```
+
+
+## 2026-08-19（续20）：正式上线 🎉
+
+**https://guorongxue.github.io/suigou/**
+
+- 用户给 PAT 加 workflow 权限 → deploy.yml 推送成功（commit 215dea4），Pages Source 切为 GitHub Actions
+- **CI 流水线**：push main → npm ci → **golden 15 节回归门禁** → build → 发布 Pages（golden 不过不发布）
+- 线上实测：页面加载正常（/suigou/ 子路径资源 ✓）、首次使用 API Key 自填提示 ✓、参数面板/3D/校验/切割清单/下料/价格/装配/STEP 按钮全部工作 ✓
+- Phase 0 至此具备完整对外试用条件：默认工作台方案 15 根 ¥283 即开即用，无 Key 也能用全部手动功能
+
+
+## 2026-08-19（续21）：清单三连（STEP 命名 / 锁定单项解锁 / 洞洞板挂钩）
+
+- **495a861** STEP 零件命名：exportSTEP ShapeConfig 逐件命名"件号 截面 长度"（如 P1 eu-4040-s8 L900）+ 基础色（型材银灰/板材木色），本地实测 PRODUCT 名称写入 ✓——工厂 CAD 打开即知件号对应
+- **80c456c** 锁定单项解锁：锁定列表变 chips，每项 × 单独解锁 + "全部解锁"，不再只能靠"新建"或换产品类型
+- **52308e3** 洞洞板挂钩：`pegboard-hook-kit`（10 只混装 ¥12）SKU 入库，侧挂洞洞板 mount 自动附带进 BOM——挂架功能有了本体配件
+- 全部 tsc ✓ golden ✓ 已推送（CI 自动发布线上）
+
+### 剩余清单
+- 三列分区（真实工具柜"抽屉+开放+柜门"三列）
+- 2040 梁 × 抽屉/中柱组合解锁（内部 y 基准扩展）
+- 案例库剩余锚点（鱼缸架/衣柜）
+
+
+## 2026-08-19（续22）：三列分区落地（N 列泛化）
+
+**commits 43c26f7**（引擎+校验+golden16）+ **de35951**（UI）
+
+### 引擎泛化（generate.ts）
+- FrameSpec 新增 `partitions?: { ratios: number[]; cols: (CenterColumnType|null)[] }`（N 列 = N−1 根中柱）；centerColumn 保留为两列特例，内部归一为 partitions（全兼容，锚点①两列断言不变）
+- addRectLayer 分段梁泛化：cuts=[左角柱,...中柱,右角柱] 循环生成 N 段，角柱端缝在框缘、中柱端缝在柱面
+- 列结构循环调用 addCenterColStructure（函数无需改）；变高中柱/顶梁通长/2040阻断/抽屉塔阻断条件全部改 partitions
+- 合法性：ratios 与 cols 等长、≥2 列、占比和=1（阻断）
+
+### 校验修正（validate.ts 真实缺陷）
+- **分区中柱是通长顶梁的中间支点**：val-002 挠度与 val-001 跨度选型的有效跨度 = min(梁长, 最大列净跨)，消息注明"（分区中柱支承，按最大列跨）"——修复前 1200 宽三列被通长梁 1160 误判挠度 20mm 超限
+
+### golden 第 16 节
+1200×400×900 三列（35/30/35：左3抽屉/中开放/右柜门右铰）断言：8 柱、每层 beam-x 3 段×2、3 抽屉盒+3 前脸（全在左列 x<−100）、门在右列 x>200、状态非 invalid。16 节全过。
+
+### UI（PartitionsConfig）
+- 每列：宽 %（自动归一）/类型/计数/铰链；>2 列可单列移除；≤4 列可"＋加一列（均分）"
+- 两列 centerColumn 面板下加"＋第三列（升级多列分区）"一键转换；"中柱"checkbox 覆盖两种模式
+- 浏览器实测截图：左列 2 抽屉带拉手+中列开放+右列带门大柜，顶板盖全+6 脚轮——真实三列工具柜形态 ✓
+
+
+## 2026-08-19（续23）：2040 × 抽屉/分区组合解锁
+
+**commit 205a146** `feat(engine): unlock 2040 beams with drawers/partitions`
+
+- 内部结构 y 基准泛化：`innerBottomY = bh`（底框梁顶）、`innerClearH = H − 2·bh`（净高）——抽屉塔节距/轨道梁 y、列内搁板节距、中柱顶（`centerTopBeamY − s/2 − 2·beamDrop` = 顶梁底）全部改用；方形梁 bh=s 时退化为原公式，锚点③三抽屉柜不受影响
+- 删除"2040+抽屉/中柱阻断"；golden 14 节断言反转：2040+抽屉塔组合可生成、首层轨道梁 y = 底梁顶(40)+20 无碰撞
+- 鱼缸架/衣柜锚点：案例库（21号文档）无真实 BOM 素材，诚实跳过（只有 archetypes 档位数据，无从对齐）——留待收集到真实产品 BOM 后再做
+- tsc ✓ golden 16 节全过 ✓ 已推送（CI 自动上线）
+
+### 后续清单全部清空 🎉
+爆炸联动/门开向/前脸/五金/板缝/三列分区/2040组合/STEP命名/锁定解锁/挂钩/M5回归/装配硬件/部署上线——今日全部完成。
