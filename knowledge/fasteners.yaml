@@ -28,6 +28,7 @@ fasteners:
   leveling-foot-m8:    { name: 调平地脚 M8×D40×50,    price: 3.00 }
   extend-nut-m8-40:    { name: 不锈钢加长螺母柱 M8×16×40, price: 2.50 }
   drawer-slide-350:    { name: 三折抽屉轨道 35cm/副,  price: 12.00 }
+  pegboard-hook-kit:   { name: 洞洞板挂钩套装 10只混装, price: 12.00 }
   rebound-slide-350:   { name: 反弹抽屉轨道 350/副(按压无拉手), price: 18.00 }
   turnover-box-148:    { name: 工业风周转箱 40×30×14.8, price: 15.00 }
   turnover-box-230:    { name: 工业风周转箱 40×30×23,  price: 20.00 }

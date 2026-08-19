@@ -561,14 +561,16 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         const x = side === 'left' ? -W / 2 : W / 2;
         return [[x, s, -D / 2 + s / 2], [x, s, D / 2 - s / 2], [x, H - s, -D / 2 + s / 2], [x, H - s, D / 2 - s / 2]] as [number, number, number][];
       })();
-    // 外挂薄板用垂直角码（真实案例：4mm 海洋板侧挂），其余按档位分派
+    // 外挂薄板用垂直角码（真实案例：4mm 海洋板侧挂），其余按档位分派；洞洞板附挂钩套装（挂架功能本体）
+    const sideFasteners = ps.mount === 'corner-flat'
+      ? [{ sku: 'vertical-bracket-20', qty: 4 }, { sku: 'screw-m4-10-pan', qty: 8 }, { sku: 't-nut-m4', qty: 8 }]
+      : mountFasteners(ps.mount);
+    if (material === 'pegboard') sideFasteners.push({ sku: 'pegboard-hook-kit', qty: 1 });
     mounts.push({
       id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId,
       method: ps.mount,
-      note: '侧围板四角固定于立柱外侧槽',
-      fasteners: ps.mount === 'corner-flat'
-        ? [{ sku: 'vertical-bracket-20', qty: 4 }, { sku: 'screw-m4-10-pan', qty: 8 }, { sku: 't-nut-m4', qty: 8 }]
-        : mountFasteners(ps.mount),
+      note: `侧围板四角固定于立柱外侧槽${material === 'pegboard' ? '；附挂钩套装 10 只（混装，工具挂架）' : ''}`,
+      fasteners: sideFasteners,
       points,
     });
   };
