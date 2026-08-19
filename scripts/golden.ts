@@ -420,5 +420,56 @@ console.log(failures ? `\n== 13. DXF 导出（跳过） ==` : '== 13. DXF 导出
   if (!failures) ok(`DXF 导出通过：${m.cutList.length} 件号 · ${circles} 孔标记 · 头尾完整`);
 }
 
+console.log(failures ? `\n== 14. 2040 矩形梁（跳过） ==` : '== 14. 2040 矩形梁 ==');
+{
+  // 双截面：柱 2020 + 层框梁 2040 立放（宽同 20 槽对齐，高 40 强轴抗弯）
+  const desk = generateFrame({
+    width: 1342, depth: 545, height: 740, scene: 'workbench', shelfCount: 0,
+    sectionId: 'eu-2020', beamSectionId: 'eu-2040', connectorId: 'internal-slot-20',
+    workbenchDeskTopHeightMm: 740, mobility: 'fixed',
+    topPanel: 'wood', shelfPanel: 'none', bottomPanel: 'none', backPanel: 'none', leftPanel: 'none', rightPanel: 'none',
+    loadKg: 60, loadType: 'distributed', highRisk: false,
+  }, kb);
+  const layerBeams = desk.members.filter((m) => m.sectionId === 'eu-2040');
+  const posts = desk.members.filter((m) => m.role === 'post');
+  if (posts.some((p) => p.sectionId !== 'eu-2020')) fail('立柱应保持 eu-2020');
+  if (layerBeams.length < 4) fail(`顶框层梁应为 eu-2040，实际 ${layerBeams.length} 根`);
+  // 顶对齐：2040 梁顶 = H → 中心 = 740 − 20 = 720
+  const topBeams2040 = layerBeams.filter((m) => Math.abs(m.position[1] - 720) < 0.5);
+  if (topBeams2040.length !== layerBeams.length) fail(`顶框 2040 梁中心应在 720（顶对齐 H），实际 y=${[...new Set(layerBeams.map((m) => m.position[1]))].join(',')}`);
+  // 底部长边双撑保持柱截面（非层框梁不升级）
+  const footBeams = desk.members.filter((m) => m.role === 'beam-x' && m.position[1] < 200);
+  if (footBeams.some((m) => m.sectionId !== 'eu-2020')) fail('底部双撑应保持 eu-2020');
+  // 切割清单按截面分组：出现 eu-2040 件号且不与 2020 混并
+  const cut2040 = desk.cutList.filter((c) => c.sectionId === 'eu-2040');
+  if (!cut2040.length) fail('切割清单应含 eu-2040 件号');
+  if (desk.cutList.some((c) => !c.sectionId)) fail('切割清单存在缺截面标注的件号');
+  // 挠度改善：1342 跨 60kg 用 2040（ix 6.0e4 ≈ 2020 的 8.6 倍）不应报挠度 error
+  if (desk.checks.some((c) => c.ruleId === 'val-002' && c.level === 'error')) fail('2040 梁下 1342 跨挠度不应超限');
+  // 约束①：梁宽 ≠ 柱宽 → 阻断
+  let widthBlocked = false;
+  try {
+    generateFrame({
+      width: 800, depth: 400, height: 800, scene: 'diy-furniture', shelfCount: 1,
+      sectionId: 'eu-3030', beamSectionId: 'eu-2040', connectorId: 'anchor-30', mobility: 'fixed',
+      topPanel: 'none', shelfPanel: 'none', bottomPanel: 'none', backPanel: 'none', leftPanel: 'none', rightPanel: 'none',
+      loadKg: 10, loadType: 'distributed', highRisk: false,
+    }, kb);
+  } catch { widthBlocked = true; }
+  if (!widthBlocked) fail('3030 柱 + 2040 梁（宽不等）应阻断');
+  // 约束②：2040 + 抽屉塔 → 诚实降级阻断
+  let drawerBlocked = false;
+  try {
+    generateFrame({
+      width: 350, depth: 400, height: 490, scene: 'diy-furniture', shelfCount: 0, drawerCount: 3,
+      sectionId: 'eu-2020', beamSectionId: 'eu-2040', connectorId: 'internal-slot-20', mobility: 'fixed',
+      topPanel: 'wood', shelfPanel: 'none', bottomPanel: 'none', backPanel: 'none', leftPanel: 'none', rightPanel: 'none',
+      loadKg: 10, loadType: 'distributed', highRisk: false,
+    }, kb);
+  } catch { drawerBlocked = true; }
+  if (!drawerBlocked) fail('2040 梁 + 抽屉塔组合应诚实阻断');
+  if (!failures) ok(`2040 矩形梁通过：柱2020+梁2040 顶对齐720 · 撑杆不升级 · 切割清单分截面 · 1342跨挠度通过 · 两类非法组合阻断`);
+}
+
 console.log(failures ? `\n✖ 失败 ${failures} 项` : '\n✓ 全部通过');
 process.exit(failures ? 1 : 0);

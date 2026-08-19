@@ -714,10 +714,22 @@ export default function App() {
                 <div style={{ display: 'flex', gap: 4 }}>
                   <label style={{ flex: 1 }}>
                     <span style={{ fontSize: 10, color: '#8a90a0' }}>截面</span>
-                    <select value={spec.sectionId} onChange={(e) => set({ sectionId: e.target.value })} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
-                      {kb.sections.map((s) => (<option key={s.section.id} value={s.section.id}>{s.section.name}</option>))}
+                    <select value={spec.sectionId} onChange={(e) => set({ sectionId: e.target.value, beamSectionId: undefined })} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+                      {kb.sections.filter((s) => s.section.size[0] === s.section.size[1]).map((s) => (<option key={s.section.id} value={s.section.id}>{s.section.name}</option>))}
                     </select>
                   </label>
+                  <label style={{ flex: 1 }}>
+                    <span style={{ fontSize: 10, color: '#8a90a0' }}>梁截面</span>
+                    <select value={spec.beamSectionId ?? ''} onChange={(e) => set({ beamSectionId: e.target.value || undefined })} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+                      <option value="">同立柱</option>
+                      {kb.sections.filter((s) => {
+                        const post = kb.sections.find((r) => r.section.id === spec.sectionId)!.section;
+                        return s.section.size[0] === post.size[0] && s.section.size[1] > s.section.size[0];
+                      }).map((s) => (<option key={s.section.id} value={s.section.id}>{s.section.name}</option>))}
+                    </select>
+                  </label>
+                </div>
+                <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
                   <label style={{ flex: 1 }}>
                     <span style={{ fontSize: 10, color: '#8a90a0' }}>连接件</span>
                     <select value={spec.connectorId} onChange={(e) => set({ connectorId: e.target.value })} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
