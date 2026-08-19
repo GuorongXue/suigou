@@ -377,21 +377,28 @@ console.log(failures ? `\n== 10. 板材纹理渲染（跳过） ==` : '== 10. �
 
 console.log(failures ? `\n== 12. 黄金锚点①工具柜（跳过） ==` : '== 12. 黄金锚点①工具柜 ==');
 {
-  // 黄金锚点①（随构/21 工具收纳柜 670×400×815）：非均匀双列（左425抽屉+右185工具）
+  // 黄金锚点①（随构/21 工具收纳柜）：H=810 变高立柱 BOM 精确对齐 810×4 外柱 + 775×2 中柱
+  // 规则：顶梁通长架中柱顶，中柱 = H − 顶板厚(15) − 梁高(20) = 775；板上表面与外柱顶齐平
   const cabinet = generateFrame({
-    width: 670, depth: 400, height: 815, scene: 'diy-furniture', shelfCount: 0,
+    width: 670, depth: 400, height: 810, scene: 'diy-furniture', shelfCount: 0,
     sectionId: 'eu-2020', connectorId: 'internal-slot-20', mobility: 'leveling-feet',
-    topPanel: 'wood', shelfPanel: 'wood', bottomPanel: 'wood', backPanel: 'none', leftPanel: 'none', rightPanel: 'none',
+    topPanel: 'wood', topPanelMode: 'recessed',
+    shelfPanel: 'wood', bottomPanel: 'wood', backPanel: 'none', leftPanel: 'none', rightPanel: 'none',
     loadKg: 30, loadType: 'distributed', highRisk: false,
     centerColumn: { offsetRatio: 0.67, left: { type: 'drawer', count: 4, kind: 'turnover-box' }, right: { type: 'shelf', count: 2 } },
   }, kb);
-  // Phase 0 简化：立柱统一全高 815mm（真实产品外柱 810、内柱 775，变高立柱为后续扩展）
-  // 中柱偏置 0.67：左列 412mm + 右列 198mm；横梁(beam-x)在中心断开为左右两段
   const posts = cabinet.members.filter((m) => m.role === 'post');
-  const centerPosts = posts.filter((p) => Math.abs(p.position[0] - 107) < 5);  // 中柱 x≈107
-  if (centerPosts.length !== 2) fail(`中柱应为 2 根，实际 ${centerPosts.length}`);
+  const outerPosts = posts.filter((p) => p.length === 810);
+  const centerPosts = posts.filter((p) => Math.abs(p.position[0] - 107) < 5);
   if (posts.length !== 6) fail(`总立柱应为 6（4 角+2 中），实际 ${posts.length}`);
-  if (!failures) ok(`黄金锚点①对齐通过：${posts.length} 立柱（含 ${centerPosts.length} 中柱）· 左列 4 抽屉 + 右列 2 搁板`);
+  if (outerPosts.length !== 4) fail(`外柱应 810×4（真实BOM），实际 ${outerPosts.length}`);
+  // 真实 BOM 中柱 775 = 810 − 15板 − 20梁（wood 18mm 时为 772，容差 ±5 记录板厚差异）
+  if (centerPosts.length !== 2) fail(`中柱应为 2 根，实际 ${centerPosts.length}`);
+  if (centerPosts.some((p) => Math.abs(p.length - 775) > 5)) fail(`中柱长应≈775（变高实证），实际 ${centerPosts.map((p) => p.length).join(',')}`);
+  // 顶层横梁通长（不断开）：存在 630 全长 beam-x 于顶部
+  const topFullBeams = cabinet.members.filter((m) => m.role === 'beam-x' && m.length === 630 && m.position[1] > 700);
+  if (topFullBeams.length !== 2) fail(`顶层应有 2 根通长 630 横梁（架中柱顶），实际 ${topFullBeams.length}`);
+  if (!failures) ok(`黄金锚点①对齐通过：外柱810×4 + 中柱≈775×2 + 顶梁通长630×2 · 左列4抽屉+右列2搁板`);
 }
 
 console.log(failures ? `\n== 13. DXF 导出（跳过） ==` : '== 13. DXF 导出 ==');

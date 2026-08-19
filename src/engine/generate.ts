@@ -136,21 +136,27 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   const drawerBoxes: { y: number; pitch: number; colWidth?: number; xCenter?: number }[] = [];  // 抽屉盒位置（分区塔/普通抽屉塔共用）
 
   // 中柱分区（工具柜/异构柜）：在框架内部加立柱，将内腔分为左右双列
+  // 变高立柱（锚点①实证 810外/775中）：顶梁通长架中柱顶，中柱高 = H − 顶板厚 − 梁高
+  const centerTopPanelT = spec.centerColumn && spec.topPanel !== 'none' && spec.topPanelMode === 'recessed'
+    ? PANEL_SPEC[spec.topPanel].thickness : 0;
+  const centerTopBeamY = H - centerTopPanelT - s / 2;
   let xCenter: number | null = null;
   if (spec.centerColumn) {
     const innerW = W - 2 * s;
     xCenter = -W / 2 + s + innerW * spec.centerColumn.offsetRatio;
-    addPost(xCenter, zBack, 0, H);
-    addPost(xCenter, zFront, 0, H);
+    const centerPostTop = centerTopBeamY - s / 2;
+    addPost(xCenter, zBack, 0, centerPostTop);
+    addPost(xCenter, zFront, 0, centerPostTop);
   }
 
-  const addRectLayer = (y: number, outerDepth: number, centerZ = 0) => {
+  const addRectLayer = (y: number, outerDepth: number, centerZ = 0, opts?: { split?: boolean }) => {
     const ySide: 1 | -1 = y <= s ? 1 : -1;   // 底框角码朝上，其余朝下
     const layerBeamZ = outerDepth - 2 * s + 2 * conn.lengthOffset;
     const layerBack = centerZ - outerDepth / 2 + s / 2;
     const layerFront = centerZ + outerDepth / 2 - s / 2;
+    const split = (opts?.split ?? true) && !!spec.centerColumn && xCenter != null;
     for (const z of [layerBack, layerFront]) {
-      if (spec.centerColumn && xCenter != null) {
+      if (split && xCenter != null) {
         // 中柱：横梁在中心处断开为左右两段，各连接角柱与中柱
         // 左半段：左角柱 → 中柱
         const leftLen = xCenter - xLeft - s + 2 * conn.lengthOffset;
@@ -233,7 +239,15 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     for (const y of shelfLevels.slice(1)) addRectLayer(y, upperOuterDepth, upperCenterZ);
     addRectLayer(H - s / 2, upperOuterDepth, upperCenterZ);
   } else {
-    for (const y of levels) addRectLayer(y, D);
+    const topY = H - s / 2;
+    for (const y of levels) {
+      if (spec.centerColumn && y === topY) {
+        // 顶层：通长梁架中柱顶上（不断开），有凹陷顶板时梁下沉板厚
+        addRectLayer(centerTopBeamY, D, 0, { split: false });
+      } else {
+        addRectLayer(y, D);
+      }
+    }
   }
 
   // 抽屉塔（随构/21 三抽屉柜实证）：顶底框 + 每层双深向轨道梁 + 抽屉盒
@@ -431,7 +445,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     if (spec.centerColumn.right) addCenterColStructure(xCenter, xRight, rightW, spec.centerColumn.right);
   }
 
-  if (!isPureDesk) addPanel(spec.topPanel, H, true, spec.scene === 'workbench'
+  if (!isPureDesk) addPanel(spec.topPanel, H - centerTopPanelT, true, spec.scene === 'workbench'
     ? { depthRatio: upperDepthRatio, align: 'back' }
     : undefined);
   addPanel(spec.bottomPanel, s, false);   // 底框梁上表面 = s（搭梁式同隔板）
