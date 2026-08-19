@@ -11,7 +11,7 @@ connector:
   name: 内置角槽 2020
   category: internal
   visibility: hidden
-  compatible: { slotWidths: [6], series: [eu-2020] }
+  compatible: { slotWidths: [6], series: [eu-2020, eu-2040] }
   strengthClass: 3
   loadRole: primary
   note: 2020 系列主力连接方案（真实抽屉车整柜用它承重）；槽内隐藏、免打孔

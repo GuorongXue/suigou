@@ -11,7 +11,7 @@ connector:
   name: 三维角件 2020(立方三孔)
   category: corner-cube
   visibility: exposed
-  compatible: { slotWidths: [6], series: [eu-2020] }
+  compatible: { slotWidths: [6], series: [eu-2020, eu-2040] }
   strengthClass: 3
   loadRole: primary
   note: 立方三孔角件，同时接三向端面；2020 框架角部主力（小型柜体角部美观整洁）

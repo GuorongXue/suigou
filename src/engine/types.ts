@@ -6,6 +6,8 @@ export interface FrameSpec {
   depth: number;    // 总深 Z (mm)
   height: number;   // 总高 Y (mm)
   sectionId: string;
+  /** 层框梁截面（可选，如 eu-2040 矩形梁立放增强抗弯）；缺省=同 sectionId。宽度必须等于立柱宽（槽对齐） */
+  beamSectionId?: string;
   connectorId: string;
   /** 隔板层数（不含顶底框）；常规场景均匀分布，工作台场景可按人体工学偏置 */
   shelfCount: number;

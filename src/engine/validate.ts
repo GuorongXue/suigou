@@ -9,10 +9,14 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
   const checks: CheckResult[] = [];
   const { spec, members } = model;
   const sec = kb.sections.find((s) => s.section.id === spec.sectionId)!.section;
+  const beamSec = (spec.beamSectionId
+    ? kb.sections.find((s) => s.section.id === spec.beamSectionId)
+    : undefined)?.section ?? sec;
+  const beamH = beamSec.size[1];                   // 梁高（立放，2040=40）
   const conn = kb.connectors.find((c) => c.connector.id === spec.connectorId)!.connector;
 
   const E = sec.mechanics.elasticModulus;          // MPa = N/mm²
-  const I = sec.mechanics.momentOfInertia.ix;      // mm⁴
+  const I = beamSec.mechanics.momentOfInertia.ix;  // mm⁴（层框梁截面强轴）
   const validation = kb.rules['validation'] as {
     deflectionLimits?: Record<string, string>;
   } | undefined;
@@ -46,9 +50,9 @@ export function validateFrame(model: FrameModel, kb: KnowledgeBase): CheckResult
   // 凹嵌板与承载梁同层（梁托板）；搭梁板的承载梁在板下方
   const loadBeamY = desktop
     ? (desktop.mode === 'top-inset'
-      ? spec.height - sec.size[0] / 2
-      : desktop.position[1] - desktop.boxSize[1] / 2 - sec.size[0] / 2)
-    : spec.height - sec.size[0] / 2;
+      ? spec.height - beamH / 2
+      : desktop.position[1] - desktop.boxSize[1] / 2 - beamH / 2)
+    : spec.height - beamH / 2;
   const topBeams = members.filter((m) => m.role !== 'post' && Math.abs(m.position[1] - loadBeamY) < 1);
   const longest = topBeams.reduce((a, b) => (b.length > a.length ? b : a), topBeams[0]);
   if (longest) {

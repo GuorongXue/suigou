@@ -11,7 +11,7 @@ connector:
   name: 垂直角码 2020(外挂面板)
   category: vertical-bracket
   visibility: external
-  compatible: { slotWidths: [6], series: [eu-2020] }
+  compatible: { slotWidths: [6], series: [eu-2020, eu-2040] }
   strengthClass: 2
   loadRole: primary
   note: L 型垂直角码，用于将面板(洞洞板/海洋板)外挂于框架侧面；螺钉入柱槽+面板角孔

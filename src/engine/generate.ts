@@ -14,6 +14,21 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   const sec = sectionRecord.section;
   const s = sec.size[0];
 
+  // 层框梁截面（2040 矩形梁立放增强抗弯）：宽=柱宽（槽对齐），高可更大
+  const beamRecord = spec.beamSectionId
+    ? kb.sections.find((r) => r.section.id === spec.beamSectionId)
+    : sectionRecord;
+  if (!beamRecord) throw new Error(`知识库中不存在梁截面 ${spec.beamSectionId}`);
+  const beamSec = beamRecord.section;
+  if (beamSec.size[0] !== s) {
+    throw new Error(`梁截面宽 ${beamSec.size[0]}mm 必须等于立柱宽 ${s}mm（槽对齐约束）`);
+  }
+  const bh = beamSec.size[1];             // 梁高（立放）
+  const beamDrop = (bh - s) / 2;          // 顶/底对齐时梁中心偏移（方形梁为 0）
+  if (beamDrop > 0 && ((spec.drawerCount ?? 0) > 0 || spec.centerColumn)) {
+    throw new Error('矩形梁（2040）暂不支持抽屉塔/中柱分区组合：内部结构 y 基准待扩展（诚实降级）');
+  }
+
   const connectorRecord = kb.connectors.find((c) => c.connector.id === spec.connectorId);
   if (!connectorRecord) throw new Error(`知识库中不存在连接件 ${spec.connectorId}`);
   const conn = connectorRecord.connector;
@@ -151,6 +166,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
 
   const addRectLayer = (y: number, outerDepth: number, centerZ = 0, opts?: { split?: boolean }) => {
     const ySide: 1 | -1 = y <= s ? 1 : -1;   // 底框角码朝上，其余朝下
+    // 矩形梁对齐：底框底对齐（梁底=0），其余层顶对齐（梁顶/板位不变）；方形梁 beamDrop=0 无影响
+    const yB = y + (ySide === 1 ? beamDrop : -beamDrop);
     const layerBeamZ = outerDepth - 2 * s + 2 * conn.lengthOffset;
     const layerBack = centerZ - outerDepth / 2 + s / 2;
     const layerFront = centerZ + outerDepth / 2 - s / 2;
@@ -161,44 +178,44 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         // 左半段：左角柱 → 中柱
         const leftLen = xCenter - xLeft - s + 2 * conn.lengthOffset;
         const leftCenter = (xLeft + xCenter) / 2;
-        add({ role: 'beam-x', sectionId: sec.id, length: leftLen, position: [leftCenter, y, z], axis: 'x' });
+        add({ role: 'beam-x', sectionId: beamSec.id, length: leftLen, position: [leftCenter, yB, z], axis: 'x' });
         const leftBeamId = `m-${n}`;
         for (const outward of [1, -1] as const) {
           const px = outward === -1 ? xLeft : xCenter;
           const postId = postAt.get(`${px},${z}`)!;
           const jointX = outward === -1 ? -(W / 2 - s) : (xCenter - s / 2);
-          addJoint({ position: [jointX, y, z], beamAxis: 'x', outward, ySide,
+          addJoint({ position: [jointX, yB, z], beamAxis: 'x', outward, ySide,
             beamMemberId: leftBeamId, postMemberId: postId });
         }
         // 右半段：中柱 → 右角柱
         const rightLen = xRight - xCenter - s + 2 * conn.lengthOffset;
         const rightCenter = (xCenter + xRight) / 2;
-        add({ role: 'beam-x', sectionId: sec.id, length: rightLen, position: [rightCenter, y, z], axis: 'x' });
+        add({ role: 'beam-x', sectionId: beamSec.id, length: rightLen, position: [rightCenter, yB, z], axis: 'x' });
         const rightBeamId = `m-${n}`;
         for (const outward of [1, -1] as const) {
           const px = outward === 1 ? xRight : xCenter;
           const postId = postAt.get(`${px},${z}`)!;
           const jointX = outward === 1 ? (W / 2 - s) : (xCenter + s / 2);
-          addJoint({ position: [jointX, y, z], beamAxis: 'x', outward, ySide,
+          addJoint({ position: [jointX, yB, z], beamAxis: 'x', outward, ySide,
             beamMemberId: rightBeamId, postMemberId: postId });
         }
       } else {
-        add({ role: 'beam-x', sectionId: sec.id, length: beamX, position: [0, y, z], axis: 'x' });
+        add({ role: 'beam-x', sectionId: beamSec.id, length: beamX, position: [0, yB, z], axis: 'x' });
         const beamId = `m-${n}`;
         for (const outward of [1, -1] as const) {
           const postId = postAt.get(`${outward * (W / 2 - s / 2)},${z}`)!;
-          addJoint({ position: [outward * (W / 2 - s), y, z], beamAxis: 'x', outward, ySide,
+          addJoint({ position: [outward * (W / 2 - s), yB, z], beamAxis: 'x', outward, ySide,
             beamMemberId: beamId, postMemberId: postId });
         }
       }
     }
     for (const x of [xLeft, xRight]) {
-      add({ role: 'beam-z', sectionId: sec.id, length: layerBeamZ, position: [x, y, centerZ], axis: 'z' });
+      add({ role: 'beam-z', sectionId: beamSec.id, length: layerBeamZ, position: [x, yB, centerZ], axis: 'z' });
       const beamId = `m-${n}`;
       for (const outward of [1, -1] as const) {
         const z = outward === -1 ? layerBack : layerFront;
         const postId = postAt.get(`${x},${z}`)!;
-        addJoint({ position: [x, y, centerZ + outward * (outerDepth / 2 - s)], beamAxis: 'z', outward, ySide,
+        addJoint({ position: [x, yB, centerZ + outward * (outerDepth / 2 - s)], beamAxis: 'z', outward, ySide,
           beamMemberId: beamId, postMemberId: postId });
       }
     }
@@ -448,7 +465,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   if (!isPureDesk) addPanel(spec.topPanel, H - centerTopPanelT, true, spec.scene === 'workbench'
     ? { depthRatio: upperDepthRatio, align: 'back' }
     : undefined);
-  addPanel(spec.bottomPanel, s, false);   // 底框梁上表面 = s（搭梁式同隔板）
+  addPanel(spec.bottomPanel, s + 2 * beamDrop, false);   // 底框梁上表面（底对齐矩形梁 = 梁高，方形 = s）
   if (isPureDesk) {
     // 纯桌桌面凹嵌顶框内（案例：板顶=腿顶，平面直角连接件固定）
     const material = spec.topPanel !== 'none' ? spec.topPanel : (spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood');
@@ -784,9 +801,9 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     (opsBy.get(mc.memberId) ?? opsBy.set(mc.memberId, []).get(mc.memberId)!)
       .push({ type: mc.type, spec: mc.spec, fromStart, face, diameter: mc.diameter });
   }
-  const partKey = (m: Member) => `${m.length}|${(machBy.get(m.id) ?? []).sort().join(',')}`;
+  const partKey = (m: Member) => `${m.sectionId}|${m.length}|${(machBy.get(m.id) ?? []).sort().join(',')}`;
   const partNoByKey = new Map<string, string>();
-  const cutAgg = new Map<string, { length: number; qty: number; machiningNote: string; ops: PartOp[] }>();
+  const cutAgg = new Map<string, { sectionId: string; length: number; qty: number; machiningNote: string; ops: PartOp[] }>();
   for (const m of members) {
     const key = partKey(m);
     if (!partNoByKey.has(key)) partNoByKey.set(key, `P${partNoByKey.size + 1}`);
@@ -799,11 +816,11 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       for (const o of ops) noteMap.set(o.split('@')[0], (noteMap.get(o.split('@')[0]) ?? 0) + 1);
       const machiningNote = [...noteMap.entries()]
         .map(([o, c]) => `${o.split(':')[1]}×${c}`).join(' ');
-      cutAgg.set(key, { length: m.length, qty: 1, machiningNote, ops: (opsBy.get(m.id) ?? []).sort((a, b) => a.fromStart - b.fromStart) });
+      cutAgg.set(key, { sectionId: m.sectionId, length: m.length, qty: 1, machiningNote, ops: (opsBy.get(m.id) ?? []).sort((a, b) => a.fromStart - b.fromStart) });
     }
   }
   const cutList = [...cutAgg.entries()]
-    .map(([key, v]) => ({ partNo: partNoByKey.get(key)!, sectionId: sec.id, ...v }))
+    .map(([key, v]) => ({ partNo: partNoByKey.get(key)!, ...v }))
     .sort((a, b) => b.length - a.length);
 
   // 板材下料清单（件号 B1..）：同材质+尺寸+孔位合并；单件估价 = 面积×单价 + 钻孔费
