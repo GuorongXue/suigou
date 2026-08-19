@@ -434,10 +434,11 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         const doorMaterial = spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood';
         const ps = PANEL_SPEC[doorMaterial];
         const panelId = `pn-${++pn}`;
+        const hingeLeftHole = (col.hinge ?? 'left') === 'left';
         panels.push({ id: panelId, material: doorMaterial, size: [dw, dh, ps.thickness], boxSize: [dw, dh, ps.thickness],
           position: [colCenterX, H / 2, D / 2 + ps.thickness / 2], mode: 'door-front',
           mountNote: `柜门(${(col.hinge ?? 'left') === 'left' ? '左铰右开' : '右铰左开'})：合页×2 + 把手 + 磁吸`,
-          holes: [{ x: dw / 2 - 40, y: dh / 2 - 48, diameter: 5 }, { x: dw / 2 - 40, y: dh / 2 + 48, diameter: 5 }] });
+          holes: [{ x: hingeLeftHole ? dw - 40 : 40, y: dh / 2 - 48, diameter: 5 }, { x: hingeLeftHole ? dw - 40 : 40, y: dh / 2 + 48, diameter: 5 }] });
         const hingeLeft = (col.hinge ?? 'left') === 'left';
         const hingeX = hingeLeft ? colXLeft + s / 2 : colXRight - s / 2;   // 铰链侧立柱
         const catchX = hingeLeft ? colXRight - s / 2 : colXLeft + s / 2;   // 磁吸在开启侧立柱

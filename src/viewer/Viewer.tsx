@@ -597,12 +597,7 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       mesh.userData.baseColor = mat.color.getHex();   // 存储原色用于高亮恢复
       if (mat.transparent) mesh.renderOrder = 1;   // 透明面板后渲染，避免遮挡问题
       ctx.group.add(mesh);
-      if (p.mode === 'door-front') {   // 门把手：右缘内 40mm 竖拉手
-        const handle = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 110, 10),
-          new THREE.MeshStandardMaterial({ color: 0x4a4f57, metalness: 0.8, roughness: 0.3 }));
-        handle.position.set(p.position[0] + sx / 2 - 40, p.position[1], p.position[2] + sz / 2 + 18);
-        ctx.group.add(handle);
-      }
+      // 门把手由 handle accessory 渲染（位置随开向镜像），此处不再内置
     }
 
     // 脚轮：简化轮体+叉架；LED 灯条：自发光长条
