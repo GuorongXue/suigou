@@ -443,9 +443,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       const dw = colWidth + s - 3;         // 门宽 = 立柱中心距 − 3mm 缝（缝落柱中线，与邻列抽屉前脸共面对接）
       const dh = H - 2 * s;                // 门高 = 立柱间净高
       if (dw > 50 && dh > 50) {
-        // 门材质互通：全局门板选择优先，其次隔板材质，兜底木板；开向互通：列未指定时用全局 doorHinge
-        const doorMaterial = (spec.doorPanel && spec.doorPanel !== 'none') ? spec.doorPanel
-          : spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood';
+        // 门材质：只跟全局门板选择（左栏"门"），否则木板——不耦合隔板材质
+        const doorMaterial = (spec.doorPanel && spec.doorPanel !== 'none') ? spec.doorPanel : 'wood';
         const ps = PANEL_SPEC[doorMaterial];
         const panelId = `pn-${++pn}`;
         const hingeLeftHole = (col.hinge ?? spec.doorHinge ?? 'left') === 'left';
@@ -785,7 +784,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       });
       // 成品抽屉前脸板：与柜门共面，居中于层区间，层间既有 4mm 工艺缝（反弹轨按压开启）
       if (kind === 'ready-made') {
-        const fMat = spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood';
+        // 前脸材质：与门同面材（家具一致性），不耦合隔板材质
+        const fMat = (spec.doorPanel && spec.doorPanel !== 'none') ? spec.doorPanel : 'wood';
         const fs = PANEL_SPEC[fMat];
         const fw = (colWidth ?? W - 2 * s) + s - 3;   // 柱中线到柱中线 − 3mm 缝
         const fh = pitch - 4;                          // 上下各 2mm 工艺缝
