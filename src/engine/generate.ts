@@ -499,9 +499,12 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       const colW = cuts[i + 1] - cuts[i] - s;
       addCenterColStructure(cuts[i], cuts[i + 1], colW, col);
     }
-    // 竖隔断板：相邻列含柜门时必须封隔（否则柜内与邻列相通），嵌前后中柱槽
+    // 竖隔断板：相邻列含柜门必须封隔；搁板列与抽屉列相邻也需挡板（防物品掉入抽屉列）
     for (let i = 0; i < xCenters.length; i++) {
-      const needDivider = partitions.cols[i]?.type === 'cabinet' || partitions.cols[i + 1]?.type === 'cabinet';
+      const a = partitions.cols[i]?.type;
+      const b = partitions.cols[i + 1]?.type;
+      const needDivider = a === 'cabinet' || b === 'cabinet'
+        || (a === 'shelf' && b === 'drawer') || (a === 'drawer' && b === 'shelf');
       if (!needDivider) continue;
       const dm = 'wood' as const;
       const ps = PANEL_SPEC[dm];
