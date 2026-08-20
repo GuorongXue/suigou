@@ -96,6 +96,8 @@ interface ViewerProps {
   bubbles?: RenderBubble[];
   /** 视图切换请求（seq 递增触发） */
   viewRequest?: { dir: [number, number, number]; seq: number } | null;
+  /** 相机飞向指定点（校验条目定位问题构件） */
+  focusRequest?: { position: [number, number, number]; seq: number } | null;
   /** 相机注视高度（一般取框架半高） */
   focusY: number;
   onSelect?: (sel: Selection | null) => void;
@@ -244,7 +246,7 @@ const PANEL_TEX: Record<string, () => TexSet> = {
   pegboard: pegboardTextures, 'wire-mesh': wireMeshTextures,
 };
 
-export function Viewer({ items, joints, machining, panels, accessories, mountPoints, dims, drawing, bubbles, viewRequest, focusY, onSelect, selection, warnMemberIds, profileColor, highlightedPartNo }: ViewerProps) {
+export function Viewer({ items, joints, machining, panels, accessories, mountPoints, dims, drawing, bubbles, viewRequest, focusRequest, focusY, onSelect, selection, warnMemberIds, profileColor, highlightedPartNo }: ViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const ctxRef = useRef<{
     scene: THREE.Scene;
@@ -259,6 +261,7 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
     bubbleGroup: THREE.Group;
     decor: THREE.Object3D[];
     requestView: (dir: THREE.Vector3) => void;
+    focusOn: (target: THREE.Vector3) => void;
   } | null>(null);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
@@ -363,6 +366,12 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
         t: 0,
       };
     };
+    // 聚焦构件：保持当前视向，target 移至构件并拉近
+    const focusOn = (target: THREE.Vector3) => {
+      const dir = camera.position.clone().sub(controls.target).normalize();
+      controls.target.copy(target);
+      viewTween = { from: camera.position.clone(), to: target.clone().addScaledVector(dir, 850), t: 0 };
+    };
     cubeRenderer.domElement.addEventListener('click', (e) => {
       const rect = cubeRenderer.domElement.getBoundingClientRect();
       const ndc = new THREE.Vector2(
@@ -437,6 +446,7 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
       dimGroup, bubbleGroup,
       decor: [gridMinor, gridMajor, xAxis, zAxis],
       requestView,
+      focusOn,
     };
 
     return () => {
@@ -760,6 +770,12 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
     ctxRef.current?.requestView(new THREE.Vector3(...viewRequest.dir));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewRequest?.seq]);
+
+  useEffect(() => {
+    if (!focusRequest) return;
+    ctxRef.current?.focusOn(new THREE.Vector3(...focusRequest.position));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest?.seq]);
 
   // 选中高亮 + 尺寸标注
   useEffect(() => {

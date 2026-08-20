@@ -195,7 +195,7 @@ export interface MountItem {
   id: string;
   targetType: 'panel' | 'accessory' | 'member';
   targetId: string;
-  method: 't-nut-screw' | 'gasket-clamp' | 'shelf-support' | 'corner-flat' | 'caster-stem' | 'foot-stem' | 'drawer-slide' | 'slot-embed' | 'hinge';
+  method: 't-nut-screw' | 'gasket-clamp' | 'shelf-support' | 'corner-flat' | 'caster-stem' | 'foot-stem' | 'drawer-slide' | 'slot-embed' | 'hinge' | 'end-cap';
   note: string;
   fasteners: { sku: string; qty: number }[];
   /** 固定点（装配图/结构视图数据源） */

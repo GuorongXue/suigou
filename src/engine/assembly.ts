@@ -119,6 +119,10 @@ export function buildAssemblySteps(model: FrameModel, kb: KnowledgeBase): Assemb
     add('LED 灯条', ['LED 灯条+电源'], aggFast(led), [],
       led[0].note);
   }
+  const caps = model.mounts.filter((m) => m.method === 'end-cap');
+  if (caps.length) {
+    add('端面盖板', [], aggFast(caps), ['橡胶锤(可选)'], caps[0].note);
+  }
   add('终检', [], [], ['卷尺'],
     '对角线复测；全部螺栓二次紧固；活动件（门/脚轮）开合顺畅；高风险场景核对结构校验清单');
   return steps;

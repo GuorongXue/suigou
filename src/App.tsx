@@ -583,7 +583,8 @@ export default function App() {
     return true;
   };
 
-  // 校验条目点击 → 高亮关联构件
+  // 校验条目点击 → 高亮关联构件 + 相机飞向首个问题构件
+  const [focusRequest, setFocusRequest] = useState<{ position: [number, number, number]; seq: number } | null>(null);
   useEffect(() => {
     if (highlightedCheck && result.model) {
       const check = result.model.checks.find((c) => c.ruleId === highlightedCheck);
@@ -591,6 +592,8 @@ export default function App() {
       if (firstMemberId) {
         const partNo = memberById.get(firstMemberId);
         if (partNo) setHighlightedPartNo(partNo);
+        const m = result.model.members.find((x) => x.id === firstMemberId);
+        if (m) setFocusRequest((p) => ({ position: m.position, seq: (p?.seq ?? 0) + 1 }));
       }
     }
   }, [highlightedCheck, result, memberById]);
@@ -943,7 +946,7 @@ export default function App() {
 
         {/* ── 3D 画布（主导区域） ── */}
         <main style={{ flex: 1, position: 'relative', background: '#f5f6f8' }}>
-          <Viewer items={shownItems} joints={mode === 'structure' ? shownJoints : []} machining={mode !== 'appearance' && explode === 0 ? machining : []} panels={shownPanels} accessories={shownAccessories} mountPoints={mode === 'structure' && explode === 0 ? mountPoints : []} dims={explode === 0 ? dims : []} drawing={mode === 'drawing'} bubbles={explode === 0 ? bubbles : []} focusY={spec.height / 2} onSelect={setSelection} selection={selection} warnMemberIds={warnMemberIds} profileColor={spec.profileColor} highlightedPartNo={highlightedPartNo} />
+          <Viewer items={shownItems} joints={mode === 'structure' ? shownJoints : []} machining={mode !== 'appearance' && explode === 0 ? machining : []} panels={shownPanels} accessories={shownAccessories} mountPoints={mode === 'structure' && explode === 0 ? mountPoints : []} dims={explode === 0 ? dims : []} drawing={mode === 'drawing'} bubbles={explode === 0 ? bubbles : []} focusRequest={focusRequest} focusY={spec.height / 2} onSelect={setSelection} selection={selection} warnMemberIds={warnMemberIds} profileColor={spec.profileColor} highlightedPartNo={highlightedPartNo} />
           {/* 视图模式工具条 — 三模式明确分工 */}
           <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', textAlign: 'center' }}>
             <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,.92)', padding: 3, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>

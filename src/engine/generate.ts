@@ -710,6 +710,29 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     }
   }
 
+  // 端面盖板（真实产品必装：防尘+美观+安全）：外露柱顶端面敲入
+  // 外露 = 柱顶无 overlay 顶板覆盖且非变高中柱（被通长梁压住）
+  {
+    const capSku = s >= 30 ? 'end-cap-30' : 'end-cap-20';
+    const topCovered = spec.topPanel !== 'none' && (spec.topPanelMode ?? 'overlay') === 'overlay' && !isPureDesk;
+    const exposedTops: [number, number, number][] = [];
+    if (!topCovered) {
+      for (const m of members) {
+        if (m.role !== 'post') continue;
+        const topY = m.position[1] + m.length / 2;
+        if (Math.abs(topY - H) < 1) exposedTops.push([m.position[0], topY, m.position[2]]);   // 全高柱顶（变高中柱不到 H）
+      }
+    }
+    if (exposedTops.length) {
+      mounts.push({
+        id: `mt-${++mtn}`, targetType: 'member', targetId: members.find((m) => m.role === 'post')!.id,
+        method: 'end-cap', note: `端面盖板×${exposedTops.length}：敲入外露柱顶端面（防尘/美观/安全）`,
+        fasteners: [{ sku: capSku, qty: exposedTops.length }],
+        points: exposedTops,
+      });
+    }
+  }
+
   // 抽屉盒附件：周转箱+三折轨道（工具）或 成品抽屉+反弹轨道（家具，无拉手）
   if (drawerBoxes.length) {
     const kind = spec.drawerKind ?? 'ready-made';
