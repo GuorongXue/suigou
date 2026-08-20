@@ -174,13 +174,14 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   if (partitions) {
     const innerW = W - 2 * s;
     let acc = 0;
-    const centerPostTop = centerTopBeamY - s / 2 - 2 * beamDrop;   // 中柱顶 = 顶梁底（2040 顶对齐时梁底下沉 2·beamDrop）
+    const centerPostTop = centerTopBeamY - s / 2 - 2 * beamDrop;   // 中柱顶 = 顶梁底
     for (let i = 0; i < partitions.ratios.length - 1; i++) {
       acc += partitions.ratios[i];
       const xc = -W / 2 + s + innerW * acc;
       xCenters.push(xc);
-      addPost(xc, zBack, 0, centerPostTop);
-      addPost(xc, zFront, 0, centerPostTop);
+      // 中柱夹在顶底梁之间（骑底梁顶）：顶底梁均通长，件数/接头最少、下料最省
+      addPost(xc, zBack, bh, centerPostTop);
+      addPost(xc, zFront, bh, centerPostTop);
     }
   }
 
@@ -191,7 +192,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const layerBeamZ = outerDepth - 2 * s + 2 * conn.lengthOffset;
     const layerBack = centerZ - outerDepth / 2 + s / 2;
     const layerFront = centerZ + outerDepth / 2 - s / 2;
-    const split = (opts?.split ?? true) && xCenters.length > 0;
+    // 断梁仅限中间层（中柱穿过其平面）；底层/顶层通长（中柱夹在顶底梁之间，接头最少）
+    const split = (opts?.split ?? (ySide !== 1)) && xCenters.length > 0;
     for (const z of [layerBack, layerFront]) {
       if (split) {
         // 中柱：横梁在每根中柱处断开为 N 段，段两端各连接相邻立柱

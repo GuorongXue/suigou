@@ -392,13 +392,15 @@ console.log(failures ? `\n== 12. 黄金锚点①工具柜（跳过） ==` : '== 
   const centerPosts = posts.filter((p) => Math.abs(p.position[0] - 107) < 5);
   if (posts.length !== 6) fail(`总立柱应为 6（4 角+2 中），实际 ${posts.length}`);
   if (outerPosts.length !== 4) fail(`外柱应 810×4（真实BOM），实际 ${outerPosts.length}`);
-  // 真实 BOM 中柱 775 = 810 − 15板 − 20梁（wood 18mm 时为 772，容差 ±5 记录板厚差异）
+  // 中柱夹在顶底梁之间（成本优化拓扑：顶底梁均通长）：长 = H − 板15 − 2×梁20 = 755（wood18 时 752）
   if (centerPosts.length !== 2) fail(`中柱应为 2 根，实际 ${centerPosts.length}`);
-  if (centerPosts.some((p) => Math.abs(p.length - 775) > 5)) fail(`中柱长应≈775（变高实证），实际 ${centerPosts.map((p) => p.length).join(',')}`);
-  // 顶层横梁通长（不断开）：存在 630 全长 beam-x 于顶部
+  if (centerPosts.some((p) => Math.abs(p.length - 755) > 5)) fail(`中柱长应≈755（骑底梁顶到顶梁底），实际 ${centerPosts.map((p) => p.length).join(',')}`);
+  // 顶底横梁均通长（不断开）：630 全长 beam-x 顶底各 2
   const topFullBeams = cabinet.members.filter((m) => m.role === 'beam-x' && m.length === 630 && m.position[1] > 700);
-  if (topFullBeams.length !== 2) fail(`顶层应有 2 根通长 630 横梁（架中柱顶），实际 ${topFullBeams.length}`);
-  if (!failures) ok(`黄金锚点①对齐通过：外柱810×4 + 中柱≈775×2 + 顶梁通长630×2 · 左列4抽屉+右列2搁板`);
+  const bottomFullBeams = cabinet.members.filter((m) => m.role === 'beam-x' && m.length === 630 && m.position[1] < 40);
+  if (topFullBeams.length !== 2) fail(`顶层应有 2 根通长 630 横梁，实际 ${topFullBeams.length}`);
+  if (bottomFullBeams.length !== 2) fail(`底层应有 2 根通长 630 横梁（不再断开，下料最省），实际 ${bottomFullBeams.length}`);
+  if (!failures) ok(`黄金锚点①对齐通过：外柱810×4 + 中柱≈755×2夹梁间 + 顶底梁通长630×4 · 左列4抽屉+右列2搁板`);
 }
 
 console.log(failures ? `\n== 13. DXF 导出（跳过） ==` : '== 13. DXF 导出 ==');
@@ -534,9 +536,10 @@ console.log(failures ? `\n== 16. 三列分区（跳过） ==` : '== 16. 三列�
   }, kb);
   const posts = m.members.filter((x) => x.role === 'post');
   if (posts.length !== 8) fail(`三列应 8 立柱（4角+2×2中柱），实际 ${posts.length}`);
-  // 每层 beam-x 断 3 段：底层 z=±185 各 3 段 = 6 根短 beam-x
+  // 顶底梁均通长（中柱夹梁间）：底层 2 根全长 beam-x
   const bottomX = m.members.filter((x) => x.role === 'beam-x' && x.position[1] < 30);
-  if (bottomX.length !== 6) fail(`底层横梁应断为 3 段×2 深位 = 6 根，实际 ${bottomX.length}`);
+  if (bottomX.length !== 2) fail(`底层横梁应通长 2 根（不断开），实际 ${bottomX.length}`);
+  if (bottomX.some((x) => x.length < 1000)) fail(`底梁应为全长，实际 ${bottomX.map((x) => x.length).join(',')}`);
   // 左列 3 抽屉盒 + 前脸 + 拉手；右列门（door-front 中心在右列）
   const boxes = m.accessories.filter((a) => a.kind === 'drawer-box');
   if (boxes.length !== 3) fail(`左列应 3 抽屉盒，实际 ${boxes.length}`);
