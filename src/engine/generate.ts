@@ -713,12 +713,15 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   }
 
   // 脚轮附件（9.2.4 修复：进模型/BOM/重量；丝杆脚轮 → 柱底端面攻牙加工）
+  // 中柱不落地装轮/地脚（载荷经底框梁传角柱）；宽 ≥1500 才补中部支撑
+  const isCornerPost = (x: number) => Math.abs(Math.abs(x) - (W / 2 - s / 2)) < 1;
   // 调平地脚（真实案例高频：三抽屉柜/展示柜）：落地柱底端 M8 拧入
   if (spec.mobility === 'leveling-feet') {
     let fn = 0;
     for (const [key, postId] of postAt) {
       if (!groundPostIds.has(postId)) continue;
       const [x, z] = key.split(',').map(Number);
+      if (W < 1500 && !isCornerPost(x)) continue;
       const accId = `af-${++fn}`;
       accessories.push({ id: accId, kind: 'leveling-foot', sku: 'leveling-foot-m8', position: [x, -25, z], weightKg: 0.1 });
       mounts.push({
@@ -734,6 +737,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     for (const [key, postId] of postAt) {
       if (!groundPostIds.has(postId)) continue;
       const [x, z] = key.split(',').map(Number);
+      if (W < 1500 && !isCornerPost(x)) continue;
       const accId = `ac-${++an}`;
       accessories.push({ id: accId, kind: 'caster', sku: 'caster-stem-m8-50', position: [x, -35, z], weightKg: 0.35 });
       mounts.push({
