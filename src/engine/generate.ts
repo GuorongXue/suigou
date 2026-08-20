@@ -771,7 +771,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       // 滑轨一副（左右两条，渲染对称）：计价走本 accessory（drawer-slide mount 的 fasteners 已被排除避免重计）
       accessories.push({
         id: `${accId}-sl`, kind: 'drawer-slide', sku: slideSku, hostId: accId,
-        position: [xCenter ?? 0, y + 22, 0], weightKg: 0.5,
+        position: [xCenter ?? 0, y + 22, s], weightKg: 0.5,   // 与盒体同前移，轨道贴盒侧不外露
         boxSize: [bw + 26, 35, Math.min(350, bd)],
       });
       mounts.push({
