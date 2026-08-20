@@ -295,7 +295,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     }
     for (let i = 0; i < drawerCount; i++) {
       const y = innerBottomY + i * pitch + 20;   // 轨道梁在每层底部上方（案例：角码固定于柱）
-      for (const x of [xLeft, xRight]) {
+      for (const x of [xLeft + s, xRight - s]) {   // 贴柱内侧面，不与立柱穿模
         add({ role: 'beam-z', sectionId: sec.id, length: beamZ, position: [x, y, 0], axis: 'z' });
         mounts.push({
           id: `mt-${++mtn}`, targetType: 'member', targetId: `m-${n}`,
@@ -388,8 +388,9 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
   // 辅助函数：中柱分区的单列结构（抽屉/搁板/柜门）
   const addCenterColStructure = (colXLeft: number, colXRight: number, colWidth: number, col: CenterColumnType) => {
     if (colWidth <= 0) return;
-    const leftInnerX = colXLeft + s / 2;
-    const rightInnerX = colXRight - s / 2;
+    // 列内横梁贴立柱内侧面（梁中心 = 柱中心 ± s）：与柱不重叠，角码面贴面固定
+    const leftInnerX = colXLeft + s;
+    const rightInnerX = colXRight - s;
     // 列中心 = 两立柱中心的中点（colWidth 是柱间净宽=中心距−s，不能直接 colXLeft+colWidth/2，否则偏 s/2）
     const colCenterX = (colXLeft + colXRight) / 2;
     // 列内隔板：按列宽自建（cabinet/shelf 共用），绝不用全宽 addPanel 避免横穿中柱
@@ -401,7 +402,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       const panelId = `pn-${++pn}`;
       panels.push({ id: panelId, material: spec.shelfPanel, size: [pw, pd, ps.thickness], boxSize: [pw, ps.thickness, pd],
         position: [colCenterX, y + ps.thickness / 2, 0], mode: 'shelf-overlap',
-        mountNote: `隔板(${ps.name})：列内搭梁式，列宽 ${colWidth}mm`, holes: [] });
+        mountNote: `隔板(${ps.name})：列内搭梁式，列宽 ${colWidth}mm；板与立柱间留均匀缝免切角（如需包柱可选四角切口加工）`, holes: [] });
       const inset = 7.5;
       const px = pw / 2 - inset;
       const pz = pd / 2 - inset;
@@ -784,8 +785,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       const accId = `ad-${++dn}`;
       // 抽屉盒净宽 = 分区宽 − 滑轨侧向间隙（每侧 ~15mm，硬件属体）。
       // 分区宽度由 partitions.widths 决定（非均匀双列时各列不同）
-      const DRAWER_SIDE_CLEARANCE = 30;
-      const bw = (colWidth ?? W - 2 * s) - DRAWER_SIDE_CLEARANCE;
+      // 盒宽 = 梁间净空 − 轨道厚（梁贴柱内侧后净空 = 列宽 − 2s；轨道每侧 ~13）
+      const bw = (colWidth ?? W - 2 * s) - 2 * s - 26;
       // 盒底 = 层底+30（轨道+托底），盒顶须低于层顶 ≥15mm（抽拉不刮上层梁/前脸）→ 盒高 ≤ pitch−45
       const bh2 = Math.min(kind === 'turnover-box' ? 155 : Infinity, pitch - 45);
       // 盒深：前壁贴框架前缘（=前脸背面），后壁离后内缘仅留 10mm（充分利用进深）
