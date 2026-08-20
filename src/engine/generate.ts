@@ -760,7 +760,8 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       // 分区宽度由 partitions.widths 决定（非均匀双列时各列不同）
       const DRAWER_SIDE_CLEARANCE = 30;
       const bw = (colWidth ?? W - 2 * s) - DRAWER_SIDE_CLEARANCE;
-      const bh = Math.min(pitch - 25, kind === 'turnover-box' ? 155 : pitch - 25);
+      // 盒底 = 层底+30（轨道+托底），盒顶须低于层顶 ≥15mm（抽拉不刮上层梁/前脸）→ 盒高 ≤ pitch−45
+      const bh = Math.min(kind === 'turnover-box' ? 155 : Infinity, pitch - 45);
       const bd = D - 2 * s;
       accessories.push({
         id: accId, kind: 'drawer-box', sku: boxSku,
