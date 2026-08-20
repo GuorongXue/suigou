@@ -1061,9 +1061,28 @@ export default function App() {
                     <>
                       <h3 style={{ margin: '10px 0 4px', fontSize: 13 }}>下料方案</h3>
                       <div style={{ fontSize: 11, color: '#555', marginBottom: 3 }}>原料 {nesting.stockLengthMm}mm × {nesting.totalStockBars} 根 · 利用率 {(nesting.utilization * 100).toFixed(1)}%</div>
-                      {nesting.bars.map((b, i) => (
-                        <div key={i} style={{ fontSize: 10, color: '#777', padding: '2px 0', borderBottom: '1px solid #f0f2f5' }}>#{i + 1}：{b.cuts.map((c) => `${c.partNo}(${c.length})`).join(' + ')} → 余料 {b.remnantMm}mm</div>
-                      ))}
+                      {nesting.bars.map((b, i) => {
+                        const stock = nesting.stockLengthMm;
+                        const palette = ['#5b8ff9', '#5ad8a6', '#f6bd16', '#e8684a', '#6dc8ec', '#9270ca', '#ff9d4d', '#269a99'];
+                        const colorOf = (partNo: string) => palette[(parseInt(partNo.slice(1)) || 0) % palette.length];
+                        return (
+                          <div key={i} style={{ padding: '3px 0', borderBottom: '1px solid #f0f2f5' }}>
+                            {/* 排布条：按真实比例着色分段，件号高亮联动 */}
+                            <div style={{ display: 'flex', height: 16, borderRadius: 3, overflow: 'hidden', border: '1px solid #d8dce2', background: '#f5f6f8' }}>
+                              {b.cuts.map((c, j) => (
+                                <div key={j} onClick={() => setHighlightedPartNo((p) => (p === c.partNo ? null : c.partNo))}
+                                  title={`${c.partNo} ${c.length}mm（点击高亮构件）`}
+                                  style={{ width: `${(c.length / stock) * 100}%`, background: colorOf(c.partNo), borderRight: '1px solid rgba(255,255,255,.7)',
+                                    fontSize: 8, color: '#fff', textAlign: 'center', lineHeight: '16px', overflow: 'hidden', whiteSpace: 'nowrap', cursor: 'pointer',
+                                    outline: highlightedPartNo === c.partNo ? '2px solid #1e2a3a' : 'none', outlineOffset: -2 }}>
+                                  {c.length >= stock * 0.06 ? c.partNo : ''}
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ fontSize: 10, color: '#999', marginTop: 1 }}>#{i + 1} · {b.cuts.length} 件 · 余料 {b.remnantMm}mm</div>
+                          </div>
+                        );
+                      })}
                     </>
                   )}
                   {model.panelList.length > 0 && (
