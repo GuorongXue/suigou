@@ -499,6 +499,23 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       const colW = cuts[i + 1] - cuts[i] - s;
       addCenterColStructure(cuts[i], cuts[i + 1], colW, col);
     }
+    // 竖隔断板：相邻列含柜门时必须封隔（否则柜内与邻列相通），嵌前后中柱槽
+    for (let i = 0; i < xCenters.length; i++) {
+      const needDivider = partitions.cols[i]?.type === 'cabinet' || partitions.cols[i + 1]?.type === 'cabinet';
+      if (!needDivider) continue;
+      const dm = 'wood' as const;
+      const ps = PANEL_SPEC[dm];
+      const dh2 = H - 2 * bh;
+      const dd = D - 2 * s;
+      const panelId = `pn-${++pn}`;
+      panels.push({ id: panelId, material: dm, size: [dd, dh2, ps.thickness], boxSize: [ps.thickness, dh2, dd],
+        position: [xCenters[i], bh + dh2 / 2, 0], mode: 'divider-vertical',
+        mountNote: '竖隔断板：嵌前后中柱内侧槽（柜门列封隔）', holes: [] });
+      mounts.push({ id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId, method: 't-nut-screw',
+        note: '竖隔断板四角固定于前后中柱槽（T型螺母+平直角件）',
+        fasteners: [{ sku: 'flat-corner-plate', qty: 4 }, { sku: 'screw-m4-10-pan', qty: 8 }, { sku: 't-nut-m4', qty: 8 }],
+        points: [[xCenters[i], bh + 30, -dd / 2 + 20], [xCenters[i], bh + 30, dd / 2 - 20], [xCenters[i], bh + dh2 - 30, -dd / 2 + 20], [xCenters[i], bh + dh2 - 30, dd / 2 - 20]] });
+    }
   }
 
   if (!isPureDesk) addPanel(spec.topPanel, H - centerTopPanelT, true, spec.scene === 'workbench'
@@ -761,17 +778,19 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       const DRAWER_SIDE_CLEARANCE = 30;
       const bw = (colWidth ?? W - 2 * s) - DRAWER_SIDE_CLEARANCE;
       // 盒底 = 层底+30（轨道+托底），盒顶须低于层顶 ≥15mm（抽拉不刮上层梁/前脸）→ 盒高 ≤ pitch−45
-      const bh = Math.min(kind === 'turnover-box' ? 155 : Infinity, pitch - 45);
-      const bd = D - 2 * s;
+      const bh2 = Math.min(kind === 'turnover-box' ? 155 : Infinity, pitch - 45);
+      // 盒深：前壁贴框架前缘（=前脸背面），后壁离后内缘仅留 10mm（充分利用进深）
+      const bd = D - s - 10;
+      const boxZ = D / 2 - bd / 2;
       accessories.push({
         id: accId, kind: 'drawer-box', sku: boxSku,
-        position: [xCenter ?? 0, y + 10 + bh / 2, s], weightKg: kind === 'turnover-box' ? 1.2 : 3.0,   // 前移 s：盒前壁贴框架前缘=前脸背面（M4 反锁）
-        boxSize: [bw, bh, bd],
+        position: [xCenter ?? 0, y + 10 + bh2 / 2, boxZ], weightKg: kind === 'turnover-box' ? 1.2 : 3.0,   // 前壁贴框架前缘=前脸背面（M4 反锁）
+        boxSize: [bw, bh2, bd],
       });
       // 滑轨一副（左右两条，渲染对称）：计价走本 accessory（drawer-slide mount 的 fasteners 已被排除避免重计）
       accessories.push({
         id: `${accId}-sl`, kind: 'drawer-slide', sku: slideSku, hostId: accId,
-        position: [xCenter ?? 0, y + 22, s], weightKg: 0.5,   // 与盒体同前移，轨道贴盒侧不外露
+        position: [xCenter ?? 0, y + 22, boxZ], weightKg: 0.5,   // 与盒体对中，轨道贴盒侧不外露
         boxSize: [bw + 26, 35, Math.min(350, bd)],
       });
       mounts.push({

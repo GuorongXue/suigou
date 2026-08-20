@@ -184,7 +184,7 @@ export interface PanelItem {
   boxSize: [number, number, number];
   position: [number, number, number];
   /** 覆盖模式 */
-  mode: 'top-overlay' | 'top-recessed' | 'top-inset' | 'shelf-overlap' | 'back-overlay' | 'side-overlay' | 'door-front' | 'drawer-front';
+  mode: 'top-overlay' | 'top-recessed' | 'top-inset' | 'shelf-overlap' | 'back-overlay' | 'side-overlay' | 'door-front' | 'drawer-front' | 'divider-vertical';
   mountNote: string;
   /** 固定孔（板局部坐标，原点=板角，沿长×宽）；胶垫压条固定的软材质为空 */
   holes: { x: number; y: number; diameter: number }[];
