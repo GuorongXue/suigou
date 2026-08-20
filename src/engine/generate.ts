@@ -397,12 +397,12 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     const addColShelfPanel = (y: number) => {
       if (spec.shelfPanel === 'none') return;
       const ps = PANEL_SPEC[spec.shelfPanel];
-      const pw = colWidth - s;
-      const pd = D - 2 * s + 30;
+      const pw = colWidth + 30;        // 每边搭深向梁 15mm（梁与柱共面，梁内缘=柱内面）
+      const pd = D - 2 * s - 10;       // 深度收 10：板角避开立柱，免切角加工
       const panelId = `pn-${++pn}`;
       panels.push({ id: panelId, material: spec.shelfPanel, size: [pw, pd, ps.thickness], boxSize: [pw, ps.thickness, pd],
         position: [colCenterX, y + ps.thickness / 2, 0], mode: 'shelf-overlap',
-        mountNote: `隔板(${ps.name})：列内搭梁式，列宽 ${colWidth}mm；板与立柱间留均匀缝免切角（如需包柱可选四角切口加工）`, holes: [] });
+        mountNote: `隔板(${ps.name})：搭左右深向梁各 15mm，板深避柱角免切口`, holes: [] });
       const inset = 7.5;
       const px = pw / 2 - inset;
       const pz = pd / 2 - inset;
