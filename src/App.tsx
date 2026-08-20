@@ -804,6 +804,11 @@ export default function App() {
                     <select value={spec.doorPanel ?? 'none'} onChange={(e) => set({ doorPanel: e.target.value as FrameSpec['doorPanel'] })} style={{ width: '100%', marginTop: 1, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10, background: (spec.doorPanel ?? 'none') !== 'none' ? '#f0f7ff' : '#fff' }}>
                       <option value="none">无</option><option value="wood">木门</option><option value="glass">玻璃门</option><option value="acrylic">亚克力门</option>
                     </select>
+                    {((spec.doorPanel ?? 'none') !== 'none' || spec.centerColumn || spec.partitions) && (
+                      <select value={spec.doorHinge ?? 'left'} onChange={(e) => set({ doorHinge: e.target.value as FrameSpec['doorHinge'] })} title="门开向（全局门与分区门默认共用）" style={{ width: '100%', marginTop: 2, padding: '2px 4px', border: '1px solid #c9d2e0', borderRadius: 3, fontSize: 10 }}>
+                        <option value="left">左铰右开</option><option value="right">右铰左开</option>
+                      </select>
+                    )}
                   </label>
                 </div>
               </Section>

@@ -621,12 +621,25 @@ export function Viewer({ items, joints, machining, panels, accessories, mountPoi
         ctx.group.add(bar);
         continue;
       }
-      if (a.kind === 'drawer-box') {   // 抽屉盒：箱体（前脸板/箱面由 panel 层或箱体自带，不再重复画）
+      if (a.kind === 'drawer-box') {   // 抽屉盒：开口容器（底+四壁，顶开口可见内腔）
         const [bw, bh, bd] = a.boxSize ?? [200, 140, 300];
-        const body = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd),
-          new THREE.MeshStandardMaterial({ color: 0xcfc4ae, roughness: 0.8 }));
-        body.position.set(...a.position);
-        ctx.group.add(body);
+        const t = 8;   // 壁厚
+        const boxMat = new THREE.MeshStandardMaterial({ color: 0xcfc4ae, roughness: 0.8 });
+        const innerMat = new THREE.MeshStandardMaterial({ color: 0xb8ab92, roughness: 0.9 });
+        const [px, py, pz] = a.position;
+        const bottom = new THREE.Mesh(new THREE.BoxGeometry(bw, t, bd), innerMat);
+        bottom.position.set(px, py - bh / 2 + t / 2, pz);
+        ctx.group.add(bottom);
+        for (const sx of [-1, 1] as const) {
+          const side = new THREE.Mesh(new THREE.BoxGeometry(t, bh, bd), boxMat);
+          side.position.set(px + sx * (bw / 2 - t / 2), py, pz);
+          ctx.group.add(side);
+        }
+        for (const sz of [-1, 1] as const) {
+          const wall = new THREE.Mesh(new THREE.BoxGeometry(bw - 2 * t, bh, t), boxMat);
+          wall.position.set(px, py, pz + sz * (bd / 2 - t / 2));
+          ctx.group.add(wall);
+        }
         continue;
       }
       if (a.kind === 'drawer-slide') {   // 滑轨一副：左右两条金属轨

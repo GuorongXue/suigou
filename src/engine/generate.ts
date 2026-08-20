@@ -443,15 +443,17 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       const dw = colWidth + s - 3;         // 门宽 = 立柱中心距 − 3mm 缝（缝落柱中线，与邻列抽屉前脸共面对接）
       const dh = H - 2 * s;                // 门高 = 立柱间净高
       if (dw > 50 && dh > 50) {
-        const doorMaterial = spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood';
+        // 门材质互通：全局门板选择优先，其次隔板材质，兜底木板；开向互通：列未指定时用全局 doorHinge
+        const doorMaterial = (spec.doorPanel && spec.doorPanel !== 'none') ? spec.doorPanel
+          : spec.shelfPanel !== 'none' ? spec.shelfPanel : 'wood';
         const ps = PANEL_SPEC[doorMaterial];
         const panelId = `pn-${++pn}`;
-        const hingeLeftHole = (col.hinge ?? 'left') === 'left';
+        const hingeLeftHole = (col.hinge ?? spec.doorHinge ?? 'left') === 'left';
         panels.push({ id: panelId, material: doorMaterial, size: [dw, dh, ps.thickness], boxSize: [dw, dh, ps.thickness],
           position: [colCenterX, H / 2, D / 2 + ps.thickness / 2], mode: 'door-front',
           mountNote: `柜门(${(col.hinge ?? 'left') === 'left' ? '左铰右开' : '右铰左开'})：合页×2 + 把手 + 磁吸`,
           holes: [{ x: hingeLeftHole ? dw - 40 : 40, y: dh / 2 - 48, diameter: 5 }, { x: hingeLeftHole ? dw - 40 : 40, y: dh / 2 + 48, diameter: 5 }] });
-        const hingeLeft = (col.hinge ?? 'left') === 'left';
+        const hingeLeft = (col.hinge ?? spec.doorHinge ?? 'left') === 'left';
         const hingeX = hingeLeft ? colXLeft + s / 2 : colXRight - s / 2;   // 铰链侧立柱
         const catchX = hingeLeft ? colXRight - s / 2 : colXLeft + s / 2;   // 磁吸在开启侧立柱
         const handleX = colCenterX + (hingeLeft ? 1 : -1) * (dw / 2 - 40); // 把手在开启侧门缘
@@ -604,10 +606,11 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
     if (dw > 100 && dh > 100) {
       const panelId = `pn-${++pn}`;
       const soft = ps.mount === 'gasket-clamp';
-      // 把手孔：硬质门右缘内40mm、中高孔距96；软质门（玻璃/亚克力）用粘贴把手免钻
+      const gHingeLeft = (spec.doorHinge ?? 'left') === 'left';
+      // 把手孔：硬质门开启侧缘合40mm、中高孔距96；软质门（玻璃/亚克力）用粘贴把手免钻
       const holes = soft ? [] : [
-        { x: dw - 40, y: dh / 2 - 48, diameter: 5 },
-        { x: dw - 40, y: dh / 2 + 48, diameter: 5 },
+        { x: gHingeLeft ? dw - 40 : 40, y: dh / 2 - 48, diameter: 5 },
+        { x: gHingeLeft ? dw - 40 : 40, y: dh / 2 + 48, diameter: 5 },
       ];
       panels.push({
         id: panelId, material,
@@ -615,24 +618,37 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
         boxSize: [dw, dh, ps.thickness],
         position: [0, H / 2, D / 2 + ps.thickness / 2],
         mode: 'door-front',
-        mountNote: `正面单开门(${soft ? '玻璃门铰夹式+粘贴把手' : '槽装合页+拉手96'})：左铰右开，每边留 ${gap}mm 间隙；${ps.mountNote}`,
+        mountNote: `正面单开门(${soft ? '玻璃门铰夹式+粘贴把手' : '槽装合页+拉手96'})：${gHingeLeft ? '左铰右开' : '右铰左开'}，每边留 ${gap}mm 间隙；${ps.mountNote}`,
         holes,
       });
-      // 铰接点：左前柱上下 1/5 门高处；磁吸在右柱中部
-      const hx = -W / 2 + s / 2, hz = D / 2;
+      // 铰接点：铰链侧前柱上下 1/5 门高处；磁吸在开启侧柱中部
+      const hx = gHingeLeft ? -W / 2 + s / 2 : W / 2 - s / 2;
+      const catchGX = gHingeLeft ? W / 2 - s / 2 : -W / 2 + s / 2;
+      const hz = D / 2;
       const hingePts: [number, number, number][] = [
         [hx, s + gap + dh / 5, hz], [hx, s + gap + dh * 4 / 5, hz],
       ];
       mounts.push({
         id: `mt-${++mtn}`, targetType: 'panel', targetId: panelId,
         method: 'hinge',
-        note: soft ? '玻璃门铰×2 夹持门板左缘，磁吸扣右柱中部，粘贴式把手' : '槽装合页×2 入左前柱前槽（T型螺母固定），磁吸扣右柱中部，拉手孔距96',
+        note: soft ? `玻璃门铰×2 夹持门板${gHingeLeft ? '左' : '右'}缘，磁吸扣${gHingeLeft ? '右' : '左'}柱中部，粘贴式把手` : `槽装合页×2 入${gHingeLeft ? '左' : '右'}前柱前槽（T型螺母固定），磁吸扣${gHingeLeft ? '右' : '左'}柱中部，拉手孔距96`,
         fasteners: soft
           ? [{ sku: 'glass-hinge', qty: 2 }, { sku: 'magnetic-catch', qty: 1 }, { sku: 'handle-adhesive', qty: 1 }]
           : [{ sku: 'hinge-slot-30', qty: 2 }, { sku: 't-nut-m6', qty: 4 }, { sku: 'bolt-m6-l12', qty: 4 },
              { sku: 'magnetic-catch', qty: 1 }, { sku: 'handle-96', qty: 1 }],
-        points: [...hingePts, [W / 2 - s / 2, H / 2, hz]],
+        points: [...hingePts, [catchGX, H / 2, hz]],
       });
+      // 硬件实体（与分区门同源）：sku 空串防重计价，hostId 爆炸跟随
+      for (let hi = 0; hi < hingePts.length; hi++) {
+        accessories.push({ id: `${panelId}-hg${hi}`, kind: 'hinge', sku: '', weightKg: 0.06, hostId: panelId,
+          position: [hx, hingePts[hi][1], D / 2 + 2], boxSize: [40, 55, 10] });
+      }
+      if (!soft) {
+        accessories.push({ id: `${panelId}-hd`, kind: 'handle', sku: '', weightKg: 0.12, hostId: panelId,
+          position: [gHingeLeft ? dw / 2 - 40 : -(dw / 2 - 40), H / 2, D / 2 + ps.thickness], lengthMm: 96, boxSize: [14, 136, 14] });
+      }
+      accessories.push({ id: `${panelId}-mc`, kind: 'magnetic-catch', sku: '', weightKg: 0.03, hostId: panelId,
+        position: [catchGX, H / 2, D / 2 - 7], boxSize: [30, 16, 14] });
       if (dw > 600) {
         warnings.push(`门宽 ${dw}mm > 600mm：单开门铰链下垂风险，建议改双开或加第三合页`);
       }

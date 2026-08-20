@@ -66,6 +66,8 @@ export interface FrameSpec {
   ledStrip?: boolean;
   /** 正面单开门（槽装合页+磁吸+把手） */
   doorPanel?: PanelMaterial;
+  /** 门铰链侧（全局门与分区门默认共用）：默认左铰右开 */
+  doorHinge?: 'left' | 'right';
 }
 
 /** 中柱分区的单列类型：抽屉/开放搁板/封闭柜门 */
