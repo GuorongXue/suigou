@@ -765,7 +765,7 @@ export function generateFrame(spec: FrameSpec, kb: KnowledgeBase): FrameModel {
       const bd = D - 2 * s;
       accessories.push({
         id: accId, kind: 'drawer-box', sku: boxSku,
-        position: [xCenter ?? 0, y + 10 + bh / 2, 0], weightKg: kind === 'turnover-box' ? 1.2 : 3.0,
+        position: [xCenter ?? 0, y + 10 + bh / 2, s], weightKg: kind === 'turnover-box' ? 1.2 : 3.0,   // 前移 s：盒前壁贴框架前缘=前脸背面（M4 反锁）
         boxSize: [bw, bh, bd],
       });
       // 滑轨一副（左右两条，渲染对称）：计价走本 accessory（drawer-slide mount 的 fasteners 已被排除避免重计）
